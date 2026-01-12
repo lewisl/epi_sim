@@ -3,64 +3,96 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
-#include <algorithm>
-#include <stdexcept>
 
-using std::vector;
-using std::string;
 
-// struct to hold category data
-struct CATEGORY{
-  vector<uint8_t> num;
-  vector<string> name;
+// new namespace and oldstyle enum way
+namespace Status {
+    enum Value : uint8_t { none = 0, unexposed, infectious, recovered, dead };
 
-  // Get name from index (1-based)
-  string get_name(uint8_t idx) const {
-      if (idx == 0 || idx > name.size()) {
-          throw std::out_of_range("Index out of bounds");
-      }
-      return name[idx - 1];  // human readable nums start at 1; vector indexing starts at 0
-  }
+    // Index to String: O(1) array lookup
+    inline const char* to_str(uint8_t v) {
+        // static const array lives in data segment, no allocation at runtime
+        static const char* names[] = {"none", "unexposed", "infectious", "recovered", "dead"};
+        return (v < 5) ? names[v] : "unknown";
+    }
 
-  // Get index from name (returns 1-based index)
-  uint8_t get_idx(const string& str) const {
-      auto it = std::find(name.begin(), name.end(), str);
-      if (it == name.end()) {
-          throw std::runtime_error("Element not found in category");
-      }
-      return static_cast<uint8_t>(it - name.begin() + 1);  // vector indexing is 0-based; human readable starts at 1
-  }
+    // String to Index: Fast branching (better than a hash map for N < 15)
+    inline uint8_t from_str(const std::string &s) {
+        if (s == "unexposed")  return unexposed;
+        if (s == "infectious") return infectious;
+        if (s == "recovered")  return recovered;
+        if (s == "dead") return dead;
+        if (s == "none") return none;
+        return none;
+    }
+    } // namespace Status
 
-  // Functor: allows using category struct name as function to get index from name
-  uint8_t operator()(const string& str) const {
-      return get_idx(str);
-  }
-};
 
-// category struct instances for major categories
-extern const CATEGORY STATUS;
+    namespace Condition {
+    enum Value : uint8_t { uninfected = 0, nil, mild, sick, severe };
 
-extern const CATEGORY CONDITION;
+    // Index to String: O(1) array lookup
+    inline const char* to_str(uint8_t v) {
+        // static const array lives in data segment, no allocation at runtime
+        static const char* names[] = {"uninfected", "nil", "mild", "sick", "severe"};
+        return (v < 5) ? names[v] : "unknown";
+    }
 
-extern const CATEGORY AGEGRP;
+    // String to Index: Fast branching (better than a hash map for N < 15)
+    inline uint8_t from_str(const std::string &s) {
+        if (s == "uninfected")  return uninfected;
+        if (s == "nil") return nil;
+        if (s == "mild")  return mild;
+        if (s == "sick") return sick;
+        if (s == "severe") return severe;
+        return uninfected;
+    }
+}
 
-extern const CATEGORY VACCINE;
 
-// category constants for comparisons, filters, assignments
-// status
-extern const uint8_t UNEXPOSED;
-extern const uint8_t INFECTIOUS;
-extern const uint8_t RECOVERED;
-extern const uint8_t DEAD;
+namespace Agegrp {
+    enum Value : uint8_t { unknown = 0, age0_19, age20_39, age40_59, age60_79, age80_up };
 
-// condition
-extern const uint8_t UNINFECTED;
-extern const uint8_t NIL;
-extern const uint8_t MILD;
-extern const uint8_t SICK;
-extern const uint8_t SEVERE;
+    // Index to String: O(1) array lookup
+    inline const char* to_str(uint8_t v) {
+        // static const array lives in data segment, no allocation at runtime
+        static const char* names[] = {"unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
+        return (v < 6) ? names[v] : "unknown";
+    }
 
+    // String to Index: Fast branching (better than a hash map for N < 15)
+    inline uint8_t from_str(const std::string &s) {
+        if (s == "age0_19")  return age0_19;
+        if (s == "age20_39") return age20_39;
+        if (s == "age40_59") return age40_59;
+        if (s == "age60_79") return age60_79;
+        if (s == "age80_up") return age80_up;
+        if (s == "unknown")  return unknown;
+        return unknown;
+    }
+}
+
+
+namespace Vaccine {
+    enum Value : uint8_t { none = 0, Pfizer, Moderna, JnJ };
+
+    // Index to String: O(1) array lookup
+    inline const char* to_str(uint8_t v) {
+        // static const array lives in data segment, no allocation at runtime
+        static const char* names[] = {"none", "Pfizer", "Moderna", "J & J"};
+        return (v < 4) ? names[v] : "unknown";
+    }
+
+    // String to Index: Fast branching (better than a hash map for N < 15)
+    inline uint8_t from_str(const std::string &s) {
+        if (s == "none")    return none;
+        if (s == "Pfizer")  return Pfizer;
+        if (s == "Moderna") return Moderna;
+        if (s == "J & J")   return JnJ;
+        if (s == "JnJ")     return JnJ;  // accept both spellings
+        return none;
+    }
+}
 
 
 // test function

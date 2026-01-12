@@ -100,15 +100,15 @@ class PopData {
       vaxday,
     };
 
-  template <typename Action>
-  void apply_to_columns(const std::vector<Column>& selected, Action&& act) {
-    for (auto col : selected) {
-        switch (col) {
-            case Column::status:    act(status_slab); break;
-            case Column::Rings:     act(rings_slab);  break;
-            // Add new columns here, and they "exist" everywhere else instantly
-        }
-    }
-  }
+  // template <typename Action>
+  // void apply_to_columns(const std::vector<Column>& selected, Action&& act) {
+  //   for (auto col : selected) {
+  //       switch (col) {
+  //           case Column::status:    act(status_slab); break;
+  //           case Column::Rings:     act(rings_slab);  break;
+  //           // Add new columns here, and they "exist" everywhere else instantly
+  //       }
+  //   }
+  // }
 
 };

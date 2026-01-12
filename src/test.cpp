@@ -1,6 +1,4 @@
-#include <cstdint>
 #include <string>
-#include <stdexcept>
 #include <iostream>
 
 using std::string;
@@ -9,101 +7,104 @@ using std::string;
 #include "categories.h"
 
 void run_category_tests() {
-    std::cout << "=== Testing CATEGORY methods ===\n\n";
+    std::cout << "=== Testing New Namespace Approach ===\n\n";
 
-    // Test that named constants are correctly defined using functor
-    std::cout << "--- Testing Named Constants (defined via functor) ---\n";
-    std::cout << "UNEXPOSED = " << static_cast<int>(UNEXPOSED) << " (expected 1)\n";
-    std::cout << "INFECTIOUS = " << static_cast<int>(INFECTIOUS) << " (expected 2)\n";
-    std::cout << "RECOVERED = " << static_cast<int>(RECOVERED) << " (expected 3)\n";
-    std::cout << "DEAD = " << static_cast<int>(DEAD) << " (expected 4)\n";
-    std::cout << "UNINFECTED = " << static_cast<int>(UNINFECTED) << " (expected 1)\n";
-    std::cout << "NIL = " << static_cast<int>(NIL) << " (expected 2)\n";
-    std::cout << "MILD = " << static_cast<int>(MILD) << " (expected 3)\n";
-    std::cout << "SICK = " << static_cast<int>(SICK) << " (expected 4)\n";
-    std::cout << "SEVERE = " << static_cast<int>(SEVERE) << " (expected 5)\n";
+    // Test Status namespace
+    std::cout << "--- Testing Status Namespace ---\n";
+    std::cout << "Enum values (0-indexed):\n";
+    std::cout << "  Status::none = " << static_cast<int>(Status::none) << " (expected 0)\n";
+    std::cout << "  Status::unexposed = " << static_cast<int>(Status::unexposed) << " (expected 1)\n";
+    std::cout << "  Status::infectious = " << static_cast<int>(Status::infectious) << " (expected 2)\n";
+    std::cout << "  Status::recovered = " << static_cast<int>(Status::recovered) << " (expected 3)\n";
+    std::cout << "  Status::dead = " << static_cast<int>(Status::dead) << " (expected 4)\n";
+    std::cout << "\nRound-trip tests:\n";
+    std::cout << "  Status::to_str(0) = \"" << Status::to_str(0) << "\" (expected \"none\")\n";
+    std::cout << "  Status::to_str(1) = \"" << Status::to_str(1) << "\" (expected \"unexposed\")\n";
+    std::cout << "  Status::to_str(2) = \"" << Status::to_str(2) << "\" (expected \"infectious\")\n";
+    std::cout << "  Status::to_str(3) = \"" << Status::to_str(3) << "\" (expected \"recovered\")\n";
+    std::cout << "  Status::to_str(4) = \"" << Status::to_str(4) << "\" (expected \"dead\")\n";
+    std::cout << "  Status::from_str(\"unexposed\") = " << static_cast<int>(Status::from_str("unexposed")) << " (expected 1)\n";
+    std::cout << "  Status::from_str(\"infectious\") = " << static_cast<int>(Status::from_str("infectious")) << " (expected 2)\n";
+    std::cout << "  Status::from_str(\"recovered\") = " << static_cast<int>(Status::from_str("recovered")) << " (expected 3)\n";
+    std::cout << "  Status::from_str(\"dead\") = " << static_cast<int>(Status::from_str("dead")) << " (expected 4)\n";
+    std::cout << "  Status::from_str(\"invalid\") = " << static_cast<int>(Status::from_str("invalid")) << " (expected 0 - default to none)\n";
     std::cout << "\n";
 
-    // Test round-trip: STATUS
-    std::cout << "--- Round-trip Tests with STATUS ---\n";
-    std::cout << "STATUS.num values: {1, 2, 3, 4}\n";
-    std::cout << "STATUS.name strings: {\"unexposed\", \"infectious\", \"recovered\", \"dead\"}\n\n";
+    // Test Condition namespace
+    std::cout << "--- Testing Condition Namespace ---\n";
+    std::cout << "Enum values (0-indexed):\n";
+    std::cout << "  Condition::uninfected = " << static_cast<int>(Condition::uninfected) << " (expected 0)\n";
+    std::cout << "  Condition::nil = " << static_cast<int>(Condition::nil) << " (expected 1)\n";
+    std::cout << "  Condition::mild = " << static_cast<int>(Condition::mild) << " (expected 2)\n";
+    std::cout << "  Condition::sick = " << static_cast<int>(Condition::sick) << " (expected 3)\n";
+    std::cout << "  Condition::severe = " << static_cast<int>(Condition::severe) << " (expected 4)\n";
+    std::cout << "\nRound-trip tests:\n";
+    std::cout << "  Condition::to_str(0) = \"" << Condition::to_str(0) << "\" (expected \"uninfected\")\n";
+    std::cout << "  Condition::to_str(1) = \"" << Condition::to_str(1) << "\" (expected \"nil\")\n";
+    std::cout << "  Condition::to_str(2) = \"" << Condition::to_str(2) << "\" (expected \"mild\")\n";
+    std::cout << "  Condition::to_str(3) = \"" << Condition::to_str(3) << "\" (expected \"sick\")\n";
+    std::cout << "  Condition::to_str(4) = \"" << Condition::to_str(4) << "\" (expected \"severe\")\n";
+    std::cout << "  Condition::from_str(\"uninfected\") = " << static_cast<int>(Condition::from_str("uninfected")) << " (expected 0)\n";
+    std::cout << "  Condition::from_str(\"nil\") = " << static_cast<int>(Condition::from_str("nil")) << " (expected 1)\n";
+    std::cout << "  Condition::from_str(\"mild\") = " << static_cast<int>(Condition::from_str("mild")) << " (expected 2)\n";
+    std::cout << "  Condition::from_str(\"sick\") = " << static_cast<int>(Condition::from_str("sick")) << " (expected 3)\n";
+    std::cout << "  Condition::from_str(\"severe\") = " << static_cast<int>(Condition::from_str("severe")) << " (expected 4)\n";
+    std::cout << "  Condition::from_str(\"invalid\") = " << static_cast<int>(Condition::from_str("invalid")) << " (expected 0 - default to uninfected)\n";
+    std::cout << "\n";
 
-    for (size_t i = 0; i < STATUS.num.size(); ++i) {
-        uint8_t n_val = STATUS.num[i];
-        std::cout << "STATUS.num[" << i << "] = " << static_cast<int>(n_val) << "\n";
-        std::string name = STATUS.get_name(n_val);
-        std::cout << "  STATUS.get_name(" << static_cast<int>(n_val) << ") = \"" << name << "\"\n";
-        uint8_t idx_back = STATUS(name);
-        std::cout << "  STATUS(\"" << name << "\") = " << static_cast<int>(idx_back);
-        if (idx_back == n_val) {
-            std::cout << " ✓ MATCH\n";
-        } else {
-            std::cout << " ✗ MISMATCH (expected " << static_cast<int>(n_val) << ")\n";
-        }
-        std::cout << "\n";
-    }
+    // Test Agegrp namespace
+    std::cout << "--- Testing Agegrp Namespace ---\n";
+    std::cout << "Enum values (0-indexed):\n";
+    std::cout << "  Agegrp::unknown = " << static_cast<int>(Agegrp::unknown) << " (expected 0)\n";
+    std::cout << "  Agegrp::age0_19 = " << static_cast<int>(Agegrp::age0_19) << " (expected 1)\n";
+    std::cout << "  Agegrp::age20_39 = " << static_cast<int>(Agegrp::age20_39) << " (expected 2)\n";
+    std::cout << "  Agegrp::age40_59 = " << static_cast<int>(Agegrp::age40_59) << " (expected 3)\n";
+    std::cout << "  Agegrp::age60_79 = " << static_cast<int>(Agegrp::age60_79) << " (expected 4)\n";
+    std::cout << "  Agegrp::age80_up = " << static_cast<int>(Agegrp::age80_up) << " (expected 5)\n";
+    std::cout << "\nRound-trip tests:\n";
+    std::cout << "  Agegrp::to_str(0) = \"" << Agegrp::to_str(0) << "\" (expected \"unknown\")\n";
+    std::cout << "  Agegrp::to_str(1) = \"" << Agegrp::to_str(1) << "\" (expected \"age0_19\")\n";
+    std::cout << "  Agegrp::to_str(2) = \"" << Agegrp::to_str(2) << "\" (expected \"age20_39\")\n";
+    std::cout << "  Agegrp::to_str(3) = \"" << Agegrp::to_str(3) << "\" (expected \"age40_59\")\n";
+    std::cout << "  Agegrp::to_str(4) = \"" << Agegrp::to_str(4) << "\" (expected \"age60_79\")\n";
+    std::cout << "  Agegrp::to_str(5) = \"" << Agegrp::to_str(5) << "\" (expected \"age80_up\")\n";
+    std::cout << "  Agegrp::from_str(\"age0_19\") = " << static_cast<int>(Agegrp::from_str("age0_19")) << " (expected 1)\n";
+    std::cout << "  Agegrp::from_str(\"age20_39\") = " << static_cast<int>(Agegrp::from_str("age20_39")) << " (expected 2)\n";
+    std::cout << "  Agegrp::from_str(\"age40_59\") = " << static_cast<int>(Agegrp::from_str("age40_59")) << " (expected 3)\n";
+    std::cout << "  Agegrp::from_str(\"age60_79\") = " << static_cast<int>(Agegrp::from_str("age60_79")) << " (expected 4)\n";
+    std::cout << "  Agegrp::from_str(\"age80_up\") = " << static_cast<int>(Agegrp::from_str("age80_up")) << " (expected 5)\n";
+    std::cout << "  Agegrp::from_str(\"invalid\") = " << static_cast<int>(Agegrp::from_str("invalid")) << " (expected 0 - default to unknown)\n";
+    std::cout << "\n";
 
-    // Test round-trip: CONDITION
-    std::cout << "--- Round-trip Tests with CONDITION ---\n";
-    std::cout << "CONDITION.num values: {1, 2, 3, 4, 5}\n";
-    std::cout << "CONDITION.name strings: {\"uninfected\", \"nil\", \"mild\", \"sick\", \"severe\"}\n\n";
+    // Test Vaccine namespace
+    std::cout << "--- Testing Vaccine Namespace ---\n";
+    std::cout << "Enum values (0-indexed):\n";
+    std::cout << "  Vaccine::none = " << static_cast<int>(Vaccine::none) << " (expected 0)\n";
+    std::cout << "  Vaccine::Pfizer = " << static_cast<int>(Vaccine::Pfizer) << " (expected 1)\n";
+    std::cout << "  Vaccine::Moderna = " << static_cast<int>(Vaccine::Moderna) << " (expected 2)\n";
+    std::cout << "  Vaccine::JnJ = " << static_cast<int>(Vaccine::JnJ) << " (expected 3)\n";
+    std::cout << "\nRound-trip tests:\n";
+    std::cout << "  Vaccine::to_str(0) = \"" << Vaccine::to_str(0) << "\" (expected \"none\")\n";
+    std::cout << "  Vaccine::to_str(1) = \"" << Vaccine::to_str(1) << "\" (expected \"Pfizer\")\n";
+    std::cout << "  Vaccine::to_str(2) = \"" << Vaccine::to_str(2) << "\" (expected \"Moderna\")\n";
+    std::cout << "  Vaccine::to_str(3) = \"" << Vaccine::to_str(3) << "\" (expected \"J & J\")\n";
+    std::cout << "  Vaccine::from_str(\"none\") = " << static_cast<int>(Vaccine::from_str("none")) << " (expected 0)\n";
+    std::cout << "  Vaccine::from_str(\"Pfizer\") = " << static_cast<int>(Vaccine::from_str("Pfizer")) << " (expected 1)\n";
+    std::cout << "  Vaccine::from_str(\"Moderna\") = " << static_cast<int>(Vaccine::from_str("Moderna")) << " (expected 2)\n";
+    std::cout << "  Vaccine::from_str(\"J & J\") = " << static_cast<int>(Vaccine::from_str("J & J")) << " (expected 3)\n";
+    std::cout << "  Vaccine::from_str(\"JnJ\") = " << static_cast<int>(Vaccine::from_str("JnJ")) << " (expected 3 - alternate spelling)\n";
+    std::cout << "  Vaccine::from_str(\"invalid\") = " << static_cast<int>(Vaccine::from_str("invalid")) << " (expected 0 - default to none)\n";
+    std::cout << "\n";
 
-    for (size_t i = 0; i < CONDITION.num.size(); ++i) {
-        uint8_t n_val = CONDITION.num[i];
-        std::cout << "CONDITION.num[" << i << "] = " << static_cast<int>(n_val) << "\n";
-        std::string name = CONDITION.get_name(n_val);
-        std::cout << "  CONDITION.get_name(" << static_cast<int>(n_val) << ") = \"" << name << "\"\n";
-        uint8_t idx_back = CONDITION(name);
-        std::cout << "  CONDITION(\"" << name << "\") = " << static_cast<int>(idx_back);
-        if (idx_back == n_val) {
-            std::cout << " ✓ MATCH\n";
-        } else {
-            std::cout << " ✗ MISMATCH (expected " << static_cast<int>(n_val) << ")\n";
-        }
-        std::cout << "\n";
-    }
+    // Test boundary conditions
+    std::cout << "--- Testing Boundary Conditions ---\n";
+    std::cout << "  Status::to_str(99) = \"" << Status::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
+    std::cout << "  Condition::to_str(99) = \"" << Condition::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
+    std::cout << "  Agegrp::to_str(99) = \"" << Agegrp::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
+    std::cout << "  Vaccine::to_str(99) = \"" << Vaccine::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
+    std::cout << "\n";
 
-    // Test round-trip: AGEGRP
-    std::cout << "--- Round-trip Tests with AGEGRP ---\n";
-    std::cout << "AGEGRP.num values: {1, 2, 3, 4, 5}\n";
-    std::cout << "AGEGRP.name strings: {\"age0_19\", \"age20_39\", \"age40_59\", \"age60_79\", \"age80_up\"}\n\n";
-
-    for (size_t i = 0; i < AGEGRP.num.size(); ++i) {
-        uint8_t n_val = AGEGRP.num[i];
-        std::cout << "AGEGRP.num[" << i << "] = " << static_cast<int>(n_val) << "\n";
-        std::string name = AGEGRP.get_name(n_val);
-        std::cout << "  AGEGRP.get_name(" << static_cast<int>(n_val) << ") = \"" << name << "\"\n";
-        uint8_t idx_back = AGEGRP(name);
-        std::cout << "  AGEGRP(\"" << name << "\") = " << static_cast<int>(idx_back);
-        if (idx_back == n_val) {
-            std::cout << " ✓ MATCH\n";
-        } else {
-            std::cout << " ✗ MISMATCH (expected " << static_cast<int>(n_val) << ")\n";
-        }
-        std::cout << "\n";
-    }
-
-    // Test error handling
-    std::cout << "--- Error Handling Tests ---\n";
-
-    try {
-        std::cout << "Attempting STATUS.get_name(10) (out of bounds)...\n";
-        STATUS.get_name(10);
-        std::cout << "ERROR: Should have thrown exception!\n";
-    } catch (const std::out_of_range& e) {
-        std::cout << "Caught expected exception: " << e.what() << "\n";
-    }
-
-    try {
-        std::cout << "Attempting STATUS(\"invalid\") (not found)...\n";
-        STATUS("invalid");
-        std::cout << "ERROR: Should have thrown exception!\n";
-    } catch (const std::runtime_error& e) {
-        std::cout << "Caught expected exception: " << e.what() << "\n";
-    }
-
-    std::cout << "\n=== All tests completed ===\n";
+    std::cout << "=== All namespace tests completed ===\n";
 }
 
 int main() {
