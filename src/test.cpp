@@ -1,10 +1,13 @@
 #include <string>
 #include <iostream>
+#include <vector>
 
 using std::string;
+using std::vector;
 
 #include "epi_sim.h"
 #include "categories.h"
+#include "population.h"
 
 void run_category_tests() {
     std::cout << "=== Testing New Namespace Approach ===\n\n";
@@ -107,7 +110,103 @@ void run_category_tests() {
     std::cout << "=== All namespace tests completed ===\n";
 }
 
+
+void test_popdata_constructor() {
+    std::cout << "\n=== Testing PopData Constructor ===\n\n";
+
+    std::cout << "Creating PopData with 10 people...\n";
+    PopData pop(10);
+    std::cout << "Constructor executed successfully!\n\n";
+
+    std::cout << "Manually checking values for persons 0, 5, and 9:\n";
+    std::cout << "Expected: status=1, agegrp=1, cond=1, duration=0, ring=0\n\n";
+
+    std::cout << "Person 0:\n";
+    std::cout << "  status = " << static_cast<int>(pop.status[0]) << " (expected 1)\n";
+    std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[0]) << " (expected 1)\n";
+    std::cout << "  cond = " << static_cast<int>(pop.cond[0]) << " (expected 1)\n";
+    std::cout << "  duration = " << static_cast<int>(pop.duration[0]) << " (expected 0)\n";
+    std::cout << "  ring = " << static_cast<int>(pop.ring[0]) << " (expected 0)\n";
+    std::cout << "  variant_count = " << static_cast<int>(pop.variant_count[0]) << " (expected 0)\n";
+    std::cout << "  variant[0][0] = " << static_cast<int>(pop.variant[0][0]) << " (expected 0 - first element of array)\n\n";
+
+    std::cout << "Person 5:\n";
+    std::cout << "  status = " << static_cast<int>(pop.status[5]) << " (expected 1)\n";
+    std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[5]) << " (expected 1)\n";
+    std::cout << "  cond = " << static_cast<int>(pop.cond[5]) << " (expected 1)\n";
+    std::cout << "  vaxstatus = " << static_cast<int>(pop.vaxstatus[5]) << " (expected 0)\n";
+    std::cout << "  vax_count = " << static_cast<int>(pop.vax_count[5]) << " (expected 0)\n\n";
+
+    std::cout << "Person 9:\n";
+    std::cout << "  status = " << static_cast<int>(pop.status[9]) << " (expected 1)\n";
+    std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[9]) << " (expected 1)\n";
+    std::cout << "  deadday = " << static_cast<int>(pop.deadday[9]) << " (expected 0)\n";
+    std::cout << "  quar = " << static_cast<int>(pop.quar[9]) << " (expected 0)\n";
+    std::cout << "  quarday = " << static_cast<int>(pop.quarday[9]) << " (expected 0)\n\n";
+
+    std::cout << "=== PopData Constructor Test Passed ===\n";
+}
+
+
+void test_popdata_print_table() {
+    std::cout << "\n=== Testing PopData Print Table ===\n\n";
+
+    std::cout << "Creating PopData with 100 people...\n";
+    PopData pop(100);
+    std::cout << "Constructor executed successfully!\n\n";
+
+    // Select 5 rows to print (indices 0, 25, 50, 75, 99)
+    vector<int> rows = {0, 25, 50, 75, 99};
+
+    // Test 1: First 5 columns (simple uint8_t vectors)
+    std::cout << "--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---\n";
+    vector<PopData::Column> cols1 = {
+        PopData::Column::status,
+        PopData::Column::agegrp,
+        PopData::Column::cond,
+        PopData::Column::duration,
+        PopData::Column::ring
+    };
+    std::cout << "Row:\tstatus | agegrp | cond | duration | ring |\n";
+    std::cout << "------------------------------------------------------------\n";
+    pop.print_table(rows, cols1);
+    std::cout << "\n";
+
+    // Test 2: Mix of simple and array columns
+    std::cout << "--- Test 2: Mixed columns (variant, variant_count, sickday, sickday_count, deadday) ---\n";
+    vector<PopData::Column> cols2 = {
+        PopData::Column::variant,
+        PopData::Column::variant_count,
+        PopData::Column::sickday,
+        PopData::Column::sickday_count,
+        PopData::Column::deadday
+    };
+    std::cout << "Row:\tvariant | variant_count | sickday | sickday_count | deadday |\n";
+    std::cout << "--------------------------------------------------------------------\n";
+    pop.print_table(rows, cols2);
+    std::cout << "\n";
+
+    // Test 3: Vaccine-related columns
+    std::cout << "--- Test 3: Vaccine columns (vaxstatus, vaxrcvd, vax_count, quar, quarday) ---\n";
+    vector<PopData::Column> cols3 = {
+        PopData::Column::vaxstatus,
+        PopData::Column::vaxrcvd,
+        PopData::Column::vax_count,
+        PopData::Column::quar,
+        PopData::Column::quarday
+    };
+    std::cout << "Row:\tvaxstatus | vaxrcvd | vax_count | quar | quarday |\n";
+    std::cout << "------------------------------------------------------------\n";
+    pop.print_table(rows, cols3);
+    std::cout << "\n";
+
+    std::cout << "=== PopData Print Table Test Completed ===\n";
+}
+
+
 int main() {
-  run_category_tests();
+  // run_category_tests();
+  test_popdata_constructor();
+  test_popdata_print_table();
   return 0;
 }

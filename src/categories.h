@@ -5,7 +5,6 @@
 #include <string>
 
 
-// new namespace and oldstyle enum way
 namespace Status {
     enum Value : uint8_t { none = 0, unexposed, infectious, recovered, dead };
 
