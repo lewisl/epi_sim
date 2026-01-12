@@ -1,0 +1,63 @@
+
+// Access for the rest of the program (read-only)
+const States& states();
+
+// Called once during startup after YAML load
+void init_states(States s);
+// states.h
+struct States {
+    int unexposed;
+    int infectious;
+    int recovered;
+    int dead;
+};
+
+// Access for the rest of the program (read-only)
+const States& states();
+
+// Called once during startup after YAML load
+void init_states(States s);
+
+
+inline const States& states() {
+    static const States s = make_states();
+    return s;
+}
+
+// states.cpp
+#include "states.h"
+#include <cstdlib>
+
+namespace {
+    States g_states;
+    bool g_inited = false;
+}
+
+void init_states(States s) {
+    if (g_inited) std::abort();   // optional: enforce "only once"
+    g_states = s;
+    g_inited = true;
+}
+
+const States& states() {
+    if (!g_inited) std::abort();  // optional: enforce "must init first"
+    return g_states;
+}
+
+
+// using it
+void step(/*, other params */) {
+    int status;
+    // hot loop
+    if (status == states().infectious) { /* ... */ }
+}
+
+// using it making sure a static value is accessed
+void hot(...) {
+    const auto& st = states();       // one guard check (if any)
+    const int INF = st.infectious;   // hoisted
+
+    for (...) {
+        if (x == INF) { ... }
+    }
+}
