@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <iostream>
 
-using std::vector;
 using std::array;
+using std::vector;
 
 
 class PopData {
@@ -100,7 +100,6 @@ class PopData {
       vaxday,
     };
 
-
     // methods for processing selections of rows and columns
     template <typename Action>
     void apply_to_columns(const vector<Column> &cols, Action &&action) {
@@ -133,16 +132,18 @@ class PopData {
 
 
     // 2 action functions for printing the PopData by selected rows and columns
-    // functor to print a cell from a vector<uint8_t> or a vector<array<uint8_t,16>
+     // functor to print a cell from a vector<uint8_t> or a
+    // vector<array<uint8_t,16>\
+
     struct CellPrinter {
       int current_row;
 
       void operator()(const vector<uint8_t> &vec) const {
-        std::cout << (int)vec[current_row] << " |";
+        std::cout << "   " << (int)vec[current_row] << "\t|";
       }
 
       void operator()(const std::vector<array<uint8_t, 16>> &vec) {
-        std::cout << (int)vec[current_row][0] << "... | ";
+        std::cout << "   " <<  (int)vec[current_row][0] << "...    | ";
       }
     };
 

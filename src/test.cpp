@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <string>
 #include <iostream>
 #include <vector>
@@ -8,6 +9,10 @@ using std::vector;
 #include "epi_sim.h"
 #include "categories.h"
 #include "population.h"
+#include "parameters.h"
+
+// Create a short alias for PopData::Column to use throughout this file
+using PC = PopData::Column;
 
 void run_category_tests() {
     std::cout << "=== Testing New Namespace Approach ===\n\n";
@@ -161,11 +166,11 @@ void test_popdata_print_table() {
     // Test 1: First 5 columns (simple uint8_t vectors)
     std::cout << "--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---\n";
     vector<PopData::Column> cols1 = {
-        PopData::Column::status,
-        PopData::Column::agegrp,
-        PopData::Column::cond,
-        PopData::Column::duration,
-        PopData::Column::ring
+        PC::status, 
+        PC::agegrp,
+        PC::cond,
+        PC::duration,
+        PC::ring
     };
     std::cout << "Row:\tstatus | agegrp | cond | duration | ring |\n";
     std::cout << "------------------------------------------------------------\n";
@@ -175,11 +180,11 @@ void test_popdata_print_table() {
     // Test 2: Mix of simple and array columns
     std::cout << "--- Test 2: Mixed columns (variant, variant_count, sickday, sickday_count, deadday) ---\n";
     vector<PopData::Column> cols2 = {
-        PopData::Column::variant,
-        PopData::Column::variant_count,
-        PopData::Column::sickday,
-        PopData::Column::sickday_count,
-        PopData::Column::deadday
+        PC::variant,
+        PC::variant_count,
+        PC::sickday,
+        PC::sickday_count,
+        PC::deadday
     };
     std::cout << "Row:\tvariant | variant_count | sickday | sickday_count | deadday |\n";
     std::cout << "--------------------------------------------------------------------\n";
@@ -189,11 +194,11 @@ void test_popdata_print_table() {
     // Test 3: Vaccine-related columns
     std::cout << "--- Test 3: Vaccine columns (vaxstatus, vaxrcvd, vax_count, quar, quarday) ---\n";
     vector<PopData::Column> cols3 = {
-        PopData::Column::vaxstatus,
-        PopData::Column::vaxrcvd,
-        PopData::Column::vax_count,
-        PopData::Column::quar,
-        PopData::Column::quarday
+        PC::vaxstatus,
+        PC::vaxrcvd,
+        PC::vax_count,
+        PC::quar,
+        PC::quarday
     };
     std::cout << "Row:\tvaxstatus | vaxrcvd | vax_count | quar | quarday |\n";
     std::cout << "------------------------------------------------------------\n";
@@ -204,9 +209,37 @@ void test_popdata_print_table() {
 }
 
 
+int test_csv_read(const std::string& fname) {
+    try {
+        GeoData data;
+        load_csv(fname, data);
+        std::cout << "\n=== Load Geo Data Test with CSV Reading ===" << "\n";
+        print_summary(data);
+        
+        // Example usage: Find cities with population > 2 million
+        std::cout << "\n\nCities with population > 2,000,000:\n";
+        for (size_t i = 0; i < data.num_rows; ++i) {
+            if (data.pop[i] > 2000000) {
+                std::cout << "  " << data.city[i] << ", " << data.state[i] 
+                          << " - pop: " << data.pop[i] << "\n";
+            }
+        }
+
+        std::cout << "\n=== Load Geo Data Test Completed ===\n";
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
+    
+    return 0;
+}
+
 int main() {
   // run_category_tests();
   test_popdata_constructor();
   test_popdata_print_table();
+  std::string fname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
+  test_csv_read(fname);
   return 0;
 }

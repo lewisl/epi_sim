@@ -4,39 +4,11 @@
 #include <iostream>
 #include <iomanip>
 #include <yaml-cpp/yaml.h>
+#include "parameters.h"
 
 
 // Struct of vectors matching your CSV structure
-struct GeoData {
-    // Column metadata
-    std::vector<std::string> column_names = {
-        "fips", "county", "city", "state", "sizecat", 
-        "pop", "density", "anchor", "indoor_st", "indoor_end"
-    };
-    
-    // Typed data vectors
-    std::vector<int> fips;
-    std::vector<std::string> county;
-    std::vector<std::string> city;
-    std::vector<std::string> state;
-    std::vector<int> sizecat;
-    std::vector<int> pop;
-    std::vector<int> density;
-    std::vector<std::string> anchor;      // Date stored as string (could parse to date type)
-    std::vector<std::string> indoor_st;   // Date stored as string
-    std::vector<std::string> indoor_end;  // Date stored as string
-    
-    size_t num_rows = 0;
-    
-    // Helper to get type name for a column
-    std::string get_type(const std::string& col_name) const {
-        if (col_name == "fips" || col_name == "sizecat" || 
-            col_name == "pop" || col_name == "density") {
-            return "int";
-        }
-        return "string";
-    }
-};
+
 
 void load_csv(const std::string& filename, GeoData& data) {
     using namespace csv2;
@@ -99,27 +71,4 @@ void print_summary(const GeoData& data) {
         std::cout << "  density: " << data.density[i] << "\n";
         std::cout << "  anchor: " << data.anchor[i] << "\n";
     }
-}
-
-int test_csv_read(const std::string& fname) {
-    try {
-        GeoData data;
-        load_csv(fname, data);
-        print_summary(data);
-        
-        // Example usage: Find cities with population > 2 million
-        std::cout << "\n\nCities with population > 2,000,000:\n";
-        for (size_t i = 0; i < data.num_rows; ++i) {
-            if (data.pop[i] > 2000000) {
-                std::cout << "  " << data.city[i] << ", " << data.state[i] 
-                          << " - pop: " << data.pop[i] << "\n";
-            }
-        }
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
-        return 1;
-    }
-    
-    return 0;
 }
