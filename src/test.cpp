@@ -2,14 +2,13 @@
 #include <string>
 #include <iostream>
 #include <vector>
-
-using std::string;
-using std::vector;
-
 #include "epi_sim.h"
 #include "categories.h"
 #include "population.h"
-#include "parameters.h"
+#include "parameters.cpp"
+
+using std::string;
+using std::vector;
 
 // Create a short alias for PopData::Column to use throughout this file
 using PC = PopData::Column;
@@ -209,12 +208,11 @@ void test_popdata_print_table() {
 }
 
 
-int test_csv_read(const std::string& fname) {
+int test_geodata_read(const std::string& path) {
     try {
-        GeoData data;
-        load_csv(fname, data);
+        GeoData data = load_geodata_csv(path);
         std::cout << "\n=== Load Geo Data Test with CSV Reading ===" << "\n";
-        print_summary(data);
+        print_geodata(data);
         
         // Example usage: Find cities with population > 2 million
         std::cout << "\n\nCities with population > 2,000,000:\n";
@@ -224,9 +222,7 @@ int test_csv_read(const std::string& fname) {
                           << " - pop: " << data.pop[i] << "\n";
             }
         }
-
-        std::cout << "\n=== Load Geo Data Test Completed ===\n";
-        
+        std::cout << "\n=== Load Geo Data Test Completed ===\n";  
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
@@ -236,10 +232,12 @@ int test_csv_read(const std::string& fname) {
 }
 
 int main() {
-  // run_category_tests();
-  test_popdata_constructor();
-  test_popdata_print_table();
-  std::string fname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
-  test_csv_read(fname);
+  // test files
+  // std::string csvfname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
+  // tests
+  // test_popdata_constructor();
+  // test_popdata_print_table();
+  test_geodata_read(geodata_path);
+  load_variant_json(variants_path);  
   return 0;
 }

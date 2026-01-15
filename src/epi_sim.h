@@ -2,6 +2,10 @@
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 
 // data structures
+// convert the yml files to json before loading with c++
+    // options:  tojson is a tiny (127 sloc), header only library to convert xml and
+      // yaml documents into nlohmann::json objects.
+    // website: https://jsonformatter.org/yaml-to-json
 //  geodata
 //  socialparams
 //  simulation data per person: popdat
