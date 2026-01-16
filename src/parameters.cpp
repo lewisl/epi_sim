@@ -28,13 +28,19 @@ namespace fs = std::filesystem;
 
 const fs::path project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim";
 const fs::path param_dir = "sample_parameters";
+const fs::path vax_sched_dir = "vaccine_100k";
 const fs::path variants_fname = "variants.json";
 const fs::path geodata_fname = "geo2data.csv";
+const fs::path social_fname = "socialparams.json";
+const fs::path vaccines_fname = "vaccines.json";
+const fs::path vax_sched_fname = "loc38015_old.json";
 
 // Full paths
 const string variants_path = (project_dir / param_dir / variants_fname).string();
 const string geodata_path = (project_dir / param_dir / geodata_fname).string();
-
+const string social_path = (project_dir / param_dir / social_fname).string();
+const string vaccines_path = (project_dir / param_dir / vaccines_fname).string();
+const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
 
 //
 // geodata
@@ -115,25 +121,31 @@ GeoData load_geodata_csv(const std::string& filename) {
 
 // as we develop more parameter classes, we'll have a print method in each 
 void print_geodata(const GeoData& data) {
-    std::cout << "Loaded " << data.num_rows << " rows with " 
+    cout << "Loaded " << data.num_rows << " rows with " 
               << data.column_names.size() << " columns:\n\n";
-    
-    for (const auto& col_name : data.column_names) {
-        std::cout << "  " << std::setw(12) << std::left << col_name 
-                  << " (" << data.get_type(col_name) << ")\n";
-    }
-    
-    std::cout << "\nFirst 3 rows:\n";
-    for (size_t i = 0; i < std::min(size_t(3), data.num_rows); ++i) {
-        std::cout << "\nRow " << i << ":\n";
-        std::cout << "  fips: " << data.fips[i] << "\n";
-        std::cout << "  county: " << data.county[i] << "\n";
-        std::cout << "  city: " << data.city[i] << "\n";
-        std::cout << "  state: " << data.state[i] << "\n";
-        std::cout << "  sizecat: " << data.sizecat[i] << "\n";
-        std::cout << "  pop: " << data.pop[i] << "\n";
-        std::cout << "  density: " << data.density[i] << "\n";
-        std::cout << "  anchor: " << data.anchor[i] << "\n";
+
+    // header
+        cout << std::left;
+        cout << std::setw(4) << "" << std::setw(8) << "fips";
+        cout << std::setw(18) << "county";
+        cout << std::setw(18) << "city";
+        cout << std::setw(8) << "state";
+        cout << std::setw(10) << "sizecat";
+        cout << std::setw(10) << "pop";
+        cout << std::setw(10) << "density";
+        cout << std::setw(12) << "anchor";
+        cout << "\n";
+    for (size_t i = 0; i < data.num_rows; ++i) {
+        cout << std::setw(4) << (std::to_string(i) + ":");
+        cout << std::setw(8) << data.fips[i];
+        cout << std::setw(18) << data.county[i];
+        cout << std::setw(18) << data.city[i];
+        cout << std::setw(8) << data.state[i];
+        cout << std::setw(10) << data.sizecat[i];
+        cout << std::setw(10) << data.pop[i];
+        cout << std::setw(10) << data.density[i];
+        cout << std::setw(12) << data.anchor[i];
+        cout << "\n";
     }
 }
 
@@ -141,38 +153,65 @@ void print_geodata(const GeoData& data) {
 // variant data supplies infectset, progressionset, trvec, variantlist
 //
 
-int load_variant_json(string fpath) {
+json load_variant_json(string fpath) {
 
   try {
     std::ifstream fcontent(fpath);
     json data = json::parse(fcontent);
 
-    cout << "\n================\nexamining json data\n";
-    // cout << "================ the input json text =============\n";
-    // cout << json::parse(fcontent) << "\n";
-    cout << "============== length of the parsed json: " << data.size() << "\n";    
-    cout << data.dump(2) << "\n";
-    cout << "=== end of the json data ===\n";
-
-    // let's see what or how we can select parts
-    for (auto element : data.items()) {  // items() required for iteration of key, value
-      cout << "==== " << element.key() << " ====\n";
-      cout << data[element.key()]["spread"]["sendrisk"] << "\n";
-      cout << "===================================\n";
-    }
+    return data;
   }
+
   catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << "\n";
-      return 1;
+      return json();  // empty object
   }
-  return 0;
 }
 
+void print_variants_data(json v) {
+    cout << "\n\n================\nexamining json data"<< ", count of top-level nodes: " << v.size() << "\n";    
+
+
+    // let's see what or how we can select parts
+    for (auto element : v.items()) {  // items() required for iteration of key, value
+      cout << "==== " << element.key() << " ====\n";
+      cout << v[element.key()]["spread"]["sendrisk"] << "\n";
+      cout << "===================================\n";
+    }
+}
 
 //
 // vaccine data
 //
 
+json load_vaccines_json(string fpath) {
+
+  try {
+    std::ifstream fcontent(fpath);
+    json data = json::parse(fcontent);
+
+    return data;
+  }
+
+  catch (const std::exception& e) {
+      std::cerr << "Error: " << e.what() << "\n";
+      return json();  // empty object
+  }
+}
+
+
+void print_vaccines_data(json v) {
+  string subkey = "effectiveness";
+  
+    cout << "\n\n================\nexamining vaccines data"<< ", count of top-level nodes: " << v.size() << "\n";    
+
+    // let's see what or how we can select parts
+    for (auto element : v.items()) {    // items() required for iteration of key, value
+        cout << "==== " << element.key() << " " << subkey << " ====\n";
+        cout << v[element.key()][subkey].dump(2) << "\n";
+        cout << "===================================\n";
+      }
+}
 
 
 //
@@ -180,24 +219,77 @@ int load_variant_json(string fpath) {
 //
 
 
+json load_vax_sched_json(string fpath) {
+  try {
+    std::ifstream fcontent(fpath);
+    json data = json::parse(fcontent);
+    return data;
+  }
+
+  catch (const std::exception& e) {
+      std::cerr << "Error: " << e.what() << "\n";
+      return json();  // empty object
+  }
+}
+
+
+
 //
 // social spreading data
 //
 
+json load_social_json(string fpath) {
 
+  try {
+    std::ifstream fcontent(fpath);
+    json data = json::parse(fcontent);
+
+    return data;
+  }
+
+  catch (const std::exception& e) {
+      std::cerr << "Error: " << e.what() << "\n";
+      return json();  // empty object
+  }
+}
+
+
+void print_social_data(json v) {
+
+    string age_choice = "age0_19";  // just for testing
+    cout << "\n\n================\nexamining social data"<< ", count of top-level nodes: " << v.size() << "\n";    
+
+    // let's see what or how we can select parts
+    for (auto element :
+         v.items()) { // items() required for iteration of key, value
+      if (element.key() == "contactfactors" || element.key() == "touchfactors") {
+        cout << "==== " << element.key() << " " << age_choice << " ====\n";
+        cout << v[element.key()][age_choice] << "\n";
+        cout << "===================================\n";
+      }
+    }
+}
+
+//
 // container for all of the parameters required for a model
+//
 struct model_params {
   GeoData geodata;
   json variantdata;
-
-  // big ass constructor
-model_params(string param_dir, string geo_fname,
-            string variants_fname)
-{
-
-
-
-  
-  
-}
+  json socialdata;
+  json vaccinesdata;
+  json vaxsched;  // this will need to be loades separately--not part of building model
 };
+
+// free function for factory pattern
+model_params load_model_params(string geo_path, string variants_path,
+                               string social_path, string vaxsched_path)
+{
+  model_params params;
+  params.geodata = load_geodata_csv(geo_path);
+  params.variantdata = load_variant_json(variants_path);
+  params.socialdata = load_social_json(social_path);
+  params.vaccinesdata = load_vaccines_json(vaccines_path);
+  params.vaxsched = load_vax_sched_json(vaxsched_path);
+  return params;
+}
