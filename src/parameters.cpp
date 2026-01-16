@@ -153,7 +153,7 @@ void print_geodata(const GeoData& data) {
 // variant data supplies infectset, progressionset, trvec, variantlist
 //
 
-json load_variant_json(string fpath) {
+json load_json_params(string fpath) {
 
   try {
     std::ifstream fcontent(fpath);
@@ -169,7 +169,7 @@ json load_variant_json(string fpath) {
 }
 
 void print_variants_data(json v) {
-    cout << "\n\n================\nexamining json data"<< ", count of top-level nodes: " << v.size() << "\n";    
+    cout << "\n\n================\nexamining variants data"<< ", count of top-level nodes: " << v.size() << "\n";    
 
 
     // let's see what or how we can select parts
@@ -183,22 +183,6 @@ void print_variants_data(json v) {
 //
 // vaccine data
 //
-
-json load_vaccines_json(string fpath) {
-
-  try {
-    std::ifstream fcontent(fpath);
-    json data = json::parse(fcontent);
-
-    return data;
-  }
-
-  catch (const std::exception& e) {
-      std::cerr << "Error: " << e.what() << "\n";
-      return json();  // empty object
-  }
-}
-
 
 void print_vaccines_data(json v) {
   string subkey = "effectiveness";
@@ -217,42 +201,12 @@ void print_vaccines_data(json v) {
 //
 // vaccination schedules
 //
-
-
-json load_vax_sched_json(string fpath) {
-  try {
-    std::ifstream fcontent(fpath);
-    json data = json::parse(fcontent);
-    return data;
-  }
-
-  catch (const std::exception& e) {
-      std::cerr << "Error: " << e.what() << "\n";
-      return json();  // empty object
-  }
-}
-
+// printed with json dump in test.cpp
 
 
 //
-// social spreading data
+// social params
 //
-
-json load_social_json(string fpath) {
-
-  try {
-    std::ifstream fcontent(fpath);
-    json data = json::parse(fcontent);
-
-    return data;
-  }
-
-  catch (const std::exception& e) {
-      std::cerr << "Error: " << e.what() << "\n";
-      return json();  // empty object
-  }
-}
-
 
 void print_social_data(json v) {
 
@@ -287,9 +241,9 @@ model_params load_model_params(string geo_path, string variants_path,
 {
   model_params params;
   params.geodata = load_geodata_csv(geo_path);
-  params.variantdata = load_variant_json(variants_path);
-  params.socialdata = load_social_json(social_path);
-  params.vaccinesdata = load_vaccines_json(vaccines_path);
-  params.vaxsched = load_vax_sched_json(vaxsched_path);
+  params.variantdata = load_json_params(variants_path);
+  params.socialdata = load_json_params(social_path);
+  params.vaccinesdata = load_json_params(vaccines_path);
+  params.vaxsched = load_json_params(vaxsched_path);
   return params;
 }
