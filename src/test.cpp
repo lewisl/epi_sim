@@ -238,11 +238,15 @@ int main() {
   // test_popdata_constructor();
   // test_popdata_print_table();
   model_params mp = load_model_params(geodata_path,variants_path, social_path, vax_sched_path);
+  // print_geodata(mp.geodata);
+
+  // shifter(mp.geodata.density, 0.9, 1.25);
+
   print_geodata(mp.geodata);
-  print_variants_data(mp.variantdata);
+  // print_variants_data(mp.variantdata);
   // cout << mp.variantdata.dump(2) << "\n";
-  print_social_data(mp.socialdata);
-  print_vaccines_data(mp.vaccinesdata);
-  cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
+  // print_social_data(mp.socialdata);
+  // print_vaccines_data(mp.vaccinesdata);
+  // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
   return 0;
 }

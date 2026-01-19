@@ -3,10 +3,11 @@
 build/
 compile_commands.json
 outtakes
+scratch
 
 # MacOS Cache
 .DS_Store
 
 # others
-.clangd
 .cache
+tempCode*

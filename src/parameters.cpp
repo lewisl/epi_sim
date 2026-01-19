@@ -1,5 +1,6 @@
 #include <csv2/reader.hpp>
 #include <string>
+#include <algorithm>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -15,6 +16,9 @@ using std::cout;
 using std::string;
 using std::vector;
 namespace fs = std::filesystem;
+
+// forward declarations
+inline void shifter(vector<float> &arr, const float newmin, const float newmax);
 
 // here we define all of the containers for the model parameters, load them,
 // and for convenience pass them into the model building and running code as
@@ -43,7 +47,7 @@ const string vaccines_path = (project_dir / param_dir / vaccines_fname).string()
 const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
 
 //
-// geodata
+// geodata: this is done
 //
 
 struct GeoData {
@@ -62,7 +66,7 @@ struct GeoData {
     vector<string> state;
     vector<int> sizecat;
     vector<int> pop;
-    vector<int> density;
+    vector<float> density;
     vector<string> anchor;      // Date stored as string (could parse to date type)
     vector<string> indoor_st;   // Date stored as string
     vector<string> indoor_end;  // Date stored as string
@@ -70,9 +74,9 @@ struct GeoData {
     // Helper to get type name for a column
     std::string get_type(const std::string& col_name) const {
         if (col_name == "fips" || col_name == "sizecat" || 
-            col_name == "pop" || col_name == "density") {
-            return "int";
-        }
+            col_name == "pop") return "int";
+        
+        if (col_name == "density") return "float";
         return "string";
     }
 };
@@ -109,13 +113,15 @@ GeoData load_geodata_csv(const std::string& filename) {
     data.state.push_back(values[3]);
     data.sizecat.push_back(std::stoi(values[4]));
     data.pop.push_back(std::stoi(values[5]));
-    data.density.push_back(std::stoi(values[6]));
+    data.density.push_back(std::stof(values[6]));
     data.anchor.push_back(values[7]);
     data.indoor_st.push_back(values[8]);
     data.indoor_end.push_back(values[9]);
       
     data.num_rows++;
   }
+
+  shifter(data.density, 0.9, 1.25);
   return data;
 }
 
@@ -170,19 +176,51 @@ json load_json_params(string fpath) {
 
 void print_variants_data(json v) {
     cout << "\n\n================\nexamining variants data"<< ", count of top-level nodes: " << v.size() << "\n";    
-
+    cout << v.dump(2) << "\n====================\n";
 
     // let's see what or how we can select parts
-    for (auto element : v.items()) {  // items() required for iteration of key, value
-      cout << "==== " << element.key() << " ====\n";
-      cout << v[element.key()]["spread"]["sendrisk"] << "\n";
-      cout << "===================================\n";
-    }
+    // for (auto element : v.items()) {  // items() required for iteration of key, value
+    //   cout << "==== " << element.key() << " ====\n";
+    //   cout << v[element.key()]["spread"]["sendrisk"] << "\n";
+    //   cout << "===================================\n";
+    // }
 }
+
+//
+// infectset
+//
+// for each variant: immunity
+//                      immunehalflife
+//                      recovery_immunity per variant
+//                    progression factors
+//                      riskadjust: vector<float, 6> per condition
+//                      vaxhalflifeadjust, float between 0.0 and 1.0 per vaccine
+//                    progression_tree:  big tree or use factors:   which
+//                               factors?
+//                    spread: dict
+//                      basemultiplier: float
+//                      recvrisk: vector<float, 5> values per agegrp
+//                      sendrisk: vector<float, 26> float between 0.0 and 2.0 for each day being sick
+
+
+
+
 
 //
 // vaccine data
 //
+
+struct NumNamePair {
+  vector<string> name;
+  vector<int> num;
+  int nextnum{0};
+
+  void add_item(string newname, int newnum) {
+    name.push_back(newname);
+    num.push_back(newnum);
+    nextnum++;
+  }
+};
 
 void print_vaccines_data(json v) {
   string subkey = "effectiveness";
@@ -223,6 +261,27 @@ void print_social_data(json v) {
       }
     }
 }
+
+//
+// helpers    should move to helpers .h or .cpp
+//
+inline void shifter(vector<float> &arr, const float newmin, const float newmax) {  
+
+  auto minposition = std::min_element(arr.begin(), arr.end());
+  auto maxposition = std::max_element(arr.begin(), arr.end());
+  const float oldmin = *minposition;
+  const float oldmax = *maxposition;
+
+  // Handle edge case: all values are identical
+  if (oldmax == oldmin) {
+    std::fill(arr.begin(), arr.end(), 1.0f);  // Neutral multiplier
+  } else {
+    for (auto &element : arr) {
+      element = newmin + (newmax - newmin) / (oldmax - oldmin) * (element - oldmin); // we can put this in a function if needed
+    }
+  }
+}
+
 
 //
 // container for all of the parameters required for a model
