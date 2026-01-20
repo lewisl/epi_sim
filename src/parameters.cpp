@@ -12,6 +12,8 @@
 // #include <yaml-cpp/node/parse.h>
 // #include <yaml-cpp/yaml.h>
 #include <nlohmann/json.hpp>
+#include <fmt/base.h>
+// #include <fmt/format.h>
 
 using json = nlohmann::json;
 using std::cout;
@@ -128,33 +130,29 @@ GeoData load_geodata_csv(const std::string& filename) {
   return data;
 }
 
-// as we develop more parameter classes, we'll have a print method in each 
-void print_geodata(const GeoData& data) {
-    cout << "Loaded " << data.num_rows << " rows with " 
-              << data.column_names.size() << " columns:\n\n";
 
-    // header
-        cout << std::left;
-        cout << std::setw(4) << "" << std::setw(8) << "fips";
-        cout << std::setw(18) << "county";
-        cout << std::setw(18) << "city";
-        cout << std::setw(8) << "state";
-        cout << std::setw(10) << "sizecat";
-        cout << std::setw(10) << "pop";
-        cout << std::setw(10) << "density";
-        cout << std::setw(12) << "anchor";
-        cout << "\n";
+void print_geodata(const GeoData& data) {
+    fmt::print("Loaded {} rows with {} columns:\n\n", 
+               data.num_rows, data.column_names.size());
+
+    // Header
+    fmt::print(fmt::runtime("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n"),
+               "", "fips", "county", "city", "state", 
+               "sizecat", "pop", "density", "anchor");
+    
+    // Rows
     for (size_t i = 0; i < data.num_rows; ++i) {
-        cout << std::setw(4) << (std::to_string(i) + ":");
-        cout << std::setw(8) << data.fips[i];
-        cout << std::setw(18) << data.county[i];
-        cout << std::setw(18) << data.city[i];
-        cout << std::setw(8) << data.state[i];
-        cout << std::setw(10) << data.sizecat[i];
-        cout << std::setw(10) << data.pop[i];
-        cout << std::setw(10) << data.density[i];
-        cout << std::setw(12) << data.anchor[i];
-        cout << "\n";
+        fmt::print(fmt::runtime("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n"),
+            //  fmt::format("{}:", i),
+            i,
+              data.fips[i],
+              data.county[i],
+              data.city[i],
+              data.state[i],
+              data.sizecat[i],
+              data.pop[i],
+              data.density[i],
+              data.anchor[i]);
     }
 }
 
@@ -394,6 +392,7 @@ model_params load_model_params(string geo_path, string variants_path,
 {
   // Use aggregate initialization to construct model_params with all members at once
   // This avoids assignment to socialdata (which has const members)
+  // note the curly braces: this is initialization, NOT a call to the default constructor
   return model_params{
     .geodata = load_geodata_csv(geo_path),
     .variantdata = load_json_params(variants_path),

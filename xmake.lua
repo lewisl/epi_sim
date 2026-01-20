@@ -1,5 +1,5 @@
 add_rules("mode.debug", "mode.release")
-add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json")
+add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt")
 set_languages("c++23")
 
 target("epi_sim")
@@ -8,7 +8,7 @@ target("epi_sim")
     add_files("src/epi_sim.cpp")
     add_files("src/*.cpp|test.cpp|parameters.cpp|test_json.cpp")  -- All .cpp files except test.cpp and included cpp files
     set_toolchains("llvm")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt")
 
 target("test")
     set_kind("binary")
@@ -16,7 +16,7 @@ target("test")
     -- add_files("src/test.cpp")
     add_files("src/*.cpp|epi_sim.cpp|parameters.cpp|test_json.cpp")  -- All .cpp files except epi_sim.cpp and included cpp files
     set_toolchains("llvm")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt")
 
 target("this")
     set_kind("binary")
