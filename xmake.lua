@@ -1,10 +1,10 @@
 add_rules("mode.debug", "mode.release")
 add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json")
+set_languages("c++23")
 
 target("epi_sim")
     set_kind("binary")
     set_default("false")
-    set_languages("c++23")
     add_files("src/epi_sim.cpp")
     add_files("src/*.cpp|test.cpp|parameters.cpp|test_json.cpp")  -- All .cpp files except test.cpp and included cpp files
     set_toolchains("llvm")
@@ -13,7 +13,6 @@ target("epi_sim")
 target("test")
     set_kind("binary")
     set_default("false")
-    set_languages("c++23")
     -- add_files("src/test.cpp")
     add_files("src/*.cpp|epi_sim.cpp|parameters.cpp|test_json.cpp")  -- All .cpp files except epi_sim.cpp and included cpp files
     set_toolchains("llvm")
@@ -22,7 +21,6 @@ target("test")
 target("this")
     set_kind("binary")
     set_default("false")
-    set_languages("c++23")
     add_files("scratch/fake_enums.cpp")  -- or any other cpp file in scratch dir
     set_toolchains("llvm")
 

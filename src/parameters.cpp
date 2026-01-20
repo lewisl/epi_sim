@@ -2,11 +2,13 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <array>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <cstdlib>
 #include <filesystem>
+#include <ranges>
 // #include <yaml-cpp/node/parse.h>
 // #include <yaml-cpp/yaml.h>
 #include <nlohmann/json.hpp>
@@ -15,6 +17,7 @@ using json = nlohmann::json;
 using std::cout;
 using std::string;
 using std::vector;
+using std::array;
 namespace fs = std::filesystem;
 
 // forward declarations
@@ -121,7 +124,7 @@ GeoData load_geodata_csv(const std::string& filename) {
     data.num_rows++;
   }
 
-  shifter(data.density, 0.9, 1.25);
+  shifter(data.density, 0.9, 1.25);  // turn population density of cities into a compressed index
   return data;
 }
 
@@ -246,20 +249,111 @@ void print_vaccines_data(json v) {
 // social params
 //
 
-void print_social_data(json v) {
 
-    string age_choice = "age0_19";  // just for testing
-    cout << "\n\n================\nexamining social data"<< ", count of top-level nodes: " << v.size() << "\n";    
 
-    // let's see what or how we can select parts
-    for (auto element :
-         v.items()) { // items() required for iteration of key, value
-      if (element.key() == "contactfactors" || element.key() == "touchfactors") {
-        cout << "==== " << element.key() << " " << age_choice << " ====\n";
-        cout << v[element.key()][age_choice] << "\n";
-        cout << "===================================\n";
-      }
+/*
+gammashape: float
+indoor_uplift: float
+social.contactfactors matrix 4 x 5 float conditions x agegrp
+        "age0_19": {
+        "nil": 1.1,
+        "mild": 1.1,
+        "sick": 0.7,
+        "severe": 0.5
+        },
+social.touchfactors 6 x 5 matrix float 2 statuses 4 conditions by agegrp
+            "unexposed": 0.55,
+            "recovered": 0.55,
+            "nil": 0.55,
+            "mild": 0.55,
+            "sick": 0.28,
+            "severe": 0.18
+*/
+
+struct socialparams {
+  // Scalar parameters (loaded from JSON)
+  float gammashape {};
+  float indoor_uplift {};
+
+  // Matrix data (loaded from JSON)
+  array<array<float, 5>, 4> contactfactors {};  // 4 rows (contact_rows) × 5 cols (age groups)
+  array<array<float, 5>, 6> touchfactors {};    // 6 rows (touch_rows) × 5 cols (age groups)
+
+  // Row and column labels (const metadata, initialized in constructor)
+  const vector<string> touch_rows;
+  const vector<string> contact_rows;
+  const vector<string> age_columns;
+
+  // Default constructor initializes the const label vectors
+  socialparams()
+    : touch_rows{"unexposed", "recovered", "nil", "mild", "sick", "severe"},
+      contact_rows{"nil", "mild", "sick", "severe"},
+      age_columns{"age0_19", "age20_39", "age40_59", "age60_79", "age80_up"}
+  {}
+};
+
+socialparams load_social_params(string social_path) {
+  json data = load_json_params(social_path);
+
+  socialparams socialp;
+  socialp.gammashape = data["gammashape"];
+  socialp.indoor_uplift = data["indoor_uplift"];
+
+  // build touchfactors by rows (using struct's const members)
+  for (size_t rowidx = 0; rowidx < socialp.touch_rows.size(); ++rowidx) {
+    for (size_t colidx = 0; colidx < socialp.age_columns.size(); ++colidx) {
+      socialp.touchfactors[rowidx][colidx] = data["touchfactors"][socialp.age_columns[colidx]][socialp.touch_rows[rowidx]]; // effectively transposing the json
     }
+  }
+
+  // build contactfactors by rows (using struct's const members)
+  for (size_t rowidx = 0; rowidx < socialp.contact_rows.size(); ++rowidx) {
+    for (size_t colidx = 0; colidx < socialp.age_columns.size(); ++colidx) {
+      socialp.contactfactors[rowidx][colidx] = data["contactfactors"][socialp.age_columns[colidx]][socialp.contact_rows[rowidx]]; // effectively transposing the json
+    }
+  }
+
+  return socialp;
+}
+
+// move into struct when working...
+void print_social_struct(socialparams social) {
+  cout << "gammashape: " << social.gammashape << "\n";
+  cout << "indoor_uplift: " << social.indoor_uplift << "\n\n";
+
+  // Print contactfactors with row and column labels
+  cout << "contactfactors (" << social.contact_rows.size() << "x" << social.age_columns.size() << "):\n";
+  cout << "           ";
+  for (const auto& col : social.age_columns) {
+    cout << std::setw(10) << col << " ";
+  }
+  cout << "\n";
+
+  for (size_t i = 0; i < social.contactfactors.size(); ++i) {
+    cout << std::setw(10) << social.contact_rows[i] << " ";
+    for (size_t j = 0; j < social.contactfactors[i].size(); ++j) {
+      cout << std::setw(10) << social.contactfactors[i][j] << " ";
+    }
+    cout << "\n";
+  }
+
+  cout << "\n";
+
+  // Print touchfactors with row and column labels
+  cout << "touchfactors (" << social.touch_rows.size() << "x" << social.age_columns.size() << "):\n";
+  cout << "           ";
+  for (const auto& col : social.age_columns) {
+    cout << std::setw(10) << col << " ";
+  }
+  cout << "\n";
+
+  for (size_t i = 0; i < social.touchfactors.size(); ++i) {
+    cout << std::setw(10) << social.touch_rows[i] << " ";
+    for (size_t j = 0; j < social.touchfactors[i].size(); ++j) {
+      cout << std::setw(10) << social.touchfactors[i][j] << " ";
+    }
+    cout << "\n";
+  }
 }
 
 //
@@ -289,7 +383,7 @@ inline void shifter(vector<float> &arr, const float newmin, const float newmax) 
 struct model_params {
   GeoData geodata;
   json variantdata;
-  json socialdata;
+  socialparams socialdata;  // Changed from json to socialparams
   json vaccinesdata;
   json vaxsched;  // this will need to be loades separately--not part of building model
 };
@@ -298,11 +392,13 @@ struct model_params {
 model_params load_model_params(string geo_path, string variants_path,
                                string social_path, string vaxsched_path)
 {
-  model_params params;
-  params.geodata = load_geodata_csv(geo_path);
-  params.variantdata = load_json_params(variants_path);
-  params.socialdata = load_json_params(social_path);
-  params.vaccinesdata = load_json_params(vaccines_path);
-  params.vaxsched = load_json_params(vaxsched_path);
-  return params;
+  // Use aggregate initialization to construct model_params with all members at once
+  // This avoids assignment to socialdata (which has const members)
+  return model_params{
+    .geodata = load_geodata_csv(geo_path),
+    .variantdata = load_json_params(variants_path),
+    .socialdata = load_social_params(social_path),
+    .vaccinesdata = load_json_params(vaccines_path),
+    .vaxsched = load_json_params(vaxsched_path)
+  };
 }

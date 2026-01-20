@@ -242,10 +242,10 @@ int main() {
 
   // shifter(mp.geodata.density, 0.9, 1.25);
 
-  print_geodata(mp.geodata);
+  // print_geodata(mp.geodata);
   // print_variants_data(mp.variantdata);
   // cout << mp.variantdata.dump(2) << "\n";
-  // print_social_data(mp.socialdata);
+  print_social_struct(mp.socialdata);
   // print_vaccines_data(mp.vaccinesdata);
   // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
   return 0;
