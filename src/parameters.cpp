@@ -5,7 +5,7 @@
 #include <array>
 #include <iostream>
 #include <fstream>
-#include <iomanip>
+// #include <iomanip>
 #include <cstdlib>
 #include <filesystem>
 #include <unordered_map>
@@ -66,23 +66,40 @@ struct RuntimeEnum {
           lookup[newname] = nextnum;
           nextnum++;
       }
-  }
-
-  // String -> Num (Instant)
-  int to_int(std::string s) { return lookup.count(s) ? lookup[s] : -1; }
+    }
 
   // Num -> String (Instant)
   std::string to_string(int i) {
     return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
   }
 
+    // functor that returns the int corresponding to the string
+    int operator()(const string& name) const {
+      auto it = lookup.find(name);
+      return (it != lookup.end()) ? it->second : -1;
+    }
+  
   void print() {
     for (size_t i = 0; i < names.size(); ++i) {
-      fmt::print(fmt::runtime("{:>2}: {:<8}\n"), i, names[i]);}
+      fmt::print("{:>2}: {:<8}\n", i, names[i]);}
   }
 };
 
 
+json load_json_params(string fpath) {
+
+  try {
+    std::ifstream fcontent(fpath);
+    json data = json::parse(fcontent);
+
+    return data;
+  }
+
+  catch (const std::exception& e) {
+      std::cerr << "Error: " << e.what() << "\n";
+      return json();  // empty object
+  }
+}
 
 //
 // geodata: this is done
@@ -116,6 +133,28 @@ struct GeoData {
         
         if (col_name == "density") return "float";
         return "string";
+    }
+
+    void print() {
+      // Header
+      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n",
+                "", "fips", "county", "city", "state",
+                "sizecat", "pop", "density", "anchor");
+
+      // Rows
+      for (size_t i = 0; i < num_rows; ++i) {
+          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n",
+              //  fmt::format("{}:", i),
+              i,
+                fips[i],
+                county[i],
+                city[i],
+                state[i],
+                sizecat[i],
+                pop[i],
+                density[i],
+                anchor[i]);
+      }
     }
 };
 
@@ -164,49 +203,10 @@ GeoData load_geodata_csv(const std::string& filename) {
 }
 
 
-void print_geodata(const GeoData& data) {
-    fmt::print("Loaded {} rows with {} columns:\n\n", 
-               data.num_rows, data.column_names.size());
-
-    // Header
-    fmt::print(fmt::runtime("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n"),
-               "", "fips", "county", "city", "state", 
-               "sizecat", "pop", "density", "anchor");
-    
-    // Rows
-    for (size_t i = 0; i < data.num_rows; ++i) {
-        fmt::print(fmt::runtime("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n"),
-            //  fmt::format("{}:", i),
-            i,
-              data.fips[i],
-              data.county[i],
-              data.city[i],
-              data.state[i],
-              data.sizecat[i],
-              data.pop[i],
-              data.density[i],
-              data.anchor[i]);
-    }
-}
-
 //
-// variant data supplies infectset, progressionset, trvec, variantlist
+// variant data supplies infectset, progressionset, trvec, variants
 //
 
-json load_json_params(string fpath) {
-
-  try {
-    std::ifstream fcontent(fpath);
-    json data = json::parse(fcontent);
-
-    return data;
-  }
-
-  catch (const std::exception& e) {
-      std::cerr << "Error: " << e.what() << "\n";
-      return json();  // empty object
-  }
-}
 
 void print_variants_data(json v) {
     cout << "\n\n================\nexamining variants data"<< ", count of top-level nodes: " << v.size() << "\n";    
@@ -245,9 +245,9 @@ struct InfectSet {
 std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
   json vdata = load_json_params(fpath);
 
-  RuntimeEnum variantlist{};
+  RuntimeEnum variants{};
   for (auto variant : vdata.items()) {
-    variantlist.add_item(variant.key());
+    variants.add_item(variant.key());
   }
 
   InfectSet infectset{};
@@ -260,32 +260,44 @@ std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
                            .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
   }
 
-  return {variantlist, infectset};  // gonna have 3 more real data structures
+  return {variants, infectset};  // gonna have 3 more real data structures
 }
 
+/*
+vector indexed by agegrp int of
+  vector indexed by breakday of
+     vector<vector<float> a matrix of progression probabilities
+
+need a helper function that builds a progression probabilty matrix from json input
+*/
+struct Agetree {
+  vector<vector<vector<vector<float>>>> tree {};
+};
+
+struct ProgressionFactors {
+  vector<float> riskadjust;
+  std::unordered_map<string, float>
+      vaxhalflifeadjust; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
+};
+
+struct ProgressionParams {
+  Agetree tree;
+  ProgressionFactors factors;
+};
+
+/*
+struct progressionset
+
+variant => ProgressionParams
 
 
-//
-// struct infectset
-//
-// for each variant: immunity
-//                      immunehalflife
-//                      recovery_immunity per variant
-//                    progression factors
-//                      riskadjust: vector<float, 6> per condition
-//                      vaxhalflifeadjust, float between 0.0 and 1.0 per vaccine
-//                    progression_tree:  big tree or use factors:   which
-//                               factors?
-//                    spread: dict
-//                      basemultiplier: float
-//                      recvrisk: vector<float, 5> values per agegrp
-//                      sendrisk: vector<float, 26> float between 0.0 and 2.0 for each day being sick
 
-// struct progressionset
+*/
+
 
 // struct trvec?
 
-// struct variantlist  -- done
+// struct variants  -- done
 
 
 
@@ -318,25 +330,6 @@ void print_vaccines_data(json v) {
 // social params - this is done
 //
 
-/*
-gammashape: float
-indoor_uplift: float
-social.contactfactors matrix 4 x 5 float conditions x agegrp
-        "age0_19": {
-        "nil": 1.1,
-        "mild": 1.1,
-        "sick": 0.7,
-        "severe": 0.5
-        },
-social.touchfactors 6 x 5 matrix float 2 statuses 4 conditions by agegrp
-            "unexposed": 0.55,
-            "recovered": 0.55,
-            "nil": 0.55,
-            "mild": 0.55,
-            "sick": 0.28,
-            "severe": 0.18
-*/
-
 struct socialparams {
   // Scalar parameters (loaded from JSON)
   float gammashape {};
@@ -353,10 +346,50 @@ struct socialparams {
 
   // Default constructor initializes the const label vectors
   socialparams()
-    : touch_rows{"unexposed", "recovered", "nil", "mild", "sick", "severe"},
-      contact_rows{"nil", "mild", "sick", "severe"},
-      age_columns{"age0_19", "age20_39", "age40_59", "age60_79", "age80_up"}
-  {}
+      : touch_rows{"unexposed", "recovered", "nil", "mild", "sick", "severe"},
+        contact_rows{"nil", "mild", "sick", "severe"},
+        age_columns{"age0_19", "age20_39", "age40_59", "age60_79", "age80_up"} {
+  }
+
+  void print() {
+    fmt::print("gammashape: {} indoor_uplift: {}\n", gammashape, indoor_uplift);
+
+    // Print contactfactors with row and column labels
+    fmt::print("contactfactors ({}x{}):\n", contact_rows.size(), age_columns.size());
+
+    fmt::print("{:<10}", "");
+    for (const auto& colhdr : age_columns) {
+      fmt::print("{:>11}", colhdr);
+    }
+    cout << "\n";
+
+    for (size_t i = 0; i < contactfactors.size(); ++i) {
+      fmt::print("{:>10} ", contact_rows[i]);
+      for (size_t j = 0; j < contactfactors[i].size(); ++j) {
+        fmt::print("{:>10.2f} ", contactfactors[i][j]);
+      }
+      cout << "\n";
+    }
+    cout << "\n";
+
+    // print touchfactors with row and column labels
+    fmt::print("touchfactors ({}x{}):\n", touch_rows.size(), age_columns.size());
+
+    fmt::print("{:<10}", "");
+    for (const auto& colhdr : age_columns) {
+      fmt::print("{:>11}", colhdr);
+    }
+    cout << "\n";
+
+    for (size_t i = 0; i < touchfactors.size(); ++i) {
+      fmt::print("{:>10} ", touch_rows[i]);
+      for (size_t j = 0; j < touchfactors[i].size(); ++j) {
+        fmt::print("{:>10.2f} ", touchfactors[i][j]);
+      }
+      cout << "\n";
+    }
+    cout << "\n";
+  }
 };
 
 socialparams load_social_params(string social_path) {
@@ -383,45 +416,6 @@ socialparams load_social_params(string social_path) {
   return socialp;
 }
 
-// move into struct when working...
-void print_social_struct(socialparams social) {
-  cout << "gammashape: " << social.gammashape << "\n";
-  cout << "indoor_uplift: " << social.indoor_uplift << "\n\n";
-
-  // Print contactfactors with row and column labels
-  cout << "contactfactors (" << social.contact_rows.size() << "x" << social.age_columns.size() << "):\n";
-  cout << "           ";
-  for (const auto& col : social.age_columns) {
-    cout << std::setw(10) << col << " ";
-  }
-  cout << "\n";
-
-  for (size_t i = 0; i < social.contactfactors.size(); ++i) {
-    cout << std::setw(10) << social.contact_rows[i] << " ";
-    for (size_t j = 0; j < social.contactfactors[i].size(); ++j) {
-      cout << std::setw(10) << social.contactfactors[i][j] << " ";
-    }
-    cout << "\n";
-  }
-
-  cout << "\n";
-
-  // Print touchfactors with row and column labels
-  cout << "touchfactors (" << social.touch_rows.size() << "x" << social.age_columns.size() << "):\n";
-  cout << "           ";
-  for (const auto& col : social.age_columns) {
-    cout << std::setw(10) << col << " ";
-  }
-  cout << "\n";
-
-  for (size_t i = 0; i < social.touchfactors.size(); ++i) {
-    cout << std::setw(10) << social.touch_rows[i] << " ";
-    for (size_t j = 0; j < social.touchfactors[i].size(); ++j) {
-      cout << std::setw(10) << social.touchfactors[i][j] << " ";
-    }
-    cout << "\n";
-  }
-}
 
 //
 // helpers    should move to helpers .h or .cpp
@@ -447,28 +441,40 @@ inline void shifter(vector<float> &arr, const float newmin, const float newmax) 
 //
 // container for all of the parameters required for a model
 //
-struct model_params {
+struct ModelParams {
   GeoData geodata;
-  //based on variants parameters
-  RuntimeEnum variantlist;
+
+  //based on variants parameters json file
+  RuntimeEnum variants;
+  InfectSet infectset;
+
   vector<float> trvec;
   // ProgressionStruct progression;
-  // InfectStruct infection;
-  //
   socialparams socialdata;  // Changed from json to socialparams
   json vaccinesdata;
   json vaxsched;  // this will need to be loades separately--not part of building model
 };
 
 // free function for factory pattern
-model_params load_model_params(string geo_path, string variants_path,
-                               string social_path, string vaxsched_path)
-{
+ModelParams load_model_params(string geo_path, string variants_path,
+    string social_path, string vaxsched_path) {
+
+  // first build each need datastructure;
+  //          then wrap all of them in the aggregate initialization of the container
+  GeoData geodata = load_geodata_csv(geo_path);
+  auto [variants, infectset] = load_variants_data(variants_path);
+
+  // test the functor
+  cout << "test functor with variant \"base\" " << variants("base") << "\n";
+
+  
   // Use aggregate initialization to construct model_params with all members at once
   // This avoids assignment to socialdata (which has const members)
   // note the curly braces: this is initialization, NOT a call to the default constructor
-  return model_params{
-    .geodata = load_geodata_csv(geo_path),
+  return ModelParams{
+    .geodata = std::move(geodata),
+    .variants = std::move(variants),
+    .infectset = std::move(infectset),
     // .variantdata = load_json_params(variants_path),
     .socialdata = load_social_params(social_path),
     .vaccinesdata = load_json_params(vaccines_path),

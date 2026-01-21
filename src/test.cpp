@@ -211,29 +211,6 @@ void test_popdata_print_table() {
 }
 
 
-int test_geodata_read(const std::string& path) {
-    try {
-        GeoData data = load_geodata_csv(path);
-        std::cout << "\n=== Load Geo Data Test with CSV Reading ===" << "\n";
-        print_geodata(data);
-        
-        // Example usage: Find cities with population > 2 million
-        std::cout << "\n\nCities with population > 2,000,000:\n";
-        for (size_t i = 0; i < data.num_rows; ++i) {
-            if (data.pop[i] > 2000000) {
-                std::cout << "  " << data.city[i] << ", " << data.state[i] 
-                          << " - pop: " << data.pop[i] << "\n";
-            }
-        }
-        std::cout << "\n=== Load Geo Data Test Completed ===\n";  
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
-        return 1;
-    }
-    
-    return 0;
-}
-
 int main() {
   // test files
   // std::string csvfname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
@@ -245,10 +222,10 @@ int main() {
 
   // shifter(mp.geodata.density, 0.9, 1.25);
 
-  auto [variantslist, infectset] = load_variants_data(variants_path);
-  variantslist.print();
-  cout << "\n";
-  infectset.print();
+  // auto [variantslist, infectset] = load_variants_data(variants_path);
+  // variantslist.print();
+  // cout << "\n";
+  // infectset.print();
 
   // print_geodata(mp.geodata);
   // print_variants_data(mp.variantdata);
@@ -256,5 +233,17 @@ int main() {
   // print_social_struct(mp.socialdata);
   // print_vaccines_data(mp.vaccinesdata);
   // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
+
+  ModelParams mp = load_model_params(geodata_path, variants_path, social_path,
+                                     vax_sched_path);
+  mp.geodata.print();
+  cout << "\n";
+  mp.variants.print();
+  cout << "\n";
+  mp.infectset.print();
+  cout << "\n";
+  mp.socialdata.print();
+  cout << "\n";
+
   return 0;
 }
