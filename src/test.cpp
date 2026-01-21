@@ -8,6 +8,7 @@
 #include "categories.h"
 #include "population.h"
 #include "parameters.cpp"
+#include <tuple>
 
 using std::string;
 using std::vector;
@@ -239,10 +240,15 @@ int main() {
   // tests
   // test_popdata_constructor();
   // test_popdata_print_table();
-  model_params mp = load_model_params(geodata_path,variants_path, social_path, vax_sched_path);
-  print_geodata(mp.geodata);
+  // model_params mp = load_model_params(geodata_path,variants_path, social_path, vax_sched_path);
+  // print_geodata(mp.geodata);
 
   // shifter(mp.geodata.density, 0.9, 1.25);
+
+  auto [variantslist, infectset] = load_variants_data(variants_path);
+  variantslist.print();
+  cout << "\n";
+  infectset.print();
 
   // print_geodata(mp.geodata);
   // print_variants_data(mp.variantdata);

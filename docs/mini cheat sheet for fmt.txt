@@ -1,0 +1,21 @@
+// Alignment and width
+{:<10}   // left-align in 10 chars
+{:>10}   // right-align in 10 chars  
+{:^10}   // center in 10 chars
+{:*<10}  // left-align, fill with '*'
+
+// Numbers
+{:d}     // decimal integer
+{:x}     // hex (lowercase)
+{:X}     // hex (uppercase)
+{:b}     // binary
+{:o}     // octal
+
+// Floating point
+{:.2f}   // 2 decimal places
+{:.3e}   // scientific notation, 3 decimals
+{:10.2f} // width 10, 2 decimals
+
+// Combining
+{:>10.2f}  // right-align, width 10, 2 decimals
+{:<8.3}    // left-align, width 8, 3 significant digits

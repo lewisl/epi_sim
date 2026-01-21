@@ -8,12 +8,15 @@
 #include <iomanip>
 #include <cstdlib>
 #include <filesystem>
-#include <ranges>
+#include <unordered_map>
+#include <tuple>
+#include <utility>
 // #include <yaml-cpp/node/parse.h>
 // #include <yaml-cpp/yaml.h>
 #include <nlohmann/json.hpp>
-#include <fmt/base.h>
-// #include <fmt/format.h>
+// #include <fmt/base.h>
+#include <fmt/format.h>  // only get what I use: about 12k in the executable!
+#include <fmt/ranges.h>  // for printing containers like vector
 
 using json = nlohmann::json;
 using std::cout;
@@ -50,6 +53,36 @@ const string geodata_path = (project_dir / param_dir / geodata_fname).string();
 const string social_path = (project_dir / param_dir / social_fname).string();
 const string vaccines_path = (project_dir / param_dir / vaccines_fname).string();
 const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
+
+
+struct RuntimeEnum {
+  std::vector<std::string> names; // Index-to-Name (Number -> String)
+  std::unordered_map<std::string, int> lookup; // Name-to-Index (String -> Number)
+  int nextnum{0};
+
+  void add_item(std::string newname) {
+      if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
+          names.push_back(newname);
+          lookup[newname] = nextnum;
+          nextnum++;
+      }
+  }
+
+  // String -> Num (Instant)
+  int to_int(std::string s) { return lookup.count(s) ? lookup[s] : -1; }
+
+  // Num -> String (Instant)
+  std::string to_string(int i) {
+    return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
+  }
+
+  void print() {
+    for (size_t i = 0; i < names.size(); ++i) {
+      fmt::print(fmt::runtime("{:>2}: {:<8}\n"), i, names[i]);}
+  }
+};
+
+
 
 //
 // geodata: this is done
@@ -187,8 +220,53 @@ void print_variants_data(json v) {
     // }
 }
 
+struct InfectParams {
+  vector<float> sendrisk{};
+  vector<float> recvrisk{};
+  float basemultiplier{1.0};
+  int immunehalflife {0};
+};
+
+struct InfectSet {
+  vector<std::pair<string, InfectParams>> infectparams{};
+
+  void print() {
+    for (const auto& vp : infectparams) {
+      fmt::print("variant: {:<9}\n  sendrisk={},\n  recvrisk={},\n  base={:.2f}, halflife={}\n",
+                 vp.first,
+                 vp.second.sendrisk,
+                 vp.second.recvrisk,
+                 vp.second.basemultiplier,
+                 vp.second.immunehalflife);
+    }
+  }
+};
+
+std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
+  json vdata = load_json_params(fpath);
+
+  RuntimeEnum variantlist{};
+  for (auto variant : vdata.items()) {
+    variantlist.add_item(variant.key());
+  }
+
+  InfectSet infectset{};
+  for (auto variant : vdata.items()) {
+    infectset.infectparams.emplace_back( // pair members string, InfectParams
+        variant.key(), InfectParams{
+                           .sendrisk = variant.value()["spread"]["sendrisk"],
+                           .recvrisk = variant.value()["spread"]["recvrisk"],
+                           .basemultiplier = variant.value()["spread"]["basemultiplier"],
+                           .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
+  }
+
+  return {variantlist, infectset};  // gonna have 3 more real data structures
+}
+
+
+
 //
-// infectset
+// struct infectset
 //
 // for each variant: immunity
 //                      immunehalflife
@@ -203,7 +281,11 @@ void print_variants_data(json v) {
 //                      recvrisk: vector<float, 5> values per agegrp
 //                      sendrisk: vector<float, 26> float between 0.0 and 2.0 for each day being sick
 
+// struct progressionset
 
+// struct trvec?
+
+// struct variantlist  -- done
 
 
 
@@ -211,17 +293,6 @@ void print_variants_data(json v) {
 // vaccine data
 //
 
-struct NumNamePair {
-  vector<string> name;
-  vector<int> num;
-  int nextnum{0};
-
-  void add_item(string newname, int newnum) {
-    name.push_back(newname);
-    num.push_back(newnum);
-    nextnum++;
-  }
-};
 
 void print_vaccines_data(json v) {
   string subkey = "effectiveness";
@@ -244,10 +315,8 @@ void print_vaccines_data(json v) {
 
 
 //
-// social params
+// social params - this is done
 //
-
-
 
 /*
 gammashape: float
@@ -380,7 +449,12 @@ inline void shifter(vector<float> &arr, const float newmin, const float newmax) 
 //
 struct model_params {
   GeoData geodata;
-  json variantdata;
+  //based on variants parameters
+  RuntimeEnum variantlist;
+  vector<float> trvec;
+  // ProgressionStruct progression;
+  // InfectStruct infection;
+  //
   socialparams socialdata;  // Changed from json to socialparams
   json vaccinesdata;
   json vaxsched;  // this will need to be loades separately--not part of building model
@@ -395,7 +469,7 @@ model_params load_model_params(string geo_path, string variants_path,
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return model_params{
     .geodata = load_geodata_csv(geo_path),
-    .variantdata = load_json_params(variants_path),
+    // .variantdata = load_json_params(variants_path),
     .socialdata = load_social_params(social_path),
     .vaccinesdata = load_json_params(vaccines_path),
     .vaxsched = load_json_params(vaxsched_path)
