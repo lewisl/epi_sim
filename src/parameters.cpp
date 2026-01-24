@@ -18,6 +18,7 @@
 // #include <fmt/base.h>
 #include <fmt/format.h>  // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h>  // for printing containers like vector
+#include "categories.h"
 
 // using json = nlohmann::json;
 using json = nlohmann::ordered_json; 
@@ -251,8 +252,8 @@ struct InfectSet {
   }
 };
 
-std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
-  json vdata = load_json_params(fpath);
+std::tuple<RuntimeEnum, InfectSet> load_variants_data(json vdata) {
+  // json vdata = load_json_params(fpath);
 
   RuntimeEnum variants{};
   for (auto variant : vdata.items()) {
@@ -298,14 +299,9 @@ struct Agetree {  // for 1 variant
       return;
     }
 
-    const vector<string> age_groups = {"age0_19", "age20_39", "age40_59", "age60_79", "age80plus"};
-    const vector<string> conditions = {"nil", "mild", "sick", "severe"};
-    const vector<string> outcomes = {"recover", "nil", "mild", "sick", "severe", "dead"};
-
     for (size_t age_idx = 0; age_idx < tree.size(); age_idx++) {
       const auto& breakday_map = tree[age_idx];
-      string age_name = (age_idx < age_groups.size()) ? age_groups[age_idx] : fmt::format("age{}", age_idx);
-
+      string age_name = Agegrp::to_str(age_idx + 1);
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {
@@ -326,7 +322,7 @@ struct Agetree {  // for 1 variant
 
         for (size_t cond_idx = 0; cond_idx < condition_vec.size(); cond_idx++) {
           const auto& outcome_probs = condition_vec[cond_idx];
-          string cond_name = (cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
+          string cond_name = Condition::to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
           for (size_t i = 0; i < outcome_probs.size(); i++) {
@@ -390,7 +386,7 @@ struct Progression {     // for one variant
 };
 
 struct ProgressionSet {  // collection of all variants
-  vector<Progression> progression{};  // index by variant uint8_t
+  vector<Progression> progression{}; // index by variant uint8_t
 
   void print(const RuntimeEnum& variants) const {
     fmt::println("\n=== ProgressionSet ===");
@@ -405,11 +401,11 @@ struct ProgressionSet {  // collection of all variants
 };
 
 
-ProgressionSet load_progressionset(string fpath) {
-  json vdata = load_json_params(fpath);
+std::tuple<ProgressionSet, vector<float>> load_progression_set(json vdata) {
+  // json vdata = load_json_params(fpath);
   ProgressionSet progressionset{};
 
-  for (const auto &[variant, body] : vdata.items()) {
+  for (const auto &[variant, body] : vdata.items()) {  // variant loop
     ProgressionFactors factors{};
 
     auto jsontree = body["progression_tree"];
@@ -441,9 +437,25 @@ ProgressionSet load_progressionset(string fpath) {
 
     progressionset.progression.push_back(pg);
 
-  }
-  return progressionset;
+  } // variant loop
+
+  // pre-allocate small vector for performance in progression kernel function
+  vector<float> trvec = vector<float>(6, 0.0f); 
+  
+  return {progressionset, trvec};
 }
+
+std::tuple<InfectSet, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath) {
+  // use one big json file for multiple output structs, etc.
+  json vdata = load_json_params(fpath);
+
+  auto [variants, infectset] = load_variants_data(vdata);
+
+  auto [progressionset, trvec] = load_progression_set(vdata);
+
+
+  return {infectset, progressionset, trvec, variants};
+};
 
 /*
 access will look like
@@ -639,8 +651,8 @@ struct ModelParams {
   RuntimeEnum variants;
   InfectSet infectset;
   ProgressionSet progressionset;
-
   vector<float> trvec;
+  
   socialparams socialdata;  // Changed from json to socialparams
   json vaccinesdata;
   json vaxsched;  // this will need to be loades separately--not part of building model
@@ -653,9 +665,8 @@ ModelParams load_model_params(string geo_path, string variants_path,
   // first build each need datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);
-  auto [variants, infectset] = load_variants_data(variants_path);
 
-  ProgressionSet progressionset = load_progressionset(variants_path);
+  auto [infectset, progressionset, trvec, variants] = load_infect_params(variants_path);
 
   
   // Use aggregate initialization to construct model_params with all members at once
@@ -666,6 +677,7 @@ ModelParams load_model_params(string geo_path, string variants_path,
     .variants = std::move(variants),
     .infectset = std::move(infectset),
     .progressionset = std::move(progressionset),
+    .trvec = std::move(trvec),
     .socialdata = load_social_params(social_path),
     .vaccinesdata = load_json_params(vaccines_path),
     .vaxsched = load_json_params(vaxsched_path),

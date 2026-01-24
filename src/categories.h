@@ -58,6 +58,40 @@ namespace Status {
 }
 
 
+namespace Outcome {  // this may be ok because it will only be used for printing
+  enum Value : uint8_t {
+    recovered = Status::recovered,
+    nil = Condition::nil,
+    mild = Condition::mild,
+    sick = Condition::sick,
+    severe = Condition::severe,
+    dead = Status::dead
+  }; 
+
+  inline const char *to_str(uint8_t v) {
+    static const char *names[] = {"recovered", "nil",    "mild",
+                                  "sick",      "severe", "dead"};
+    const char * ret{};
+    if (v == Status::recovered) ret = "recovered";
+    if (v == Condition::nil) ret = "nil";
+    if (v == Condition::mild) ret = "mild";
+    if (v == Condition::sick) ret = "sick";
+    if (v == Condition::severe) ret = "severe";
+    if (v == Status::dead) ret = "dead";
+    return ret;
+  }
+
+  inline uint8_t from_str(const std::string &s) {
+    if (s == "recovered") return recovered;
+    if (s == "nil") return nil;
+    if (s == "mild") return mild;
+    if (s == "sick") return sick;
+    if (s == "severe") return severe;
+    if (s == "dead") return dead;
+    return Status::unexposed;
+  }
+}
+
 namespace Agegrp {
     enum Value : uint8_t { unknown = 0, age0_19, age20_39, age40_59, age60_79, age80_up };
 
