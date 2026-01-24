@@ -24,6 +24,11 @@ namespace Status {
         if (s == "none") return none;
         return none;
     }
+
+    inline auto format_as(Value v) {
+        return to_str(v);
+    }
+
     } // namespace Status
 
 
@@ -45,6 +50,10 @@ namespace Status {
         if (s == "sick") return sick;
         if (s == "severe") return severe;
         return uninfected;
+    }
+
+    inline auto format_as(Value v) {
+      return to_str(v);
     }
 }
 
@@ -69,29 +78,33 @@ namespace Agegrp {
         if (s == "unknown")  return unknown;
         return unknown;
     }
-}
 
-
-namespace Vaccine {
-    enum Value : uint8_t { none = 0, Pfizer, Moderna, JnJ };
-
-    // Index to String: O(1) array lookup
-    inline const char* to_str(uint8_t v) {
-        // static const array lives in data segment, no allocation at runtime
-        static const char* names[] = {"none", "Pfizer", "Moderna", "J & J"};
-        return (v < 4) ? names[v] : "unknown";
-    }
-
-    // String to Index: Fast branching (better than a hash map for N < 15)
-    inline uint8_t from_str(const std::string &s) {
-        if (s == "none")    return none;
-        if (s == "Pfizer")  return Pfizer;
-        if (s == "Moderna") return Moderna;
-        if (s == "J & J")   return JnJ;
-        if (s == "JnJ")     return JnJ;  // accept both spellings
-        return none;
+    inline auto format_as(Value v) {
+        return to_str(v);
     }
 }
+
+// make this a RuntimeEnum because it is based on user input
+// namespace Vaccine {
+//     enum Value : uint8_t { none = 0, Pfizer, Moderna, JnJ };
+
+//     // Index to String: O(1) array lookup
+//     inline const char* to_str(uint8_t v) {
+//         // static const array lives in data segment, no allocation at runtime
+//         static const char* names[] = {"none", "Pfizer", "Moderna", "J & J"};
+//         return (v < 4) ? names[v] : "unknown";
+//     }
+
+//     // String to Index: Fast branching (better than a hash map for N < 15)
+//     inline uint8_t from_str(const std::string &s) {
+//         if (s == "none")    return none;
+//         if (s == "Pfizer")  return Pfizer;
+//         if (s == "Moderna") return Moderna;
+//         if (s == "J & J")   return JnJ;
+//         if (s == "JnJ")     return JnJ;  // accept both spellings
+//         return none;
+//     }
+// }
 
 
 // test function

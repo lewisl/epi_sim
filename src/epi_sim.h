@@ -1,3 +1,8 @@
+// todo items:
+// finish data structures and load for progressionset
+// order testing for variants and vaccines in several places where these are loaded into paramter structs
+
+
 
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 

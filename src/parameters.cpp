@@ -1,4 +1,4 @@
-#include <csv2/reader.hpp>
+#include <csv2/reader.hpp>  // adequate...
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -8,17 +8,19 @@
 // #include <iomanip>
 #include <cstdlib>
 #include <filesystem>
-#include <unordered_map>
+// #include <unordered_map>
+#include "absl/container/flat_hash_map.h"
 #include <tuple>
 #include <utility>
 // #include <yaml-cpp/node/parse.h>
 // #include <yaml-cpp/yaml.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json.hpp>  // amazing for parsing complex files (maybe not for high speed web services)
 // #include <fmt/base.h>
 #include <fmt/format.h>  // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h>  // for printing containers like vector
 
-using json = nlohmann::json;
+// using json = nlohmann::json;
+using json = nlohmann::ordered_json; 
 using std::cout;
 using std::string;
 using std::vector;
@@ -57,7 +59,7 @@ const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sch
 
 struct RuntimeEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
-  std::unordered_map<std::string, int> lookup; // Name-to-Index (String -> Number)
+  absl::flat_hash_map<std::string, int> lookup; // Name-to-Index (String -> Number)
   int nextnum{0};
 
   void add_item(std::string newname) {
@@ -68,20 +70,27 @@ struct RuntimeEnum {
       }
     }
 
+    // String → Index (linear search - fast for small N)
+  int operator()(const string& name) const {
+      auto it = std::find(names.begin(), names.end(), name);
+      return (it != names.end()) ? std::distance(names.begin(), it) : -1;
+  }
+
+  // String → Index (hash map - for large N or explicit use)
+  int to_int(const std::string& name) const {
+      auto it = lookup.find(name);
+      return (it != lookup.end()) ? it->second : -1;
+  }
+  
   // Num -> String (Instant)
   std::string to_string(int i) {
     return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
   }
-
-    // functor that returns the int corresponding to the string
-    int operator()(const string& name) const {
-      auto it = lookup.find(name);
-      return (it != lookup.end()) ? it->second : -1;
-    }
   
-  void print() {
+  void print() const {
     for (size_t i = 0; i < names.size(); ++i) {
-      fmt::print("{:>2}: {:<8}\n", i, names[i]);}
+      fmt::print("{:>2}: {:<8}\n", i, names[i]);
+    }
   }
 };
 
@@ -260,7 +269,7 @@ std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
                            .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
   }
 
-  return {variants, infectset};  // gonna have 3 more real data structures
+  return {variants, infectset};  // gonna have more data structures: ProgressionParams, trvec
 }
 
 /*
@@ -268,33 +277,187 @@ vector indexed by agegrp int of
   vector indexed by breakday of
      vector<vector<float> a matrix of progression probabilities
 
-need a helper function that builds a progression probabilty matrix from json input
+to parse: 
+"<variant>" 
+      "progression_tree"
+          "<agegrp>"
+              "<breakday>"
+                  4 sickness conditions: "nil", "mild", "sick", "severe"
+                  for each of vector<float> in [0.0, 1.0]: [recover, nil, mild, sick, severe, dead]
+
+if no tree apply riskadjust and vaxhalflifeadjust to base
 */
-struct Agetree {
-  vector<vector<vector<vector<float>>>> tree {};
+
+struct Agetree {  // for 1 variant
+  vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree{};  // would be matrices in Julia--must be vec of vec in c++
+  //age->vector indices 0..4/breakday->flat_hash_map<sparse ints, vector<condition indices 0..3><vector<float>> 6 values summing to 1.0
+
+  void print() const {
+    if (tree.empty()) {
+      fmt::println("    Tree: <empty>");
+      return;
+    }
+
+    const vector<string> age_groups = {"age0_19", "age20_39", "age40_59", "age60_79", "age80plus"};
+    const vector<string> conditions = {"nil", "mild", "sick", "severe"};
+    const vector<string> outcomes = {"recover", "nil", "mild", "sick", "severe", "dead"};
+
+    for (size_t age_idx = 0; age_idx < tree.size(); age_idx++) {
+      const auto& breakday_map = tree[age_idx];
+      string age_name = (age_idx < age_groups.size()) ? age_groups[age_idx] : fmt::format("age{}", age_idx);
+
+      fmt::println("    Age group: {}", age_name);
+
+      if (breakday_map.empty()) {
+        fmt::println("      <no breakdays>");
+        continue;
+      }
+
+      // Sort breakdays for consistent output
+      vector<uint8_t> breakdays;
+      for (const auto& [day, _] : breakday_map) {
+        breakdays.push_back(day);
+      }
+      std::sort(breakdays.begin(), breakdays.end());
+
+      for (uint8_t day : breakdays) {
+        const auto& condition_vec = breakday_map.at(day);
+        fmt::println("      Day {}: {} conditions", day, condition_vec.size());
+
+        for (size_t cond_idx = 0; cond_idx < condition_vec.size(); cond_idx++) {
+          const auto& outcome_probs = condition_vec[cond_idx];
+          string cond_name = (cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
+
+          fmt::print("        {}: [", cond_name);
+          for (size_t i = 0; i < outcome_probs.size(); i++) {
+            if (i > 0) fmt::print(", ");
+            fmt::print("{:.2f}", outcome_probs[i]);
+          }
+          fmt::println("]");
+        }
+      }
+    }
+  }
 };
 
-struct ProgressionFactors {
-  vector<float> riskadjust;
-  std::unordered_map<string, float>
-      vaxhalflifeadjust; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
+struct ProgressionFactors {  // for one variant
+  vector<float> riskadjust {};  // 0 elements, will be 6 elements if used
+  absl::flat_hash_map<string, float>  // vaccine to single float value
+      vaxhalflifeadjust {}; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
+
+  void print() const {
+    fmt::println("  Progression Factors:");
+
+    if (riskadjust.empty()) {
+      fmt::println("    riskadjust: <empty>");
+    } else {
+      fmt::print("    riskadjust: [");
+      for (size_t i = 0; i < riskadjust.size(); i++) {
+        if (i > 0) fmt::print(", ");
+        fmt::print("{:.2f}", riskadjust[i]);
+      }
+      fmt::println("]");
+    }
+
+    if (vaxhalflifeadjust.empty()) {
+      fmt::println("    vaxhalflifeadjust: <empty>");
+    } else {
+      fmt::println("    vaxhalflifeadjust:");
+      // Sort keys for consistent output
+      vector<string> vax_names;
+      for (const auto& [vax, _] : vaxhalflifeadjust) {
+        vax_names.push_back(vax);
+      }
+      std::sort(vax_names.begin(), vax_names.end());
+
+      for (const auto& vax : vax_names) {
+        fmt::println("      {}: {:.2f}", vax, vaxhalflifeadjust.at(vax));
+      }
+    }
+  }
 };
 
-struct ProgressionParams {
-  Agetree tree;
-  ProgressionFactors factors;
+struct Progression {     // for one variant
+  Agetree tree {};  // index by variant index, string = variant name
+  ProgressionFactors factors {};
+
+  void print(const string& variant_name) const {
+    fmt::println("\nVariant: {}", variant_name);
+    factors.print();
+    fmt::println("  Progression Tree:");
+    tree.print();
+  }
 };
+
+struct ProgressionSet {  // collection of all variants
+  vector<Progression> progression{};  // index by variant uint8_t
+
+  void print(const RuntimeEnum& variants) const {
+    fmt::println("\n=== ProgressionSet ===");
+    fmt::println("Total variants: {}", progression.size());
+
+    for (size_t i = 0; i < progression.size(); i++) {
+      string variant_name = (i < variants.names.size()) ? variants.names[i] : fmt::format("variant_{}", i);
+      progression[i].print(variant_name);
+    }
+    fmt::println("\n=== End ProgressionSet ===\n");
+  }
+};
+
+
+ProgressionSet load_progressionset(string fpath) {
+  json vdata = load_json_params(fpath);
+  ProgressionSet progressionset{};
+
+  for (const auto &[variant, body] : vdata.items()) {
+    ProgressionFactors factors{};
+
+    auto jsontree = body["progression_tree"];
+    auto jsonfactors = body["progression_factors"];
+
+    // create members of ProgressionFactors factors
+    factors.riskadjust = jsonfactors["riskadjust"].get<vector<float>>();
+    for (const auto &[vax, num] : jsonfactors["vaxhalflifeadjust"].get<absl::flat_hash_map<string, float>>()) {
+            factors.vaxhalflifeadjust[vax] = num;
+    };
+
+    // create members of Agetree tree
+    vector<absl::flat_hash_map<uint8_t, vector<vector<float>>>> age_vec{};
+    for (const auto& [age, body_age] : jsontree.items()) {  // age is a string we won't store because it will be the vector index
+      absl::flat_hash_map<uint8_t, vector<vector<float>>> one_age_map {};
+      for (const auto& [duration, body_duration] : body_age.items()) {
+        vector<vector<float>> tmpvec{};
+        for (const auto &[cond, probvec] : body_duration.items()) {  // cond is a string won't be stored because it will be the vect idx
+          tmpvec.push_back(probvec);
+        }
+        one_age_map[std::stoi(duration)] = tmpvec;
+      };
+      age_vec.push_back(one_age_map);
+    };
+    Progression pg {
+      .tree = Agetree{age_vec},
+      .factors = factors
+      };
+
+    progressionset.progression.push_back(pg);
+
+  }
+  return progressionset;
+}
 
 /*
-struct progressionset
-
-variant => ProgressionParams
-
-
+access will look like
+ProgressionSet progression{};  // assume it then gets loaded
+progression[0].tree[0][5][0][0]  
+    // we have 6 levels of qualifiers
+    // 1) for variant "base" index, 
+    // 2) tree member, 
+    // 3) agegrp "age0_19" index, 
+    // 4) breakday 5 key, 
+    // 5) condition "nil" by index,
+    // 6) recovered probability by vector index
 
 */
-
-
 // struct trvec?
 
 // struct variants  -- done
@@ -305,6 +468,34 @@ variant => ProgressionParams
 // vaccine data
 //
 
+struct VaxParams {
+  int reqdshots{};
+  int delay2ndshot{}; // how to encode 'nothing'?
+  int delaybooster{}; // ditto
+  int halflife{}; // days to 50% decline in effectiveness
+  int full_effect_days{};
+  float day1_effect{};
+
+  vector<std::pair<uint8_t, float>>
+      infectfactor; // per variant reduction in infection
+  vector<std::pair<uint8_t, vector<std::pair<uint8_t, float>>>> effectiveness; // by first, full, booster then variant=>infection reduction
+};
+
+
+struct VaxSet {
+  vector<std::pair<string, VaxParams>> vaxset{};
+
+  void print() {
+    for (const auto& vp : vaxset) {
+      fmt::print("vaccine: {:<9}\n  sendrisk={},\n  recvrisk={},\n  base={:.2f}, halflife={}\n", 1,2,3,4.2, 5);
+                //  vp.first,
+                //  vp.second.sendrisk,
+                //  vp.second.recvrisk,
+                //  vp.second.basemultiplier,
+                //  vp.second.immunehalflife);
+    }
+  }
+};
 
 void print_vaccines_data(json v) {
   string subkey = "effectiveness";
@@ -361,16 +552,16 @@ struct socialparams {
     for (const auto& colhdr : age_columns) {
       fmt::print("{:>11}", colhdr);
     }
-    cout << "\n";
+    fmt::print("\n");
 
     for (size_t i = 0; i < contactfactors.size(); ++i) {
       fmt::print("{:>10} ", contact_rows[i]);
       for (size_t j = 0; j < contactfactors[i].size(); ++j) {
         fmt::print("{:>10.2f} ", contactfactors[i][j]);
       }
-      cout << "\n";
+      fmt::print("\n");
     }
-    cout << "\n";
+    fmt::print("\n");
 
     // print touchfactors with row and column labels
     fmt::print("touchfactors ({}x{}):\n", touch_rows.size(), age_columns.size());
@@ -379,16 +570,16 @@ struct socialparams {
     for (const auto& colhdr : age_columns) {
       fmt::print("{:>11}", colhdr);
     }
-    cout << "\n";
+    fmt::print("\n");
 
     for (size_t i = 0; i < touchfactors.size(); ++i) {
       fmt::print("{:>10} ", touch_rows[i]);
       for (size_t j = 0; j < touchfactors[i].size(); ++j) {
         fmt::print("{:>10.2f} ", touchfactors[i][j]);
       }
-      cout << "\n";
+      fmt::print("\n");
     }
-    cout << "\n";
+    fmt::print("\n");
   }
 };
 
@@ -447,9 +638,9 @@ struct ModelParams {
   //based on variants parameters json file
   RuntimeEnum variants;
   InfectSet infectset;
+  ProgressionSet progressionset;
 
   vector<float> trvec;
-  // ProgressionStruct progression;
   socialparams socialdata;  // Changed from json to socialparams
   json vaccinesdata;
   json vaxsched;  // this will need to be loades separately--not part of building model
@@ -464,8 +655,7 @@ ModelParams load_model_params(string geo_path, string variants_path,
   GeoData geodata = load_geodata_csv(geo_path);
   auto [variants, infectset] = load_variants_data(variants_path);
 
-  // test the functor
-  cout << "test functor with variant \"base\" " << variants("base") << "\n";
+  ProgressionSet progressionset = load_progressionset(variants_path);
 
   
   // Use aggregate initialization to construct model_params with all members at once
@@ -475,9 +665,9 @@ ModelParams load_model_params(string geo_path, string variants_path,
     .geodata = std::move(geodata),
     .variants = std::move(variants),
     .infectset = std::move(infectset),
-    // .variantdata = load_json_params(variants_path),
+    .progressionset = std::move(progressionset),
     .socialdata = load_social_params(social_path),
     .vaccinesdata = load_json_params(vaccines_path),
-    .vaxsched = load_json_params(vaxsched_path)
+    .vaxsched = load_json_params(vaxsched_path),
   };
 }

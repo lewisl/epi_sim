@@ -9,6 +9,7 @@
 #include "population.h"
 #include "parameters.cpp"
 #include <tuple>
+#include <typeinfo>
 
 using std::string;
 using std::vector;
@@ -86,32 +87,32 @@ void run_category_tests() {
     std::cout << "  Agegrp::from_str(\"invalid\") = " << static_cast<int>(Agegrp::from_str("invalid")) << " (expected 0 - default to unknown)\n";
     std::cout << "\n";
 
-    // Test Vaccine namespace
-    std::cout << "--- Testing Vaccine Namespace ---\n";
-    std::cout << "Enum values (0-indexed):\n";
-    std::cout << "  Vaccine::none = " << static_cast<int>(Vaccine::none) << " (expected 0)\n";
-    std::cout << "  Vaccine::Pfizer = " << static_cast<int>(Vaccine::Pfizer) << " (expected 1)\n";
-    std::cout << "  Vaccine::Moderna = " << static_cast<int>(Vaccine::Moderna) << " (expected 2)\n";
-    std::cout << "  Vaccine::JnJ = " << static_cast<int>(Vaccine::JnJ) << " (expected 3)\n";
-    std::cout << "\nRound-trip tests:\n";
-    std::cout << "  Vaccine::to_str(0) = \"" << Vaccine::to_str(0) << "\" (expected \"none\")\n";
-    std::cout << "  Vaccine::to_str(1) = \"" << Vaccine::to_str(1) << "\" (expected \"Pfizer\")\n";
-    std::cout << "  Vaccine::to_str(2) = \"" << Vaccine::to_str(2) << "\" (expected \"Moderna\")\n";
-    std::cout << "  Vaccine::to_str(3) = \"" << Vaccine::to_str(3) << "\" (expected \"J & J\")\n";
-    std::cout << "  Vaccine::from_str(\"none\") = " << static_cast<int>(Vaccine::from_str("none")) << " (expected 0)\n";
-    std::cout << "  Vaccine::from_str(\"Pfizer\") = " << static_cast<int>(Vaccine::from_str("Pfizer")) << " (expected 1)\n";
-    std::cout << "  Vaccine::from_str(\"Moderna\") = " << static_cast<int>(Vaccine::from_str("Moderna")) << " (expected 2)\n";
-    std::cout << "  Vaccine::from_str(\"J & J\") = " << static_cast<int>(Vaccine::from_str("J & J")) << " (expected 3)\n";
-    std::cout << "  Vaccine::from_str(\"JnJ\") = " << static_cast<int>(Vaccine::from_str("JnJ")) << " (expected 3 - alternate spelling)\n";
-    std::cout << "  Vaccine::from_str(\"invalid\") = " << static_cast<int>(Vaccine::from_str("invalid")) << " (expected 0 - default to none)\n";
-    std::cout << "\n";
+    // Test Vaccine namespace--we are converting this to RuntimeEnum because it is user input
+    // std::cout << "--- Testing Vaccine Namespace ---\n";
+    // std::cout << "Enum values (0-indexed):\n";
+    // std::cout << "  Vaccine::none = " << static_cast<int>(Vaccine::none) << " (expected 0)\n";
+    // std::cout << "  Vaccine::Pfizer = " << static_cast<int>(Vaccine::Pfizer) << " (expected 1)\n";
+    // std::cout << "  Vaccine::Moderna = " << static_cast<int>(Vaccine::Moderna) << " (expected 2)\n";
+    // std::cout << "  Vaccine::JnJ = " << static_cast<int>(Vaccine::JnJ) << " (expected 3)\n";
+    // std::cout << "\nRound-trip tests:\n";
+    // std::cout << "  Vaccine::to_str(0) = \"" << Vaccine::to_str(0) << "\" (expected \"none\")\n";
+    // std::cout << "  Vaccine::to_str(1) = \"" << Vaccine::to_str(1) << "\" (expected \"Pfizer\")\n";
+    // std::cout << "  Vaccine::to_str(2) = \"" << Vaccine::to_str(2) << "\" (expected \"Moderna\")\n";
+    // std::cout << "  Vaccine::to_str(3) = \"" << Vaccine::to_str(3) << "\" (expected \"J & J\")\n";
+    // std::cout << "  Vaccine::from_str(\"none\") = " << static_cast<int>(Vaccine::from_str("none")) << " (expected 0)\n";
+    // std::cout << "  Vaccine::from_str(\"Pfizer\") = " << static_cast<int>(Vaccine::from_str("Pfizer")) << " (expected 1)\n";
+    // std::cout << "  Vaccine::from_str(\"Moderna\") = " << static_cast<int>(Vaccine::from_str("Moderna")) << " (expected 2)\n";
+    // std::cout << "  Vaccine::from_str(\"J & J\") = " << static_cast<int>(Vaccine::from_str("J & J")) << " (expected 3)\n";
+    // std::cout << "  Vaccine::from_str(\"JnJ\") = " << static_cast<int>(Vaccine::from_str("JnJ")) << " (expected 3 - alternate spelling)\n";
+    // std::cout << "  Vaccine::from_str(\"invalid\") = " << static_cast<int>(Vaccine::from_str("invalid")) << " (expected 0 - default to none)\n";
+    // std::cout << "\n";
 
     // Test boundary conditions
     std::cout << "--- Testing Boundary Conditions ---\n";
     std::cout << "  Status::to_str(99) = \"" << Status::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
     std::cout << "  Condition::to_str(99) = \"" << Condition::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
     std::cout << "  Agegrp::to_str(99) = \"" << Agegrp::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
-    std::cout << "  Vaccine::to_str(99) = \"" << Vaccine::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
+    // std::cout << "  Vaccine::to_str(99) = \"" << Vaccine::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
     std::cout << "\n";
 
     std::cout << "=== All namespace tests completed ===\n";
@@ -234,6 +235,16 @@ int main() {
   // print_vaccines_data(mp.vaccinesdata);
   // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
 
+  // quickie tests of condition or status
+  fmt::print("tests of using namespace enums\n");
+  fmt::print("  all conditions:       {} {} {} {} {}\n", Condition::uninfected,
+             Condition::nil, Condition::mild, Condition::sick,
+             Condition::severe);
+  fmt::print("  all condition values: {} {} {} {} {}\n", Condition::uninfected,
+             Condition::nil, Condition::mild, Condition::sick,
+             Condition::severe);
+  fmt::print("\n");
+
   ModelParams mp = load_model_params(geodata_path, variants_path, social_path,
                                      vax_sched_path);
   mp.geodata.print();
@@ -243,6 +254,8 @@ int main() {
   mp.infectset.print();
   cout << "\n";
   mp.socialdata.print();
+  cout << "\n";
+  mp.progressionset.print(mp.variants);
   cout << "\n";
 
   return 0;

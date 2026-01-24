@@ -220,6 +220,7 @@ base:                              # variant name
           sick:      [0.682, 0.0, 0.0, 0.0, 0.0, 0.318]
           severe:    [0.676, 0.0, 0.0, 0.0, 0.0, 0.324]
   progression_factors: 
+    riskadjust: []
     vaxhalflifeadjust:  # multiply times half-life of indicated vaccine
       JnJ:        0.5
       Pfizer:     0.8
@@ -262,7 +263,7 @@ alpha:
     immunehalflife: 360    # 240
 
   # progression section: how does this variant affect sickness conditions
-  progression_tree: ~  # if no tree, apply factors to base variant tree
+  progression_tree: []  # if empty tree, apply factors to base variant tree
   progression_factors:   # risk adjustment to base
             #   recov, nil, mild, sick,  severe,  dead
     riskadjust: [1.0,  1.0, 1.0,  1.1,    1.1,    1.1 ]
@@ -307,7 +308,7 @@ delta:
     immunehalflife: 360
 
   # progression section: how does this variant affect sickness conditions
-  progression_tree: ~  # if no tree, apply factors to base variant tree
+  progression_tree: []  # if no tree, apply factors to base variant tree
   progression_factors:   # risk adjustment to base
             #   recov, nil, mild, sick,  severe,  dead
     riskadjust: [1.0,  1.0, 1.0,  1.1,    1.1,    1.1 ]
@@ -353,7 +354,7 @@ omicron_ba1:
     immunehalflife: 360
 
   # progression section: how does this variant affect sickness conditions
-  progression_tree: ~  # if no tree, apply factors to base variant tree
+  progression_tree: []  # if no tree, apply factors to base variant tree
   progression_factors:   # risk adjustment to base
             #   recov, nil, mild, sick,  severe,  dead
     riskadjust: [1.1,  1.05, 1.05,  0.9,    0.7,    0.6 ]
@@ -399,7 +400,7 @@ omicron_ba2:
     immunehalflife: 360
 
   # progression section: how does this variant affect sickness conditions
-  progression_tree: ~  # if no tree, apply factors to base variant tree
+  progression_tree: []  # if no tree, apply factors to base variant tree
   progression_factors:   # risk adjustment to base
             #   recov, nil, mild, sick,  severe,  dead
     riskadjust: [1.1,  1.05, 1.05,  0.9,    0.5,    0.6 ]
@@ -444,7 +445,7 @@ omicron_ba4_5:
     immunehalflife: 360
 
   # progression section: how does this variant affect sickness conditions
-  progression_tree: ~  # if no tree, apply factors to base variant tree
+  progression_tree: []  # if no tree, apply factors to base variant tree
   progression_factors:   # risk adjustment to base
             #   recov, nil, mild, sick,  severe,  dead
     riskadjust: [1.1,  1.05, 1.05,  0.9,    0.5,    0.6 ]
