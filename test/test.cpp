@@ -4,10 +4,10 @@
 #include <vector>
 // #include <fmt/base.h>
 // #include <fmt/format.h>
-#include "epi_sim.h"
-#include "categories.h"
-#include "population.h"
-#include "parameters.cpp"
+#include "../src/epi_sim.h"
+#include "../src/categories.h"
+#include "../src/population.h"
+#include "../src/parameters.cpp"
 #include <tuple>
 #include <typeinfo>
 
@@ -256,6 +256,8 @@ int main() {
   mp.socialdata.print();
   cout << "\n";
   mp.progressionset.print(mp.variants);
+  cout << "\n";
+  mp.vaxset.print();
   cout << "\n";
 
   return 0;

@@ -1,0 +1,122 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Welcome",
+    "definitions": {
+        "Welcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "Pfizer": {
+                    "$ref": "#/definitions/JnJ"
+                },
+                "Moderna": {
+                    "$ref": "#/definitions/JnJ"
+                },
+                "JnJ": {
+                    "$ref": "#/definitions/JnJ"
+                }
+            },
+            "required": [
+                "JnJ",
+                "Moderna",
+                "Pfizer"
+            ],
+            "title": "Welcome"
+        },
+        "JnJ": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "halflife": {
+                    "type": "integer"
+                },
+                "reqdshots": {
+                    "type": "integer"
+                },
+                "delay2ndshot": {
+                    "type": "integer"
+                },
+                "delaybooster": {
+                    "type": "integer"
+                },
+                "full_effect_days": {
+                    "type": "integer"
+                },
+                "day1_effect": {
+                    "type": "number"
+                },
+                "infectfactor": {
+                    "$ref": "#/definitions/Infectfactor"
+                },
+                "effectiveness": {
+                    "$ref": "#/definitions/Effectiveness"
+                }
+            },
+            "required": [
+                "day1_effect",
+                "delay2ndshot",
+                "delaybooster",
+                "effectiveness",
+                "full_effect_days",
+                "halflife",
+                "infectfactor",
+                "reqdshots"
+            ],
+            "title": "JnJ"
+        },
+        "Effectiveness": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "first": {
+                    "$ref": "#/definitions/Infectfactor"
+                },
+                "full": {
+                    "$ref": "#/definitions/Infectfactor"
+                },
+                "booster": {
+                    "$ref": "#/definitions/Infectfactor"
+                }
+            },
+            "required": [
+                "booster",
+                "first",
+                "full"
+            ],
+            "title": "Effectiveness"
+        },
+        "Infectfactor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "base": {
+                    "type": "number"
+                },
+                "alpha": {
+                    "type": "number"
+                },
+                "delta": {
+                    "type": "number"
+                },
+                "omicron_ba1": {
+                    "type": "number"
+                },
+                "omicron_ba2": {
+                    "type": "number"
+                },
+                "omicron_ba4_5": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "alpha",
+                "base",
+                "delta",
+                "omicron_ba1",
+                "omicron_ba2",
+                "omicron_ba4_5"
+            ],
+            "title": "Infectfactor"
+        }
+    }
+}

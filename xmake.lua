@@ -13,8 +13,9 @@ target("epi_sim")
 target("test")
     set_kind("binary")
     set_default("false")
-    -- add_files("src/test.cpp")
-    add_files("src/*.cpp|epi_sim.cpp|parameters.cpp|test_json.cpp")  -- All .cpp files except epi_sim.cpp and included cpp files
+    add_files("test/test.cpp")
+    -- Don't add src/*.cpp since test.cpp includes parameters.cpp directly
+    -- add_files("src/*.cpp|src/epi_sim.cpp|src/parameters.cpp|src/test_json.cpp")
     set_toolchains("llvm")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 

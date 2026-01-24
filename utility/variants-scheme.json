@@ -1,0 +1,232 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Welcome",
+    "definitions": {
+        "Welcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "base": {
+                    "$ref": "#/definitions/Alpha"
+                },
+                "alpha": {
+                    "$ref": "#/definitions/Alpha"
+                },
+                "delta": {
+                    "$ref": "#/definitions/Alpha"
+                },
+                "omicron_ba1": {
+                    "$ref": "#/definitions/Alpha"
+                },
+                "omicron_ba2": {
+                    "$ref": "#/definitions/Alpha"
+                },
+                "omicron_ba4_5": {
+                    "$ref": "#/definitions/Alpha"
+                }
+            },
+            "required": [
+                "alpha",
+                "base",
+                "delta",
+                "omicron_ba1",
+                "omicron_ba2",
+                "omicron_ba4_5"
+            ],
+            "title": "Welcome"
+        },
+        "Alpha": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "spread": {
+                    "$ref": "#/definitions/Spread"
+                },
+                "immunity": {
+                    "$ref": "#/definitions/Immunity"
+                },
+                "progression_tree": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "$ref": "#/definitions/ProgressionTree"
+                                }
+                            }
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "progression_factors": {
+                    "$ref": "#/definitions/ProgressionFactors"
+                }
+            },
+            "required": [
+                "immunity",
+                "progression_factors",
+                "progression_tree",
+                "spread"
+            ],
+            "title": "Alpha"
+        },
+        "Immunity": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "recovery_immunity": {
+                    "$ref": "#/definitions/RecoveryImmunity"
+                },
+                "immunehalflife": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "immunehalflife",
+                "recovery_immunity"
+            ],
+            "title": "Immunity"
+        },
+        "RecoveryImmunity": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "base": {
+                    "type": "number"
+                },
+                "alpha": {
+                    "type": "number"
+                },
+                "delta": {
+                    "type": "number"
+                },
+                "omicron_ba1": {
+                    "type": "number"
+                },
+                "omicron_ba2": {
+                    "type": "number"
+                },
+                "omicron_ba4_5": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "alpha",
+                "base",
+                "delta",
+                "omicron_ba1",
+                "omicron_ba2",
+                "omicron_ba4_5"
+            ],
+            "title": "RecoveryImmunity"
+        },
+        "ProgressionFactors": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "riskadjust": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "vaxhalflifeadjust": {
+                    "$ref": "#/definitions/Vaxhalflifeadjust"
+                }
+            },
+            "required": [
+                "riskadjust",
+                "vaxhalflifeadjust"
+            ],
+            "title": "ProgressionFactors"
+        },
+        "Vaxhalflifeadjust": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "JnJ": {
+                    "type": "number"
+                },
+                "Pfizer": {
+                    "type": "number"
+                },
+                "Moderna": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "JnJ",
+                "Moderna",
+                "Pfizer"
+            ],
+            "title": "Vaxhalflifeadjust"
+        },
+        "ProgressionTree": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "nil": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "mild": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "sick": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "severe": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                }
+            },
+            "required": [
+                "mild",
+                "nil",
+                "severe",
+                "sick"
+            ],
+            "title": "ProgressionTree"
+        },
+        "Spread": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "sendrisk": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "recvrisk": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "basemultiplier": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "basemultiplier",
+                "recvrisk",
+                "sendrisk"
+            ],
+            "title": "Spread"
+        }
+    }
+}

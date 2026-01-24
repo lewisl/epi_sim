@@ -1,0 +1,95 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Welcome",
+    "definitions": {
+        "Welcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "gammashape": {
+                    "type": "integer"
+                },
+                "indoor_uplift": {
+                    "type": "number"
+                },
+                "contactfactors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Contactfactor"
+                    }
+                },
+                "touchfactors": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/Touchfactor"
+                    }
+                }
+            },
+            "required": [
+                "contactfactors",
+                "gammashape",
+                "indoor_uplift",
+                "touchfactors"
+            ],
+            "title": "Welcome"
+        },
+        "Contactfactor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "nil": {
+                    "type": "number"
+                },
+                "mild": {
+                    "type": "number"
+                },
+                "sick": {
+                    "type": "number"
+                },
+                "severe": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "mild",
+                "nil",
+                "severe",
+                "sick"
+            ],
+            "title": "Contactfactor"
+        },
+        "Touchfactor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "unexposed": {
+                    "type": "number"
+                },
+                "recovered": {
+                    "type": "number"
+                },
+                "nil": {
+                    "type": "number"
+                },
+                "mild": {
+                    "type": "number"
+                },
+                "sick": {
+                    "type": "number"
+                },
+                "severe": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "mild",
+                "nil",
+                "recovered",
+                "severe",
+                "sick",
+                "unexposed"
+            ],
+            "title": "Touchfactor"
+        }
+    }
+}

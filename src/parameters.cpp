@@ -47,14 +47,14 @@ const fs::path vax_sched_dir = "vaccine_100k";
 const fs::path variants_fname = "variants.json";
 const fs::path geodata_fname = "geo2data.csv";
 const fs::path social_fname = "socialparams.json";
-const fs::path vaccines_fname = "vaccines.json";
+const fs::path vax_fname = "vaccines.json";
 const fs::path vax_sched_fname = "loc38015_old.json";
 
 // Full paths
 const string variants_path = (project_dir / param_dir / variants_fname).string();
 const string geodata_path = (project_dir / param_dir / geodata_fname).string();
 const string social_path = (project_dir / param_dir / social_fname).string();
-const string vaccines_path = (project_dir / param_dir / vaccines_fname).string();
+const string vax_path = (project_dir / param_dir / vax_fname).string();
 const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
 
 
@@ -462,12 +462,12 @@ access will look like
 ProgressionSet progression{};  // assume it then gets loaded
 progression[0].tree[0][5][0][0]  
     // we have 6 levels of qualifiers
-    // 1) for variant "base" index, 
+    // 1) for variant "base" index = 0, 
     // 2) tree member, 
-    // 3) agegrp "age0_19" index, 
+    // 3) agegrp "age0_19" index = 0, 
     // 4) breakday 5 key, 
-    // 5) condition "nil" by index,
-    // 6) recovered probability by vector index
+    // 5) condition "nil" by index = 0,
+    // 6) recovered probability by vector index for to recovered index = 0
 
 */
 // struct trvec?
@@ -488,40 +488,116 @@ struct VaxParams {
   int full_effect_days{};
   float day1_effect{};
 
-  vector<std::pair<uint8_t, float>>
-      infectfactor; // per variant reduction in infection
-  vector<std::pair<uint8_t, vector<std::pair<uint8_t, float>>>> effectiveness; // by first, full, booster then variant=>infection reduction
+  vector<std::pair<string, float>> infectfactor; // per variant reduction in infection
+  vector<std::pair<string, vector<std::pair<string, float>>>> effectiveness; // by first, full, booster then variant=>infection reduction
+
+  void print(const string& vax_name) const {
+    fmt::println("  Vaccine: {}", vax_name);
+    fmt::println("    Required shots: {}", reqdshots);
+    fmt::println("    Delay 2nd shot: {} days", delay2ndshot);
+    fmt::println("    Delay booster: {} days", delaybooster);
+    fmt::println("    Half-life: {} days", halflife);
+    fmt::println("    Full effect days: {}", full_effect_days);
+    fmt::println("    Day 1 effect: {:.2f}", day1_effect);
+
+    // Print infectfactor
+    if (infectfactor.empty()) {
+      fmt::println("    Infect factor: <empty>");
+    } else {
+      fmt::println("    Infect factor by variant:");
+      for (const auto& [variant, factor] : infectfactor) {
+        fmt::println("      {:<15}: {:.2f}", variant, factor);
+      }
+    }
+
+    // Print effectiveness
+    if (effectiveness.empty()) {
+      fmt::println("    Effectiveness: <empty>");
+    } else {
+      fmt::println("    Effectiveness by shot type:");
+      for (const auto& [shot_type, variant_effects] : effectiveness) {
+        fmt::println("      {}:", shot_type);
+        for (const auto& [variant, effect] : variant_effects) {
+          fmt::println("        {:<15}: {:.2f}", variant, effect);
+        }
+      }
+    }
+  }
 };
 
 
 struct VaxSet {
   vector<std::pair<string, VaxParams>> vaxset{};
+  RuntimeEnum shot_types = {{"first", "full", "booster"},           // names
+                            {{"first", 0}, {"full", 1}, {"booster", 2}},  // lookup
+                            3}; // nextnum --  I guess this will be hard-coded
 
-  void print() {
-    for (const auto& vp : vaxset) {
-      fmt::print("vaccine: {:<9}\n  sendrisk={},\n  recvrisk={},\n  base={:.2f}, halflife={}\n", 1,2,3,4.2, 5);
-                //  vp.first,
-                //  vp.second.sendrisk,
-                //  vp.second.recvrisk,
-                //  vp.second.basemultiplier,
-                //  vp.second.immunehalflife);
+  void print() const {
+    fmt::println("\n=== VaxSet ===");
+    fmt::println("Total vaccines: {}", vaxset.size());
+
+    fmt::print("Shot types: ");
+    for (size_t i = 0; i < shot_types.names.size(); i++) {
+      if (i > 0) fmt::print(", ");
+      fmt::print("{}", shot_types.names[i]);
     }
+    fmt::println("\n");
+
+    for (const auto& [vax_name, vax_params] : vaxset) {
+      vax_params.print(vax_name);
+      fmt::println("");
+    }
+
+    fmt::println("=== End VaxSet ===\n");
   }
 };
 
-void print_vaccines_data(json v) {
-  string subkey = "effectiveness";
-  
-    cout << "\n\n================\nexamining vaccines data"<< ", count of top-level nodes: " << v.size() << "\n";    
+std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants) {
+  VaxSet vaxset{};
+  RuntimeEnum vaxlist = RuntimeEnum();
 
-    // let's see what or how we can select parts
-    for (auto element : v.items()) {    // items() required for iteration of key, value
-        cout << "==== " << element.key() << " " << subkey << " ====\n";
-        cout << v[element.key()][subkey].dump(2) << "\n";
-        cout << "===================================\n";
-      }
-}
+  json vaxdata = load_json_params(fpath);
 
+  vector<std::pair<string, VaxParams>> vaxvec{};
+  for (const auto &[vaxname, body] : vaxdata.items()) {  // for each vax
+    vaxlist.add_item(vaxname);
+    VaxParams vx {};
+
+    // load items for each vax into struct
+    vx.reqdshots = body["reqdshots"];
+    vx.delay2ndshot = body["delay2ndshot"];
+    vx.delaybooster = body["delaybooster"];
+    vx.halflife = body["halflife"];
+    vx.full_effect_days = body["full_effect_days"];
+    vx.day1_effect = body["day1_effect"];
+
+    // infectfactor vector
+    for (const auto &variantname : variants.names) {
+      if (body["infectfactor"].contains(variantname))
+        vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
+      else
+        fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
+            vaxname, variantname);
+    }
+
+    // effectiveness vector of vector
+    for (const auto &shot : vaxset.shot_types.names) {
+      vector<std::pair<string, float>> variant_effectiveness {};
+      for (const auto &variantname : variants.names) {
+        if (body["effectiveness"][shot].contains(variantname))
+          variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
+        else 
+          fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
+              vaxname, shot, variantname);
+      };
+      vx.effectiveness.emplace_back(shot, variant_effectiveness);
+    }
+    vaxvec.emplace_back(vaxname, vx);
+  }
+
+  vaxset.vaxset = vaxvec;  // Assign the populated vector to vaxset
+  return {vaxset, vaxlist};
+};
 
 //
 // vaccination schedules
@@ -652,9 +728,10 @@ struct ModelParams {
   InfectSet infectset;
   ProgressionSet progressionset;
   vector<float> trvec;
-  
+
   socialparams socialdata;  // Changed from json to socialparams
-  json vaccinesdata;
+  VaxSet vaxset;
+  RuntimeEnum vaxlist;
   json vaxsched;  // this will need to be loades separately--not part of building model
 };
 
@@ -667,19 +744,18 @@ ModelParams load_model_params(string geo_path, string variants_path,
   GeoData geodata = load_geodata_csv(geo_path);
 
   auto [infectset, progressionset, trvec, variants] = load_infect_params(variants_path);
-
+  auto [vaxdata, vaxlist] = load_vax_data(vax_path, variants);
   
   // Use aggregate initialization to construct model_params with all members at once
   // This avoids assignment to socialdata (which has const members)
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
-    .geodata = std::move(geodata),
-    .variants = std::move(variants),
+    .geodata = std::move(geodata), .variants = std::move(variants),
     .infectset = std::move(infectset),
-    .progressionset = std::move(progressionset),
-    .trvec = std::move(trvec),
+    .progressionset = std::move(progressionset), .trvec = std::move(trvec),
     .socialdata = load_social_params(social_path),
-    .vaccinesdata = load_json_params(vaccines_path),
+    .vaxset = vaxdata,
+    .vaxlist = vaxlist,
     .vaxsched = load_json_params(vaxsched_path),
   };
 }
