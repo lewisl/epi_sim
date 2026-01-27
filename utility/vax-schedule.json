@@ -1,0 +1,105 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Welcome",
+    "definitions": {
+        "Welcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "vaxesincluded": {
+                    "$ref": "#/definitions/Vaxesincluded"
+                },
+                "dayrange": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "targetpct": {
+                    "type": "number"
+                },
+                "filtervec": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "shotmode": {
+                    "type": "string"
+                },
+                "pattern": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "spreadfunc": {
+                    "type": "null"
+                }
+            },
+            "required": [
+                "dayrange",
+                "filtervec",
+                "pattern",
+                "shotmode",
+                "spreadfunc",
+                "targetpct",
+                "vaxesincluded"
+            ],
+            "title": "Welcome"
+        },
+        "Vaxesincluded": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "Pfizer": {
+                    "$ref": "#/definitions/JnJ"
+                },
+                "Moderna": {
+                    "$ref": "#/definitions/JnJ"
+                },
+                "JnJ": {
+                    "$ref": "#/definitions/JnJ"
+                }
+            },
+            "required": [
+                "JnJ",
+                "Moderna",
+                "Pfizer"
+            ],
+            "title": "Vaxesincluded"
+        },
+        "JnJ": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "mix": {
+                    "type": "number"
+                },
+                "starting_doses": {
+                    "type": "integer"
+                },
+                "pct2ndshot": {
+                    "type": "number"
+                },
+                "pctboost": {
+                    "type": "number"
+                },
+                "alternate": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "alternate",
+                "mix",
+                "pct2ndshot",
+                "pctboost",
+                "starting_doses"
+            ],
+            "title": "JnJ"
+        }
+    }
+}

@@ -259,6 +259,8 @@ int main() {
   cout << "\n";
   mp.vaxset.print();
   cout << "\n";
+  mp.vaxsched.print();
+  cout << "\n";
 
   return 0;
 }

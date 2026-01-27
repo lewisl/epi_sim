@@ -87,7 +87,9 @@ struct RuntimeEnum {
   std::string to_string(int i) {
     return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
   }
-  
+
+  size_t size() const { return names.size(); }
+
   void print() const {
     for (size_t i = 0; i < names.size(); ++i) {
       fmt::print("{:>2}: {:<8}\n", i, names[i]);
@@ -291,7 +293,6 @@ if no tree apply riskadjust and vaxhalflifeadjust to base
 
 struct Agetree {  // for 1 variant
   vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree{};  // would be matrices in Julia--must be vec of vec in c++
-  //age->vector indices 0..4/breakday->flat_hash_map<sparse ints, vector<condition indices 0..3><vector<float>> 6 values summing to 1.0
 
   void print() const {
     if (tree.empty()) {
@@ -470,26 +471,21 @@ progression[0].tree[0][5][0][0]
     // 6) recovered probability by vector index for to recovered index = 0
 
 */
-// struct trvec?
-
-// struct variants  -- done
-
-
 
 //
 // vaccine data
 //
 
 struct VaxParams {
-  int reqdshots{};
-  int delay2ndshot{}; // how to encode 'nothing'?
-  int delaybooster{}; // ditto
-  int halflife{}; // days to 50% decline in effectiveness
-  int full_effect_days{};
-  float day1_effect{};
+  int reqdshots{1};
+  int delay2ndshot{0}; // how to encode 'nothing'?
+  int delaybooster{0}; // ditto
+  int halflife{180}; // days to 50% decline in effectiveness
+  int full_effect_days{15};
+  float day1_effect{0.0};
 
-  vector<std::pair<string, float>> infectfactor; // per variant reduction in infection
-  vector<std::pair<string, vector<std::pair<string, float>>>> effectiveness; // by first, full, booster then variant=>infection reduction
+  vector<std::pair<string, float>> infectfactor {}; // per variant reduction in infection
+  vector<std::pair<string, vector<std::pair<string, float>>>> effectiveness {}; // by first, full, booster then variant=>infection reduction
 
   void print(const string& vax_name) const {
     fmt::println("  Vaccine: {}", vax_name);
@@ -602,7 +598,124 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
 //
 // vaccination schedules
 //
-// printed with json dump in test.cpp
+
+struct PerVaxSpec {
+  string vax_name{};
+  float mix{};
+  int starting_doses{};
+  float pct2ndshot {};
+  float pctboost {};
+  vector<string> alternate {};
+
+  void print() const {
+    fmt::println("    Vaccine: {}", vax_name);
+    fmt::println("      Mix: {:.2f}", mix);
+    fmt::println("      Starting doses: {}", starting_doses);
+    fmt::println("      Pct 2nd shot: {:.2f}", pct2ndshot);
+    fmt::println("      Pct boost: {:.2f}", pctboost);
+    if (alternate.empty()) {
+      fmt::println("      Alternates: <none>");
+    } else {
+      fmt::print("      Alternates: ");
+      for (size_t i = 0; i < alternate.size(); i++) {
+        if (i > 0) fmt::print(", ");
+        fmt::print("{}", alternate[i]);
+      }
+      fmt::println("");
+    }
+  }
+};
+
+struct VaxSched {
+  vector<PerVaxSpec> vaxesincluded {};
+  std::pair<int, int> dayrange{};
+  float targetpct {};
+  vector<string> filtervec {};
+  string shotmode {};
+  vector<float> pattern {};
+  string spreadfunc {};  // will change to function pointer later
+
+  void print() const {
+    fmt::println("\n=== VaxSched ===");
+
+    // Print vaccines included
+    fmt::println("Vaccines included: {}", vaxesincluded.size());
+    for (const auto& vax_spec : vaxesincluded) {
+      vax_spec.print();
+    }
+
+    // Print day range
+    fmt::println("\n  Day range: [{}, {}]", dayrange.first, dayrange.second);
+
+    // Print target percentage
+    fmt::println("  Target pct: {:.2f}", targetpct);
+
+    // Print filter vector
+    if (filtervec.empty()) {
+      fmt::println("  Filter: <none>");
+    } else {
+      fmt::print("  Filter: ");
+      for (size_t i = 0; i < filtervec.size(); i++) {
+        if (i > 0) fmt::print(", ");
+        fmt::print("{}", filtervec[i]);
+      }
+      fmt::println("");
+    }
+
+    // Print shot mode
+    fmt::println("  Shot mode: {}", shotmode);
+
+    // Print pattern
+    if (pattern.empty()) {
+      fmt::println("  Pattern: <empty>");
+    } else {
+      fmt::print("  Pattern: [");
+      for (size_t i = 0; i < pattern.size(); i++) {
+        if (i > 0) fmt::print(", ");
+        fmt::print("{:.2f}", pattern[i]);
+      }
+      fmt::println("]");
+    }
+
+    // Print spread function
+    fmt::println("  Spread func: {}", spreadfunc.empty() ? "null" : spreadfunc);
+
+    fmt::println("=== End VaxSched ===\n");
+  }
+};
+
+VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist) {
+  json vdata = load_json_params(fname);
+  VaxSched sched{};
+
+  //  vaxesincluded member
+  for (const auto &[vax, factors] : vdata["vaxesincluded"].items()) {
+    PerVaxSpec spec{};
+    if (vaxlist.lookup.find(vax) == vaxlist.lookup.end())
+      fmt::println("WARNING: Vaccine {} not found in vaxlist.", vax);
+    else {
+      spec.vax_name = vax;  // Store the vaccine name
+      spec.mix = factors["mix"];
+      spec.starting_doses = factors["starting_doses"];
+      spec.pct2ndshot = factors["pct2ndshot"];
+      spec.pctboost = factors["pctboost"];
+      spec.alternate = factors["alternate"];
+      sched.vaxesincluded.push_back(spec);
+    }
+  };
+  // other members
+  sched.dayrange = {vdata["dayrange"][0], vdata["dayrange"][1]}; // vector of 2 set to pair
+  sched.targetpct = vdata["targetpct"];
+  sched.filtervec = vdata["filtervec"];
+  sched.shotmode = vdata["shotmode"];
+  sched.pattern.assign(vdata["pattern"].begin(), vdata["pattern"].end());
+  // Handle null spreadfunc
+  if (!vdata["spreadfunc"].is_null()) {
+    sched.spreadfunc = vdata["spreadfunc"];
+  }
+
+  return sched;
+}
 
 
 //
@@ -611,17 +724,17 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
 
 struct socialparams {
   // Scalar parameters (loaded from JSON)
-  float gammashape {};
-  float indoor_uplift {};
+  float gammashape {0.0};
+  float indoor_uplift {1.0};
 
   // Matrix data (loaded from JSON)
   array<array<float, 5>, 4> contactfactors {};  // 4 rows (contact_rows) × 5 cols (age groups)
   array<array<float, 5>, 6> touchfactors {};    // 6 rows (touch_rows) × 5 cols (age groups)
 
   // Row and column labels (const metadata, initialized in constructor)
-  const vector<string> touch_rows;
-  const vector<string> contact_rows;
-  const vector<string> age_columns;
+  const vector<string> touch_rows {};
+  const vector<string> contact_rows {};
+  const vector<string> age_columns {};
 
   // Default constructor initializes the const label vectors
   socialparams()
@@ -732,7 +845,7 @@ struct ModelParams {
   socialparams socialdata;  // Changed from json to socialparams
   VaxSet vaxset;
   RuntimeEnum vaxlist;
-  json vaxsched;  // this will need to be loades separately--not part of building model
+  VaxSched vaxsched;  // Changed from json to VaxSched
 };
 
 // free function for factory pattern
@@ -745,7 +858,10 @@ ModelParams load_model_params(string geo_path, string variants_path,
 
   auto [infectset, progressionset, trvec, variants] = load_infect_params(variants_path);
   auto [vaxdata, vaxlist] = load_vax_data(vax_path, variants);
-  
+
+  // Load vaxsched before moving vaxlist (since load_vax_sched needs vaxlist)
+  VaxSched vaxsched = load_vax_sched(vaxsched_path, vaxlist);
+
   // Use aggregate initialization to construct model_params with all members at once
   // This avoids assignment to socialdata (which has const members)
   // note the curly braces: this is initialization, NOT a call to the default constructor
@@ -754,8 +870,8 @@ ModelParams load_model_params(string geo_path, string variants_path,
     .infectset = std::move(infectset),
     .progressionset = std::move(progressionset), .trvec = std::move(trvec),
     .socialdata = load_social_params(social_path),
-    .vaxset = vaxdata,
-    .vaxlist = vaxlist,
-    .vaxsched = load_json_params(vaxsched_path),
+    .vaxset = std::move(vaxdata),
+    .vaxlist = std::move(vaxlist),
+    .vaxsched = std::move(vaxsched),
   };
 }
