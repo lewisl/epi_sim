@@ -1,3 +1,4 @@
+```
 variant (e.g., "delta", "omicron")
   └─ progression_tree
       └─ agegrp (e.g., "0-19", "20-39", "40-59", "60-79", "80+")
@@ -6,3 +7,4 @@ variant (e.g., "delta", "omicron")
                   └─ transition_vector [recover, nil, mild, sick, severe, dead]
                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                                         6 floats summing to 1.0 (probabilities)
+```

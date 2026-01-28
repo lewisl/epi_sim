@@ -12,13 +12,13 @@
       // yaml documents into nlohmann::json objects.
     // website: https://jsonformatter.org/yaml-to-json
 //  geodata
-//  socialparams
+//  SocialParams
 //  simulation data per person: popdat
 //  history series
 //  geodata
 //  infectparams
 //  spreadparams
-//  socialparams
+//  SocialParams
 //  progression params
 //  vax
 //  test_and_trace

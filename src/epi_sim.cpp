@@ -1,9 +1,8 @@
 #include "epi_sim.h"
 #include <iostream>
-using namespace std;
 
 
 int main() {
-  cout << "Deeply Under Construction." << endl;
+  std::cout << "Deeply Under Construction." << std::endl;
   return 0;
 }

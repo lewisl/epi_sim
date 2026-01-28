@@ -4,15 +4,14 @@
 #include <vector>
 // #include <fmt/base.h>
 // #include <fmt/format.h>
-#include "../src/epi_sim.h"
+#include "../src/setup.cpp"
+// #include "../src/epi_sim.h"
 #include "../src/categories.h"
 #include "../src/population.h"
-#include "../src/parameters.cpp"
-#include <tuple>
-#include <typeinfo>
 
 using std::string;
 using std::vector;
+using std::cout;
 
 // Create a short alias for PopData::Column to use throughout this file
 using PC = PopData::Column;
@@ -86,26 +85,6 @@ void run_category_tests() {
     std::cout << "  Agegrp::from_str(\"age80_up\") = " << static_cast<int>(Agegrp::from_str("age80_up")) << " (expected 5)\n";
     std::cout << "  Agegrp::from_str(\"invalid\") = " << static_cast<int>(Agegrp::from_str("invalid")) << " (expected 0 - default to unknown)\n";
     std::cout << "\n";
-
-    // Test Vaccine namespace--we are converting this to RuntimeEnum because it is user input
-    // std::cout << "--- Testing Vaccine Namespace ---\n";
-    // std::cout << "Enum values (0-indexed):\n";
-    // std::cout << "  Vaccine::none = " << static_cast<int>(Vaccine::none) << " (expected 0)\n";
-    // std::cout << "  Vaccine::Pfizer = " << static_cast<int>(Vaccine::Pfizer) << " (expected 1)\n";
-    // std::cout << "  Vaccine::Moderna = " << static_cast<int>(Vaccine::Moderna) << " (expected 2)\n";
-    // std::cout << "  Vaccine::JnJ = " << static_cast<int>(Vaccine::JnJ) << " (expected 3)\n";
-    // std::cout << "\nRound-trip tests:\n";
-    // std::cout << "  Vaccine::to_str(0) = \"" << Vaccine::to_str(0) << "\" (expected \"none\")\n";
-    // std::cout << "  Vaccine::to_str(1) = \"" << Vaccine::to_str(1) << "\" (expected \"Pfizer\")\n";
-    // std::cout << "  Vaccine::to_str(2) = \"" << Vaccine::to_str(2) << "\" (expected \"Moderna\")\n";
-    // std::cout << "  Vaccine::to_str(3) = \"" << Vaccine::to_str(3) << "\" (expected \"J & J\")\n";
-    // std::cout << "  Vaccine::from_str(\"none\") = " << static_cast<int>(Vaccine::from_str("none")) << " (expected 0)\n";
-    // std::cout << "  Vaccine::from_str(\"Pfizer\") = " << static_cast<int>(Vaccine::from_str("Pfizer")) << " (expected 1)\n";
-    // std::cout << "  Vaccine::from_str(\"Moderna\") = " << static_cast<int>(Vaccine::from_str("Moderna")) << " (expected 2)\n";
-    // std::cout << "  Vaccine::from_str(\"J & J\") = " << static_cast<int>(Vaccine::from_str("J & J")) << " (expected 3)\n";
-    // std::cout << "  Vaccine::from_str(\"JnJ\") = " << static_cast<int>(Vaccine::from_str("JnJ")) << " (expected 3 - alternate spelling)\n";
-    // std::cout << "  Vaccine::from_str(\"invalid\") = " << static_cast<int>(Vaccine::from_str("invalid")) << " (expected 0 - default to none)\n";
-    // std::cout << "\n";
 
     // Test boundary conditions
     std::cout << "--- Testing Boundary Conditions ---\n";
@@ -211,6 +190,24 @@ void test_popdata_print_table() {
     std::cout << "=== PopData Print Table Test Completed ===\n";
 }
 
+void test_model_params() {
+  ModelParams mp = load_model_params(geodata_path, variants_path, social_path,
+                                     vax_path, vax_sched_path);
+  mp.geodata.print();
+  cout << "\n";
+  mp.variants.print();
+  cout << "\n";
+  mp.infectset.print();
+  cout << "\n";
+  mp.socialdata.print();
+  cout << "\n";
+  mp.progressionset.print(mp.variants);
+  cout << "\n";
+  mp.vaxset.print();
+  cout << "\n";
+  mp.vaxsched.print();
+  cout << "\n";
+}
 
 int main() {
   // test files
@@ -236,31 +233,16 @@ int main() {
   // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
 
   // quickie tests of condition or status
-  fmt::print("tests of using namespace enums\n");
-  fmt::print("  all conditions:       {} {} {} {} {}\n", Condition::uninfected,
-             Condition::nil, Condition::mild, Condition::sick,
-             Condition::severe);
-  fmt::print("  all condition values: {} {} {} {} {}\n", Condition::uninfected,
-             Condition::nil, Condition::mild, Condition::sick,
-             Condition::severe);
-  fmt::print("\n");
+  // fmt::print("tests of using namespace enums\n");
+  // fmt::print("  all conditions:       {} {} {} {} {}\n", Condition::uninfected,
+  //            Condition::nil, Condition::mild, Condition::sick,
+  //            Condition::severe);
+  // fmt::print("  all condition values: {} {} {} {} {}\n", Condition::uninfected,
+  //            Condition::nil, Condition::mild, Condition::sick,
+  //            Condition::severe);
+  // fmt::print("\n");
 
-  ModelParams mp = load_model_params(geodata_path, variants_path, social_path,
-                                     vax_sched_path);
-  mp.geodata.print();
-  cout << "\n";
-  mp.variants.print();
-  cout << "\n";
-  mp.infectset.print();
-  cout << "\n";
-  mp.socialdata.print();
-  cout << "\n";
-  mp.progressionset.print(mp.variants);
-  cout << "\n";
-  mp.vaxset.print();
-  cout << "\n";
-  mp.vaxsched.print();
-  cout << "\n";
+  test_model_params();
 
   return 0;
 }

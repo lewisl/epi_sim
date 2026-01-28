@@ -88,7 +88,7 @@ struct VariantParams {
 Use `const` members for labels that never change during simulation. Initialize in constructor.
 
 ```cpp
-struct socialparams {
+struct SocialParams {
     // Mutable simulation data
     float gammashape {};
     array<array<float, 5>, 4> contactfactors {};
@@ -98,7 +98,7 @@ struct socialparams {
     const vector<string> contact_rows;
     
     // Constructor initializes const members
-    socialparams() 
+    SocialParams() 
         : touch_rows{"unexposed", "recovered", "nil", "mild", "sick", "severe"},
           contact_rows{"nil", "mild", "sick", "severe"}
     {}
@@ -169,7 +169,7 @@ XParams load_x_params(string path) {
 - Each column → typed vector
 - Clean 1-to-1 mapping
 
-### socialparams (JSON → Struct)
+### SocialParams (JSON → Struct)
 - Scalars: `gammashape`, `indoor_uplift`
 - Matrices: `contactfactors` (4×5), `touchfactors` (6×5)
 - Const labels: `touch_rows`, `contact_rows`, `age_columns`
@@ -240,4 +240,3 @@ Model model{
 - C++20 Designated Initializers: https://en.cppreference.com/w/cpp/language/aggregate_initialization
 - Move Semantics: https://en.cppreference.com/w/cpp/utility/move
 - RAII Pattern: https://en.cppreference.com/w/cpp/language/raii
-
