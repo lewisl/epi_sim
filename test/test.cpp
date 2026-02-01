@@ -213,8 +213,8 @@ int main() {
   // test files
   // std::string csvfname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
   // tests
-  // test_popdata_constructor();
-  // test_popdata_print_table();
+  test_popdata_constructor();
+  test_popdata_print_table();
   // model_params mp = load_model_params(geodata_path,variants_path, social_path, vax_sched_path);
   // print_geodata(mp.geodata);
 
@@ -242,7 +242,7 @@ int main() {
   //            Condition::severe);
   // fmt::print("\n");
 
-  test_model_params();
+  // test_model_params();
 
   return 0;
 }

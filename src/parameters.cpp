@@ -1,4 +1,4 @@
-#include <csv2/reader.hpp>  // adequate...
+#include <csv2/reader.hpp> 
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -103,13 +103,13 @@ struct GeoData {
                 density[i],
                 anchor[i]);
       }
-    }
+    }    
 };
 
 struct RuntimeEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
   absl::flat_hash_map<std::string, int> lookup; // Name-to-Index (String -> Number)
-  int nextnum{0};
+  std::uint8_t nextnum{0};
 
   void add_item(std::string newname) {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
@@ -117,7 +117,7 @@ struct RuntimeEnum {
           lookup[newname] = nextnum;
           nextnum++;
       }
-    }
+  }
 
     // String → Index (linear search - fast for small N)
   int operator()(const string& name) const {

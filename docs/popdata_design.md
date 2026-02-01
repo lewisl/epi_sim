@@ -297,3 +297,13 @@ Total: ~5-10 MB for 100k population
 - Data-Oriented Design: https://www.dataorienteddesign.com/dodbook/
 - Cache-friendly data structures: https://gameprogrammingpatterns.com/data-locality.html
 
+## Semantic Column Types
+
+You have columns that are physically vector<uint8_t> but semantically different types:
+
+ status → Status::Value enum
+ agegrp → Agegrp::Value enum
+ cond → Condition::Value enum
+ variant → RuntimeEnum (variants)
+ vaxrcvd → RuntimeEnum (vaccines)
+ duration,  ring,  quar, etc. → just plain integers

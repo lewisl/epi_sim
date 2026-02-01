@@ -11,3 +11,4 @@ scratch
 # others
 .cache
 tempCode*
+.stignore
