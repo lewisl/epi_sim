@@ -1,13 +1,19 @@
 // population: organize data about each person in the locale
 
+#ifndef POPULATION
+#define POPULATION
+
 #include <cstdint>
 #include <vector>
 #include <array>
 #include <cstdint>
 #include <iostream>
+#include <string>
+#include "parameters.h"
 
 using std::array;
 using std::vector;
+using std::string;
 
 
 class PopData {
@@ -20,7 +26,7 @@ class PopData {
   vector<uint8_t> agegrp;
   vector<uint8_t> cond;
   vector<uint8_t> duration;
-  vector<array<uint8_t, 16>> variant; // = [Symbol[] for _ in 1:pop],
+  vector<array<uint8_t, 16>> variant; 
   vector<std::uint8_t> variant_count;
   vector<array<uint8_t, 16>> sickday;
   vector<std::uint8_t> sickday_count;
@@ -39,43 +45,37 @@ class PopData {
   vector<std::uint8_t> vax_count;
   vector<array<uint8_t, 16>> vaxday;  // = vec of vec of sim day
 
+  // domains of valid values for columns
+      // what is the stub to use for int valued columns that print as ints?
+  RuntimeEnum cond_lbl;
+  RuntimeEnum status_lbl;
+  RuntimeEnum agegrp_lbl;
+  RuntimeEnum variant_lbl;
+  RuntimeEnum vax_lbl;
+  RuntimeEnum vaxstatus_lbl;
+  RuntimeEnum Justint;
+  RuntimeEnum true_false;
 
-
-  // constructor and destructor
+  // constructor
       // clang-format off
-  PopData(size_t n)
-      : popn(n),
-        status(n, 1),
-        agegrp(n, 1),
-        cond(n, 1),
-        duration(n, 0),
-        variant(n),
-        variant_count(n),
-        sickday(n),
-        sickday_count(n),
-        recovday(n),
-        recovday_count(n),
-        deadday(n, 0),
-        ring(n, 0),
-        sdcase(n, 0),
-        tested(n),
-        tested_count(n),
-        testday(n),
-        quar(n, 0),
-        quarday(n, 0),
-        vaxstatus(n, 0),
-        vaxrcvd(n),
-        vax_count(n),
-        vaxday(n)
+  PopData(size_t n, RuntimeEnum status_lbl, RuntimeEnum agegrp_lbl, RuntimeEnum cond_lbl,
+          RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
+          RuntimeEnum true_false, RuntimeEnum Justint)
+      : popn(n), status(n, 1), agegrp(n, 1), cond(n, 1), duration(n, 0),
+        variant(n), variant_count(n), sickday(n), sickday_count(n),
+        recovday(n), recovday_count(n), deadday(n, 0), ring(n, 0),
+        sdcase(n, 0), tested(n), tested_count(n), testday(n), quar(n, 0), quarday(n, 0),
+        vaxstatus(n, 0), vaxrcvd(n), vax_count(n), vaxday(n),
+        status_lbl (status_lbl), agegrp_lbl(agegrp_lbl), cond_lbl(cond_lbl), variant_lbl(variant_lbl),
+        vax_lbl(vax_lbl), vaxstatus_lbl(vaxstatus_lbl), true_false(true_false), Justint(Justint)
         // clang-format on
-
-
       {
           if (n <= 0) {
               throw std::invalid_argument(
                   "Bad size input. Must be a positive integer.");
           }
       }
+  
     enum class Column : uint8_t {
       status,
       agegrp,
@@ -105,27 +105,27 @@ class PopData {
     void apply_to_columns(const vector<Column> &cols, Action &&action) {
       for (auto col : cols) {
         switch (col) {
-        case Column::status:          action(status);           break;
-        case Column::agegrp:          action(agegrp);           break;
-        case Column::cond:            action(cond);             break;
-        case Column::duration:        action(duration);         break;
-        case Column::variant:         action(variant);          break;
-        case Column::variant_count:   action(variant_count);    break;
-        case Column::sickday:         action(sickday);          break;
-        case Column::sickday_count:   action(sickday_count);    break;
-        case Column::recovday:        action(recovday);         break;
-        case Column::recovday_count:  action(recovday_count);   break;
-        case Column::deadday:         action(deadday);          break;
-        case Column::ring:            action(ring);             break;
-        case Column::sdcase:          action(sdcase);           break;
-        case Column::tested:          action(tested);           break;
-        case Column::tested_count:    action(tested_count);     break;
-        case Column::quar:            action(quar);             break;
-        case Column::quarday:         action(quarday);          break;
-        case Column::vaxstatus:       action(vaxstatus);        break;
-        case Column::vaxrcvd:         action(vaxrcvd);          break;
-        case Column::vax_count:       action(vax_count);        break;
-        case Column::vaxday:          action(vaxday);           break;
+        case Column::status:          action(status, status_lbl);        break;
+        case Column::agegrp:          action(agegrp, agegrp_lbl);        break;
+        case Column::cond:            action(cond, cond_lbl);            break;
+        case Column::duration:        action(duration, Justint);         break;
+        case Column::variant:         action(variant, variant_lbl);      break;
+        case Column::variant_count:   action(variant_count, Justint);    break;
+        case Column::sickday:         action(sickday, Justint);          break;
+        case Column::sickday_count:   action(sickday_count, Justint);    break;
+        case Column::recovday:        action(recovday, Justint);         break;
+        case Column::recovday_count:  action(recovday_count, Justint);   break;
+        case Column::deadday:         action(deadday, Justint);          break;
+        case Column::ring:            action(ring, Justint);             break;
+        case Column::sdcase:          action(sdcase, Justint);           break;
+        case Column::tested:          action(tested, true_false);        break;
+        case Column::tested_count:    action(tested_count, Justint);     break;
+        case Column::quar:            action(quar, true_false);          break;
+        case Column::quarday:         action(quarday, Justint);          break;
+        case Column::vaxstatus:       action(vaxstatus, true_false);     break;
+        case Column::vaxrcvd:         action(vaxrcvd, vax_lbl);          break;
+        case Column::vax_count:       action(vax_count, Justint);        break;
+        case Column::vaxday:          action(vaxday, Justint);           break;
         }  // switch
       }  // for
     } // function
@@ -138,12 +138,12 @@ class PopData {
     struct CellPrinter {
       int current_row;
 
-      void operator()(const vector<uint8_t> &vec) const {
-        std::cout << "   " << (int)vec[current_row] << "\t|";
+      void operator()(const vector<uint8_t> &vec, RuntimeEnum label) const {
+        std::cout << "   " << label.to_str(vec[current_row]) << "\t|";
       }
 
-      void operator()(const std::vector<array<uint8_t, 16>> &vec) {
-        std::cout << "   " <<  (int)vec[current_row][0] << "...    | ";
+      void operator()(const std::vector<array<uint8_t, 16>> &vec, RuntimeEnum label) {
+        std::cout << "   " <<  label.to_str(vec[current_row][0]) << "...    | ";
       }
     };
 
@@ -157,3 +157,5 @@ class PopData {
     }
 
 };
+
+#endif
