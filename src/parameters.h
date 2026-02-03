@@ -5,8 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <array>
-#include <iostream>
-#include <fstream>
+// #include <iostream>
+// #include <fstream>
 // #include <iomanip>
 #include <cstdlib>
 // #include <unordered_map>
@@ -140,11 +140,21 @@ namespace traits
     inline RuntimeEnum Status = {
         {"none", "unexposed", "infectious", "recovered", "dead"}, // lbls
           {{"none", 0}, {"unexposed", 1}, {"infectious", 2}, {"recovered", 3}, {"dead", 4}}, // lookup
-          5};            
+          5};
 
-    inline RuntimeEnum Agegrp = {{"unknown","age0_19", "age20_39", "age40_59", "age60_79", "age80_up"},           // lbls
-                          {{"unknown", 0}, {"age0_19",1}, {"age20_39", 2}, {"age40_59", 3}, {"age60_79", 4}, {"age80_up", 5}},  // lookup
-                          6}; 
+    inline RuntimeEnum Agegrp = {{"unknown", "age0_19", "age20_39", "age40_59",
+                                  "age60_79", "age80_up"}, // lbls
+                                 {{"unknown", 0},
+                                  {"age0_19", 1},
+                                  {"age20_39", 2},
+                                  {"age40_59", 3},
+                                  {"age60_79", 4},
+                                  {"age80_up", 5}}, // lookup
+                                 6};
+
+    inline RuntimeEnum Vaxstatus = {{"none", "first", "full", "booster"},
+                                    {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
+                                    4};   // this should probably be moved into the vaxset struct?
   }
 
 

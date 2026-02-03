@@ -14,8 +14,6 @@ using std::string;
 using std::vector;
 using std::cout;
 
-// Create a short alias for PopData::Column to use throughout this file
-// using PC = PopData::Column;
 
 void run_category_tests() {
     std::cout << "=== Testing New Namespace Approach ===\n\n";
@@ -104,6 +102,8 @@ void run_category_tests() {
     std::cout << "=== All namespace tests completed ===\n";
 }
 
+// Create a short alias for PopData::Column to use throughout this file
+using PC = PopData::Column;
 
 // void test_popdata_constructor() {
 //     std::cout << "\n=== Testing PopData Constructor ===\n\n";
@@ -142,60 +142,58 @@ void run_category_tests() {
 // }
 
 
-// void test_popdata_print_table() {
-//     std::cout << "\n=== Testing PopData Print Table ===\n\n";
+void test_popdata_print_table(PopData pop) {
+    std::cout << "\n=== Testing PopData Print Table ===\n\n";
 
-//     std::cout << "Creating PopData with 100 people...\n";
-//     PopData pop(100);
-//     std::cout << "Constructor executed successfully!\n\n";
 
-//     // Select 5 rows to print (indices 0, 25, 50, 75, 99)
-//     vector<int> rows = {0, 25, 50, 75, 99};
 
-//     // Test 1: First 5 columns (simple uint8_t vectors)
-//     std::cout << "--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---\n";
-//     vector<PopData::Column> cols1 = {
-//         PC::status, 
-//         PC::agegrp,
-//         PC::cond,
-//         PC::duration,
-//         PC::ring
-//     };
-//     std::cout << "Row:\tstatus | agegrp | cond | duration | ring |\n";
-//     std::cout << "------------------------------------------------------------\n";
-//     pop.print_table(rows, cols1);
-//     std::cout << "\n";
+    // Select 5 rows to print (indices 0, 25, 50, 75, 99)
+    vector<int> rows = {0, 25, 50, 75, 99};
 
-//     // Test 2: Mix of simple and array columns
-//     std::cout << "--- Test 2: Mixed columns (variant, variant_count, sickday, sickday_count, deadday) ---\n";
-//     vector<PopData::Column> cols2 = {
-//         PC::variant,
-//         PC::variant_count,
-//         PC::sickday,
-//         PC::sickday_count,
-//         PC::deadday
-//     };
-//     std::cout << "Row:\tvariant | variant_count | sickday | sickday_count | deadday |\n";
-//     std::cout << "--------------------------------------------------------------------\n";
-//     pop.print_table(rows, cols2);
-//     std::cout << "\n";
+    // Test 1: First 5 columns (simple uint8_t vectors)
+    std::cout << "--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---\n";
+    vector<PopData::Column> cols1 = {
+        PC::status, 
+        PC::agegrp,
+        PC::cond,
+        PC::duration,
+        PC::ring
+    };
+    std::cout << "Row:\tstatus | agegrp | cond | duration | ring |\n";
+    std::cout << "------------------------------------------------------------\n";
+    pop.print_table(rows, cols1);
+    std::cout << "\n";
 
-//     // Test 3: Vaccine-related columns
-//     std::cout << "--- Test 3: Vaccine columns (vaxstatus, vaxrcvd, vax_count, quar, quarday) ---\n";
-//     vector<PopData::Column> cols3 = {
-//         PC::vaxstatus,
-//         PC::vaxrcvd,
-//         PC::vax_count,
-//         PC::quar,
-//         PC::quarday
-//     };
-//     std::cout << "Row:\tvaxstatus | vaxrcvd | vax_count | quar | quarday |\n";
-//     std::cout << "------------------------------------------------------------\n";
-//     pop.print_table(rows, cols3);
-//     std::cout << "\n";
+    // Test 2: Mix of simple and array columns
+    std::cout << "--- Test 2: Mixed columns (variant, variant_count, sickday, sickday_count, deadday) ---\n";
+    vector<PopData::Column> cols2 = {
+        PC::variant,
+        PC::variant_count,
+        PC::sickday,
+        PC::sickday_count,
+        PC::deadday
+    };
+    std::cout << "Row:\tvariant | variant_count | sickday | sickday_count | deadday |\n";
+    std::cout << "--------------------------------------------------------------------\n";
+    pop.print_table(rows, cols2);
+    std::cout << "\n";
 
-//     std::cout << "=== PopData Print Table Test Completed ===\n";
-// }
+    // Test 3: Vaccine-related columns
+    std::cout << "--- Test 3: Vaccine columns (vaxstatus, vaxrcvd, vax_count, quar, quarday) ---\n";
+    vector<PopData::Column> cols3 = {
+        PC::vaxstatus,
+        PC::vaxrcvd,
+        PC::vax_count,
+        PC::quar,
+        PC::quarday
+    };
+    std::cout << "Row:\tvaxstatus | vaxrcvd | vax_count | quar | quarday |\n";
+    std::cout << "------------------------------------------------------------\n";
+    pop.print_table(rows, cols3);
+    std::cout << "\n";
+
+    std::cout << "=== PopData Print Table Test Completed ===\n";
+}
 
 ModelParams test_model_params() {
   ModelParams mp = load_model_params(geodata_path, variants_path, social_path,
@@ -219,41 +217,20 @@ ModelParams test_model_params() {
 }
 
 int main() {
-  // test files
-  // std::string csvfname = std::string(std::getenv("HOME")) + "/code/epi_sim/sample_parameters/geo2data.csv";
   // tests
-  // test_popdata_constructor();
-  // test_popdata_print_table();
-  // model_params mp = load_model_params(geodata_path,variants_path, social_path, vax_sched_path);
-  // print_geodata(mp.geodata);
+  // run_category_tests();
 
-  run_category_tests();
+  auto mp = test_model_params();
 
-  // shifter(mp.geodata.density, 0.9, 1.25);
+  std::cout << "Creating PopData with 100 people...\n";
+  PopData pop(100, traits::Status, traits::Agegrp, traits::Condition,
+              mp.variants, mp.vaxlist, traits::Vaxstatus, traits::true_false,
+              traits::Justint);
 
-  // auto [variantslist, infectset] = load_variants_data(variants_path);
-  // variantslist.print();
-  // cout << "\n";
-  // infectset.print();
+  std::cout << "Constructor executed successfully!\n\n";
 
-  // print_geodata(mp.geodata);
-  // print_variants_data(mp.variantdata);
-  // cout << mp.variantdata.dump(2) << "\n";
-  // print_social_struct(mp.socialdata);
-  // print_vaccines_data(mp.vaccinesdata);
-  // cout << "\n=======================\n" << mp.vaxsched.dump(2) << "\n";
 
-  // quickie tests of condition or status
-  // fmt::print("tests of using namespace enums\n");
-  // fmt::print("  all conditions:       {} {} {} {} {}\n", Condition::uninfected,
-  //            Condition::nil, Condition::mild, Condition::sick,
-  //            Condition::severe);
-  // fmt::print("  all condition values: {} {} {} {} {}\n", Condition::uninfected,
-  //            Condition::nil, Condition::mild, Condition::sick,
-  //            Condition::severe);
-  // fmt::print("\n");
-
-  test_model_params();
+  test_popdata_print_table(pop);
 
   return 0;
 }

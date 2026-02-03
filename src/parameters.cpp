@@ -4,7 +4,7 @@
 
 #include <csv2/reader.hpp> 
 #include <string>
-#include <algorithm>
+// #include <algorithm>
 #include <vector>
 #include <array>
 #include <iostream>
@@ -26,7 +26,7 @@
 
 // using json = nlohmann::json;
 using json = nlohmann::ordered_json;
-using std::array;
+// using std::array;
 using std::string;
 using std::vector;
 

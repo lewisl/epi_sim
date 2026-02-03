@@ -7,6 +7,7 @@ target("epi_sim")
     set_default("false")
     add_files("src/epi_sim.cpp")
     add_files("src/helpers.cpp")
+    add_files("src/parameters.cpp")
     set_toolchains("llvm")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 
