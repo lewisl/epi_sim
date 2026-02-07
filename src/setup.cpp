@@ -53,3 +53,16 @@ ModelParams load_model_params(string geo_path, string variants_path, string soci
       .vaxsched = std::move(vaxsched),
   };
 }
+
+
+std::tuple<ModelParams, PopData> setup(string geo_path, string variants_path,
+                                       string social_path, string vax_path,
+                                       string vaxsched_path)
+{
+  auto mp = load_model_params(geo_path, variants_path, social_path, vax_path,
+                              vaxsched_path);
+  PopData pop(100, traits::Status, traits::Agegrp, traits::Condition,
+              mp.variants, mp.vaxlist, traits::Vaxstatus, traits::true_false,
+              traits::Justint);
+  return {mp, pop};
+}

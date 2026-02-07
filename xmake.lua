@@ -1,6 +1,7 @@
 add_rules("mode.debug", "mode.release")
 add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 set_languages("c++23")
+set_toolchains("llvm")
 
 target("epi_sim")
     set_kind("binary")
@@ -8,7 +9,6 @@ target("epi_sim")
     add_files("src/epi_sim.cpp")
     add_files("src/helpers.cpp")
     add_files("src/parameters.cpp")
-    set_toolchains("llvm")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 
 target("test")
@@ -16,27 +16,23 @@ target("test")
     set_default("false")
     add_files("test/test.cpp")
     add_files("src/helpers.cpp", "src/parameters.cpp")
-    set_toolchains("llvm")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 
 target("this")
     set_kind("binary")
     set_default("false")
     add_files("scratch/fake_enums.cpp")  -- or any other cpp file in scratch dir
-    set_toolchains("llvm")
 
 target("benchmark")
     set_kind("binary")
     set_default("false")
     add_files("scratch/benchmark_lookup.cpp")
-    set_toolchains("llvm")
     add_packages("vcpkg::abseil")
 
 target("hotloop")
     set_kind("binary")
     set_default("false")
     add_files("scratch/benchmark_hotloop.cpp")
-    set_toolchains("llvm")
     add_packages("vcpkg::abseil")
 
 

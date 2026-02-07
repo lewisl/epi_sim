@@ -28,22 +28,22 @@ class PopData {
   vector<uint8_t> duration;
   vector<array<uint8_t, 16>> variant; 
   vector<std::uint8_t> variant_count;
-  vector<array<uint8_t, 16>> sickday;
+  vector<array<int16_t, 16>> sickday;
   vector<std::uint8_t> sickday_count;
-  vector<array<uint8_t, 16>> recovday;
+  vector<array<int16_t, 16>> recovday;
   vector<std::uint8_t> recovday_count;
-  vector<uint8_t> deadday;
+  vector<int16_t> deadday;
   vector<uint8_t> ring;
   vector<uint8_t> sdcase;
   vector<array<uint8_t, 16>> tested; // pseudo bool 0 = false, 1 = true
   vector<std::uint8_t> tested_count;
-  vector<array<uint8_t, 16>> testday;
+  vector<array<int16_t, 16>> testday;
   vector<uint8_t> quar; // pseudo bool
-  vector<uint8_t> quarday;
+  vector<int16_t> quarday;
   vector<uint8_t> vaxstatus;    //  = fill(:none, pop), :none, :first, :full, :booster,  maybe others
   vector<array<uint8_t, 16>> vaxrcvd;  // :none,  vaccine symbols  :Pfizer, :Moderna, :JnJ _
   vector<std::uint8_t> vax_count;
-  vector<array<uint8_t, 16>> vaxday;  // = vec of vec of sim day
+  vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
 
   // domains of valid values for columns
       // what is the stub to use for int valued columns that print as ints?
@@ -142,9 +142,17 @@ class PopData {
         std::cout << "   " << label.to_str(vec[current_row]) << "\t|";
       }
 
+      void operator()(const vector<int16_t> &vec, RuntimeEnum label) const {
+        std::cout << "   " << label.to_str(vec[current_row]) << "\t|";
+      }
+
       void operator()(const std::vector<array<uint8_t, 16>> &vec, RuntimeEnum label) {
         std::cout << "   " <<  label.to_str(vec[current_row][0]) << "...    | ";
       }
+
+      void operator()(const std::vector<array<int16_t, 16>> &vec, RuntimeEnum label) {
+        std::cout << "   " <<  label.to_str(vec[current_row][0]) << "...    | ";
+      }      
     };
 
     void print_table(const vector<int> &rows, const vector<Column> &cols) {
