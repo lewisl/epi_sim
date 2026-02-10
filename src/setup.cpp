@@ -6,6 +6,45 @@
 
 namespace fs = std::filesystem;
 
+/*
+buildsim(ndays, locales;
+    day1 = Date("2020-01-01", "yyyy-mm-dd"),    # first calendar day of simulation
+    dovax = false,                              # vaccinations for people
+    paramdir = "../sample_parameters",          # a directory of required parameters
+    geofilename = "geo2data.csv", 
+    socialfilename = "socialparams.yml",
+    vaccinefilename = "vaccines.yml",
+    scheddir="vaccine_schedule",
+    variantfilename = "variants.yml")
+
+    locales = locales isa Int ? [locales] : locales
+
+    returns: 
+
+next step: build the model with file inputs
+
+function setup_files(ndays::Int64, locales;  # alternative: setup from complete model yaml in one file
+    # must provide following inputs
+    day1,
+    dovax=false,
+    paramdir,
+    geofilename, 
+    socialfilename,
+    vaccinefilename,
+    scheddir,
+    variantfilename)
+
+    calls: setup_model
+    returns:
+        model = (ndays=ndays, day1=day1, locales=locales, dat=dat, series=series, geo=geodata,
+            progressionset=progressionset, dovax=dovax, vaxset=vaxset, vaxschedset=vaxschedset,
+            infectset=infectset, social=socialparams, trvec=trvec, variantlist=variantlist, vaxlist=vaxlist,
+            indoor_seq=indoor_seq, seriescolnames=seriescolnames)
+
+dat consists of: popdat, agegrp_idx. inputs are: locales, geodata, n_days
+    locales is a vector of locales to run during the simulation
+series consists of:
+*/
 
 // for testing only
 // Keep all paths as plain strings (avoid std::filesystem::path conversions).
@@ -26,7 +65,7 @@ const string vax_path = (project_dir / param_dir / vax_fname).string();
 const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
 
 
-ModelParams load_model_params(string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
+ModelParams setup_model_params(string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
 {
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
@@ -34,12 +73,13 @@ ModelParams load_model_params(string geo_path, string variants_path, string soci
 
   auto [infectset, progressionset, trvec, variants] = load_infect_params(variants_path);
   auto [vaxdata, vaxlist] = load_vax_data(vax_path, variants);
+  auto socialdata = load_social_params(social_path);
 
   // Load vaxsched before moving vaxlist (since load_vax_sched needs vaxlist)
   VaxSched vaxsched = load_vax_sched(vaxsched_path, vaxlist);
 
   // Use aggregate initialization to construct model_params with all members at once
-  // This avoids assignment to socialdata (which has const members)
+  // This avoids assignment to socialdata (which has const members)???
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
       .geodata = std::move(geodata),
@@ -47,7 +87,7 @@ ModelParams load_model_params(string geo_path, string variants_path, string soci
       .infectset = std::move(infectset),
       .progressionset = std::move(progressionset),
       .trvec = std::move(trvec),
-      .socialdata = load_social_params(social_path),
+      .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxdata),
       .vaxlist = std::move(vaxlist),
       .vaxsched = std::move(vaxsched),
@@ -55,14 +95,14 @@ ModelParams load_model_params(string geo_path, string variants_path, string soci
 }
 
 
-std::tuple<ModelParams, PopData> setup(string geo_path, string variants_path,
+std::tuple<ModelParams, PopData> setup_sim(string geo_path, string variants_path,
                                        string social_path, string vax_path,
                                        string vaxsched_path)
 {
-  auto mp = load_model_params(geo_path, variants_path, social_path, vax_path,
+  ModelParams mp = setup_model_params(geo_path, variants_path, social_path, vax_path,
                               vaxsched_path);
-  PopData pop(100, traits::Status, traits::Agegrp, traits::Condition,
-              mp.variants, mp.vaxlist, traits::Vaxstatus, traits::true_false,
-              traits::Justint);
+  PopData pop(100, Traits::Status, Traits::Agegrp, Traits::Condition,
+              mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
+              Traits::Justint);
   return {mp, pop};
 }

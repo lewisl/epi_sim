@@ -24,3 +24,11 @@ Note that the problem can also be fixed with xmake directives for a given target
 add_linkdirs("/opt/homebrew/opt/llvm/lib/c++")
 add_rpathdirs("/opt/homebrew/opt/llvm/lib/c++")
 ```
+
+For using vcpkg, add this to path setting in .zshrc:
+
+```
+export VCPKG_ROOT="$HOME/vcpkg"
+export PATH="$VCPKG_ROOT:$PATH"
+```
+This enables xmake to automatically pickup the location of vcpkg.

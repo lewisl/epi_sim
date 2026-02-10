@@ -3,17 +3,27 @@
 #ifndef POPULATION
 #define POPULATION
 
+#include <cassert>
 #include <cstdint>
+#include <cmath>
 #include <vector>
 #include <array>
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <utility>
+
+#include "helpers.h"
 #include "parameters.h"
 
 using std::array;
-using std::vector;
 using std::string;
+using std::vector;
+
+// control constants
+const vector<double> AGE_DIST = {0.251, 0.271, 0.255, 0.184, 0.039};
+const auto DURATIONLIM { 25 };   // maximum length of illness in days for anyone
+const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 
 
 class PopData {
@@ -56,12 +66,18 @@ class PopData {
   RuntimeEnum Justint;
   RuntimeEnum true_false;
 
+  // helper function for creating age group distribution defined below
+      // vector<int> apportion(int n, vector<float> splits);
+
   // constructor
       // clang-format off
   PopData(size_t n, RuntimeEnum status_lbl, RuntimeEnum agegrp_lbl, RuntimeEnum cond_lbl,
           RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
-          RuntimeEnum true_false, RuntimeEnum Justint)
-      : popn(n), status(n, 1), agegrp(n, 1), cond(n, 1), duration(n, 0),
+          RuntimeEnum true_false, RuntimeEnum Justint,
+          const vector<double>& age_dist=AGE_DIST)
+      : popn(n), status(n, 1), 
+        agegrp(age_distribution(n, age_dist)), 
+        cond(n, 0), duration(n, 0),
         variant(n), variant_count(n), sickday(n), sickday_count(n),
         recovday(n), recovday_count(n), deadday(n, 0), ring(n, 0),
         sdcase(n, 0), tested(n), tested_count(n), testday(n), quar(n, 0), quarday(n, 0),
@@ -164,6 +180,47 @@ class PopData {
       }
     }
 
+    vector<uint8_t> age_distribution(int n, const auto &age_parts) {
+      assert(age_parts.size() == Traits::Agegrp.size() - 1); // ignore the "unknown" value
+
+      // Convert proportions to counts using apportion
+      vector<float> proportions(age_parts.begin(), age_parts.end());
+      vector<int> counts = apportion(n, proportions);
+
+      vector<uint8_t> agegrp(n, 0);
+      int start_idx{0};
+      uint8_t agegrp_num {Traits::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
+
+      for (int num_of_age : counts) {
+        fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, agegrp_num);
+        start_idx += num_of_age;
+        agegrp_num++;
+      }
+      return agegrp;
+    }
+    
+    vector<int> apportion(int n, vector<float> splits) {
+      assert(n > 0);
+      assert(splits.size() > 0);
+      assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0),
+                          1.0));
+      
+      vector<int> parts;
+      for (auto pct : splits) {
+        parts.push_back(static_cast<int>(round(n * pct)));
+      }
+
+      // fix rounding error
+      int diff = std::accumulate(parts.begin(), parts.end(), 0) - n;
+
+      if (diff != 0) {
+        parts.back() += diff;
+      }
+      assert(parts.back() > 0);  // should always be true for large n and reasonable splits
+
+      return parts;
+    }
 };
+
 
 #endif

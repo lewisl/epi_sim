@@ -35,7 +35,7 @@ using std::vector;
 
 struct GeoData {
     // Column metadata
-    vector<string> column_lbls = {
+    vector<string> column_names = {
         "fips", "county", "city", "state", "sizecat",
         "pop", "density", "anchor", "indoor_st", "indoor_end"
     };
@@ -87,13 +87,15 @@ struct GeoData {
 };
 
 struct RuntimeEnum {
-  std::vector<std::string> lbls; // Index-to-Name (Number -> String)
-  absl::flat_hash_map<std::string, int> lookup; // Name-to-Index (String -> Number)
+  std::vector<std::string> names; // Index-to-Name (Number -> String)
+  absl::flat_hash_map<std::string, int>
+      lookup; // Name-to-Index (String -> Number)
+  std::vector<uint8_t> valid_nums{};
   std::uint8_t nextnum{0};
 
   void add_item(std::string newname) {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
-          lbls.push_back(newname);
+          names.push_back(newname);
           lookup[newname] = nextnum;
           nextnum++;
       }
@@ -101,8 +103,8 @@ struct RuntimeEnum {
 
     // String → Index (linear search - fast for small N)
   int operator()(const string& name) const {
-      auto it = std::find(lbls.begin(), lbls.end(), name);
-      return (it != lbls.end()) ? std::distance(lbls.begin(), it) : 99;
+      auto it = std::find(names.begin(), names.end(), name);
+      return (it != names.end()) ? std::distance(names.begin(), it) : 99;
   }
 
   // String → Index (hash map - for large N or explicit use)
@@ -112,49 +114,64 @@ struct RuntimeEnum {
   }
 
   // Num -> String (Instant)
-  std::string to_str(uint8_t i) {
-    if (lbls.empty()) return std::to_string(i);
-    return (i >= 0 && i < lbls.size()) ? lbls[i] : "INVALID";
+  std::string to_str(uint8_t i) const {
+    if (names.empty()) return std::to_string(i);
+    return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
   }
 
-  size_t size() const { return lbls.size(); }
+  size_t size() const { return names.size(); }
 
   void print() const {
-    for (size_t i = 0; i < lbls.size(); ++i) {
-      fmt::print("{:>2}: {:<8}\n", i, lbls[i]);
+    for (size_t i = 0; i < names.size(); ++i) {
+      fmt::print("{:>2}: {:<8}\n", i, names[i]);
     }
   }
 };
 
 
-namespace traits
+namespace Traits
   {
     inline RuntimeEnum Justint{};
 
-    inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, 2};
+    inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
 
-    inline RuntimeEnum Condition = {{"uninfected", "nil", "mild", "sick", "severe"},           // lbls
-                          {{"uninfected",0}, {"nil", 1}, {"mild", 2}, {"sick", 3}, {"severe", 4}},  // lookup
-                          5}; 
+    inline RuntimeEnum Condition = {
+        {"uninfected", "nil", "mild", "sick", "severe"}, // names
+        {{"uninfected", 0},
+          {"nil", 1},
+          {"mild", 2},
+          {"sick", 3},
+          {"severe", 4}}, // lookup
+        {0,1,2,3,4},      // valid_nums
+        5};
 
     inline RuntimeEnum Status = {
-        {"none", "unexposed", "infectious", "recovered", "dead"}, // lbls
-          {{"none", 0}, {"unexposed", 1}, {"infectious", 2}, {"recovered", 3}, {"dead", 4}}, // lookup
+        {"none", "unexposed", "infectious", "recovered", "dead"}, // names
+        {{"none", 0},
+          {"unexposed", 1},
+          {"infectious", 2},
+          {"recovered", 3},
+          {"dead", 4}}, // lookup
+        {1,2,3,4},  // valid_nums
           5};
 
-    inline RuntimeEnum Agegrp = {{"unknown", "age0_19", "age20_39", "age40_59",
-                                  "age60_79", "age80_up"}, // lbls
-                                 {{"unknown", 0},
-                                  {"age0_19", 1},
-                                  {"age20_39", 2},
-                                  {"age40_59", 3},
-                                  {"age60_79", 4},
-                                  {"age80_up", 5}}, // lookup
-                                 6};
+    inline RuntimeEnum Agegrp = {
+        {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
+         "age80_up"}, // names
+        {{"unknown", 0},
+            {"age0_19", 1},
+            {"age20_39", 2},
+            {"age40_59", 3},
+            {"age60_79", 4},
+            {"age80_up", 5}}, // lookup
+        {1,2,3,4,5},  // valid_nums
+        6};
 
-    inline RuntimeEnum Vaxstatus = {{"none", "first", "full", "booster"},
-                                    {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
-                                    4};   // this should probably be moved into the vaxset struct?
+    inline RuntimeEnum Vaxstatus = {
+        {"none", "first", "full", "booster"},
+        {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
+        {0,1,2,3},  // valid_nums
+        4};   // this should probably be moved into the vaxset struct?
   }
 
 
@@ -194,7 +211,7 @@ struct Agetree {  // for 1 variant
 
     for (size_t age_idx = 0; age_idx < tree.size(); age_idx++) {
       const auto& breakday_map = tree[age_idx];
-      string age_name = traits::Agegrp.to_str(age_idx + 1);
+      string age_name = Traits::Agegrp.to_str(age_idx + 1);
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {
@@ -215,7 +232,7 @@ struct Agetree {  // for 1 variant
 
         for (size_t cond_idx = 0; cond_idx < condition_vec.size(); cond_idx++) {
           const auto& outcome_probs = condition_vec[cond_idx];
-          string cond_name = traits::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
+          string cond_name = Traits::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
           for (size_t i = 0; i < outcome_probs.size(); i++) {
@@ -254,13 +271,13 @@ struct ProgressionFactors {  // for one variant
     } else {
       fmt::println("    vaxhalflifeadjust:");
       // Sort keys for consistent output
-      vector<string> vax_lbls;
+      vector<string> vax_names;
       for (const auto& [vax, _] : vaxhalflifeadjust) {
-        vax_lbls.push_back(vax);
+        vax_names.push_back(vax);
       }
-      std::sort(vax_lbls.begin(), vax_lbls.end());
+      std::sort(vax_names.begin(), vax_names.end());
 
-      for (const auto& vax : vax_lbls) {
+      for (const auto& vax : vax_names) {
         fmt::println("      {}: {:.2f}", vax, vaxhalflifeadjust.at(vax));
       }
     }
@@ -287,7 +304,7 @@ struct ProgressionSet {  // collection of all variants
     fmt::println("Total variants: {}", progression.size());
 
     for (size_t i = 0; i < progression.size(); i++) {
-      string variant_name = (i < variants.lbls.size()) ? variants.lbls[i] : fmt::format("variant_{}", i);
+      string variant_name = (i < variants.names.size()) ? variants.names[i] : fmt::format("variant_{}", i);
       progression[i].print(variant_name);
     }
     fmt::println("\n=== End ProgressionSet ===\n");
@@ -356,8 +373,9 @@ struct VaxParams {
 
 struct VaxSet {
   vector<std::pair<string, VaxParams>> vaxset{};
-  RuntimeEnum shot_types = {{"first", "full", "booster"},           // lbls
+  RuntimeEnum shot_types = {{"first", "full", "booster"},           // names
                             {{"first", 0}, {"full", 1}, {"booster", 2}},  // lookup
+                            {0,1,2},  // valid_nums
                             3}; // nextnum --  I guess this will be hard-coded
 
   void print() const {
@@ -365,9 +383,9 @@ struct VaxSet {
     fmt::println("Total vaccines: {}", vaxset.size());
 
     fmt::print("Shot types: ");
-    for (size_t i = 0; i < shot_types.lbls.size(); i++) {
+    for (size_t i = 0; i < shot_types.names.size(); i++) {
       if (i > 0) fmt::print(", ");
-      fmt::print("{}", shot_types.lbls[i]);
+      fmt::print("{}", shot_types.names[i]);
     }
     fmt::println("\n");
 
@@ -540,7 +558,7 @@ struct SocialParams {
 //
 struct ModelParams {
 
-  // traits for each person in popdata
+  // Traits for each person in popdata
 
   GeoData geodata;
   RuntimeEnum Condition;

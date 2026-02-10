@@ -238,7 +238,7 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
     vx.day1_effect = body["day1_effect"];
 
     // infectfactor vector
-    for (const auto &variantname : variants.lbls) {
+    for (const auto &variantname : variants.names) {
       if (body["infectfactor"].contains(variantname))
         vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
       else
@@ -247,9 +247,9 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
     }
 
     // effectiveness vector of vector
-    for (const auto &shot : vaxset.shot_types.lbls) {
+    for (const auto &shot : vaxset.shot_types.names) {
       vector<std::pair<string, float>> variant_effectiveness {};
-      for (const auto &variantname : variants.lbls) {
+      for (const auto &variantname : variants.names) {
         if (body["effectiveness"][shot].contains(variantname))
           variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
         else 

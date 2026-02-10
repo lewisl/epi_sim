@@ -24,3 +24,7 @@ void shifter(vector<float> &arr, const float newmin, const float newmax) {
     }
   }
 }
+
+bool approx_equal(double a, double b, double tolerance = 1e-9) {
+  return std::abs(a - b) < tolerance;
+}

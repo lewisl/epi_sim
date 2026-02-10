@@ -112,7 +112,7 @@ Use `std::move()` when building larger structs to avoid expensive copies.
 
 ```cpp
 Model build_model(string param_dir) {
-    model_params params = load_model_params(param_dir);
+    model_params params = setup_model_params(param_dir);
     
     return Model{
         .params = std::move(params),  // Move, not copy!

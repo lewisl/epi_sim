@@ -1,4 +1,0 @@
-CompileFlags:
-  Add:
-    - -isystem~/vcpkg/installed/arm64-osx/include
-    - -std=c++23
