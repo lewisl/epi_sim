@@ -2,6 +2,13 @@
 // helpers    
 //
 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <cstdio>
+#include <cassert>
+#include <absl/time/civil_time.h>
+#include <absl/strings/str_format.h>
 
 #include "helpers.h"
 
@@ -27,4 +34,10 @@ void shifter(vector<float> &arr, const float newmin, const float newmax) {
 
 bool approx_equal(double a, double b, double tolerance = 1e-9) {
   return std::abs(a - b) < tolerance;
+}
+
+absl::CivilDay parse_date(const std::string& s) {
+    int y, m, d;
+    std::sscanf(s.c_str(), "%d-%d-%d", &y, &m, &d);
+    return absl::CivilDay(y, m, d);
 }

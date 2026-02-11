@@ -107,43 +107,6 @@ void run_category_tests() {
 // Create a short alias for PopData::Column to use throughout this file
 using PC = PopData::Column;
 
-// void test_popdata_constructor() {
-//     std::cout << "\n=== Testing PopData Constructor ===\n\n";
-
-//     std::cout << "Creating PopData with 10 people...\n";
-//     PopData pop(10);
-//     std::cout << "Constructor executed successfully!\n\n";
-
-//     std::cout << "Manually checking values for persons 0, 5, and 9:\n";
-//     std::cout << "Expected: status=1, agegrp=1, cond=1, duration=0, ring=0\n\n";
-
-//     std::cout << "Person 0:\n";
-//     std::cout << "  status = " << static_cast<int>(pop.status[0]) << " (expected 1)\n";
-//     std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[0]) << " (expected 1)\n";
-//     std::cout << "  cond = " << static_cast<int>(pop.cond[0]) << " (expected 1)\n";
-//     std::cout << "  duration = " << static_cast<int>(pop.duration[0]) << " (expected 0)\n";
-//     std::cout << "  ring = " << static_cast<int>(pop.ring[0]) << " (expected 0)\n";
-//     std::cout << "  variant_count = " << static_cast<int>(pop.variant_count[0]) << " (expected 0)\n";
-//     std::cout << "  variant[0][0] = " << static_cast<int>(pop.variant[0][0]) << " (expected 0 - first element of array)\n\n";
-
-//     std::cout << "Person 5:\n";
-//     std::cout << "  status = " << static_cast<int>(pop.status[5]) << " (expected 1)\n";
-//     std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[5]) << " (expected 1)\n";
-//     std::cout << "  cond = " << static_cast<int>(pop.cond[5]) << " (expected 1)\n";
-//     std::cout << "  vaxstatus = " << static_cast<int>(pop.vaxstatus[5]) << " (expected 0)\n";
-//     std::cout << "  vax_count = " << static_cast<int>(pop.vax_count[5]) << " (expected 0)\n\n";
-
-//     std::cout << "Person 9:\n";
-//     std::cout << "  status = " << static_cast<int>(pop.status[9]) << " (expected 1)\n";
-//     std::cout << "  agegrp = " << static_cast<int>(pop.agegrp[9]) << " (expected 1)\n";
-//     std::cout << "  deadday = " << static_cast<int>(pop.deadday[9]) << " (expected 0)\n";
-//     std::cout << "  quar = " << static_cast<int>(pop.quar[9]) << " (expected 0)\n";
-//     std::cout << "  quarday = " << static_cast<int>(pop.quarday[9]) << " (expected 0)\n\n";
-
-//     std::cout << "=== PopData Constructor Test Passed ===\n";
-// }
-
-
 void test_popdata_print_table(PopData pop) {
     std::cout << "\n=== Testing PopData Print Table ===\n\n";
 
@@ -238,9 +201,7 @@ void test_age_distribution(const PopData& pop) {
     std::cout << "\n=== Age Distribution Test Completed ===\n";
 }
 
-ModelParams test_model_params() {
-  ModelParams mp = setup_model_params(geodata_path, variants_path, social_path,
-                                     vax_path, vax_sched_path);
+ModelParams test_model_params(ModelParams mp) {
   mp.geodata.print();
   cout << "\n";
   mp.variants.print();
@@ -253,6 +214,10 @@ ModelParams test_model_params() {
   cout << "\n";
   mp.vaxset.print();
   cout << "\n";
+  cout << "============ VaxList ==============\n";
+  mp.vaxlist.print();
+  cout << "============ End Vaxlist ==========\n";
+  cout << "\n";
   mp.vaxsched.print();
   cout << "\n";
 
@@ -263,19 +228,16 @@ int main() {
   // tests
   // run_category_tests();
 
-  auto mp = test_model_params();
-
-  std::cout << "Creating PopData with 100 people...\n";
-  PopData pop(100, Traits::Status, Traits::Agegrp, Traits::Condition,
-              mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
-              Traits::Justint);
-
-  std::cout << "Constructor executed successfully!\n\n";
-
+  // destructure ndays, day1, locale, dovax, mp, pop
+  auto [ndays, day1, locale, dovax, mp, pop] = setup_sim(1000, 38015, "2020-01-01", false);
 
   test_popdata_print_table(pop);
 
   test_age_distribution(pop);
+
+  cout << "\nday1: " << absl::FormatCivilTime(day1) << "\n";
+
+  test_model_params(mp);
 
   return 0;
 }

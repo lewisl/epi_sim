@@ -29,10 +29,10 @@ target("benchmark")
     add_files("scratch/benchmark_lookup.cpp")
     add_packages("vcpkg::abseil")
 
-target("hotloop")
+target("dates")
     set_kind("binary")
     set_default("false")
-    add_files("scratch/benchmark_hotloop.cpp")
+    add_files("scratch/date-tests.cpp")
     add_packages("vcpkg::abseil")
 
 

@@ -1,7 +1,9 @@
 #include <filesystem>
+#include <absl/time/civil_time.h>
+#include <absl/strings/str_format.h>
 
 #include "parameters.h"
-// #include "helpers.h"
+#include "helpers.h"
 #include "population.h"
 
 namespace fs = std::filesystem;
@@ -46,40 +48,27 @@ dat consists of: popdat, agegrp_idx. inputs are: locales, geodata, n_days
 series consists of:
 */
 
-// for testing only
-// Keep all paths as plain strings (avoid std::filesystem::path conversions).
-const fs::path project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim";
-const fs::path param_dir = "sample_parameters";
-const fs::path vax_sched_dir = "vaccine_100k";
-const fs::path variants_fname = "variants.json";
-const fs::path geodata_fname = "geo2data.csv";
-const fs::path social_fname = "SocialParams.json";
-const fs::path vax_fname = "vaccines.json";
-const fs::path vax_sched_fname = "loc38015_old.json";
 
-// Full paths
-const string variants_path = (project_dir / param_dir / variants_fname).string();
-const string geodata_path = (project_dir / param_dir / geodata_fname).string();
-const string social_path = (project_dir / param_dir / social_fname).string();
-const string vax_path = (project_dir / param_dir / vax_fname).string();
-const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
-
-
-ModelParams setup_model_params(string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
+ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
 {
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);
-
-  auto [infectset, progressionset, trvec, variants] = load_infect_params(variants_path);
-  auto [vaxdata, vaxlist] = load_vax_data(vax_path, variants);
+  auto [infectset, progressionset, trvec, variants] =
+      load_infect_params(variants_path);
+  // vax related parameters don't need to be loaded if dovax == false
+    VaxSet vaxdata;
+    RuntimeEnum vaxlist;
+    VaxSched vaxsched;
+    if (dovax) {
+      std::cout << "we got here to load valid vax parameters...\n";
+      std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); // load the returned tuple into existing variables
+      vaxsched = load_vax_sched(vaxsched_path, vaxlist);
+    }
   auto socialdata = load_social_params(social_path);
-
-  // Load vaxsched before moving vaxlist (since load_vax_sched needs vaxlist)
-  VaxSched vaxsched = load_vax_sched(vaxsched_path, vaxlist);
+ 
 
   // Use aggregate initialization to construct model_params with all members at once
-  // This avoids assignment to socialdata (which has const members)???
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
       .geodata = std::move(geodata),
@@ -94,15 +83,43 @@ ModelParams setup_model_params(string geo_path, string variants_path, string soc
   };
 }
 
-
-std::tuple<ModelParams, PopData> setup_sim(string geo_path, string variants_path,
-                                       string social_path, string vax_path,
-                                       string vaxsched_path)
+// return ndays, day1, locale, dovax, mp, pop
+std::tuple<int, absl::CivilDay, int, bool,  ModelParams, PopData> setup_sim(int ndays, int locale,  // require inputs
+    string date = "2020-01-01",   // all the rest have defaults...
+    bool dovax = false,
+    const fs::path project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim",
+    const fs::path paramdir = "sample_parameters",
+    const fs::path geodata_fname = "geo2data.csv",
+    const fs::path param_dir = "sample_parameters",
+    const fs::path variants_fname = "variants.json",
+    const fs::path social_fname = "SocialParams.json",
+    const fs::path vax_fname = "vaccines.json",
+    const fs::path vax_sched_dir = "vaccine_100k",
+    const fs::path vax_sched_fname = "loc38015_old.json")
 {
-  ModelParams mp = setup_model_params(geo_path, variants_path, social_path, vax_path,
-                              vaxsched_path);
-  PopData pop(100, Traits::Status, Traits::Agegrp, Traits::Condition,
-              mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
-              Traits::Justint);
-  return {mp, pop};
+    // Full paths to parameter files
+    const string variants_path = (project_dir / param_dir / variants_fname).string();
+    const string geodata_path = (project_dir / param_dir / geodata_fname).string();
+    const string social_path = (project_dir / param_dir / social_fname).string();
+    const string vax_path = (project_dir / param_dir / vax_fname).string();
+    const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
+
+
+    ModelParams mp = setup_model_params(dovax, geodata_path, variants_path, social_path,
+        vax_path, vax_sched_path);
+
+    // access population of chosen locale or error
+    auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), locale);
+    if (locale_pos == mp.geodata.fips.end()) {
+      throw std::runtime_error("Invalid locale input: " + std::to_string(locale) + ". Must match a locale from geodata.");
+    }
+    auto locale_idx = locale_pos - mp.geodata.fips.begin();
+    int popn = mp.geodata.pop[locale_idx];
+
+    PopData pop(popn, Traits::Status, Traits::Agegrp, Traits::Condition,
+                mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
+                Traits::Justint);
+    auto day1 = parse_date(date);
+    
+    return {ndays, day1, locale, dovax,  mp, pop};
 }
