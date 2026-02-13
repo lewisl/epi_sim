@@ -109,11 +109,12 @@ using PC = PopData::Column;
 
 void test_popdata_print_table(PopData pop) {
     std::cout << "\n=== Testing PopData Print Table ===\n\n";
+    std::cout << "Population size (popn): " << pop.popn << "\n";
+    std::cout << "Vector size (popz = popn+1): " << pop.popz << "\n";
+    std::cout << "Using 1-indexed rows (1 to popn), skipping row 0\n\n";
 
-
-
-    // Select 5 rows to print (indices 0, 25, 50, 75, 99)
-    vector<int> rows = {0, 25, 50, 75, 99};
+    // Select 5 rows to print (1-indexed: 1, 25, 50, 75, popn)
+    vector<int> rows = {1, 25, 50, 75, static_cast<int>(pop.popn)};
 
     // Test 1: First 5 columns (simple uint8_t vectors)
     std::cout << "--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---\n";
@@ -166,7 +167,7 @@ void test_age_distribution(const PopData& pop) {
     // Count people in each age group
     std::vector<int> age_counts(6, 0);  // 6 age groups (0=unknown, 1-5=actual groups)
 
-    for (size_t i = 0; i < pop.popn; i++) {
+    for (size_t i = 1; i <= pop.popn; i++) {
         age_counts[pop.agegrp[i]]++;
     }
 
@@ -228,16 +229,20 @@ int main() {
   // tests
   // run_category_tests();
 
-  // destructure ndays, day1, locale, dovax, mp, pop
-  auto [ndays, day1, locale, dovax, mp, pop] = setup_sim(1000, 38015, "2020-01-01", false);
+  Model model = setup_sim(1000, 38015, "2020-01-01", false);
 
-  test_popdata_print_table(pop);
+  test_popdata_print_table(model.pop);
 
-  test_age_distribution(pop);
+  test_age_distribution(model.pop);
 
-  cout << "\nday1: " << absl::FormatCivilTime(day1) << "\n";
+  cout << "\nday1: " << absl::FormatCivilTime(model.day1) << "\n";
 
-  test_model_params(mp);
+  test_model_params(model.mp);
+
+  cout << "Vector sizing: " << model.pop.status.size() << " popz "
+       << model.pop.popz << "\n";
+  cout << "Index to actual population size: " << Traits::Agegrp.to_str(model.pop.agegrp[model.pop.popn])
+       << "\n";
 
   return 0;
 }

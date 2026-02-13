@@ -1,3 +1,12 @@
+/*
+Overall TODO
+- setup history series including 
+- with history series struct have caldays: simulation ordinal days converted to CivilDays
+- for simulation, create indoor_seq:  pre-calculate which days get the indoor uplift on transmission
+- random number generation helpers
+*/
+
+
 #include <filesystem>
 #include <absl/time/civil_time.h>
 #include <absl/strings/str_format.h>
@@ -8,46 +17,15 @@
 
 namespace fs = std::filesystem;
 
-/*
-buildsim(ndays, locales;
-    day1 = Date("2020-01-01", "yyyy-mm-dd"),    # first calendar day of simulation
-    dovax = false,                              # vaccinations for people
-    paramdir = "../sample_parameters",          # a directory of required parameters
-    geofilename = "geo2data.csv", 
-    socialfilename = "socialparams.yml",
-    vaccinefilename = "vaccines.yml",
-    scheddir="vaccine_schedule",
-    variantfilename = "variants.yml")
-
-    locales = locales isa Int ? [locales] : locales
-
-    returns: 
-
-next step: build the model with file inputs
-
-function setup_files(ndays::Int64, locales;  # alternative: setup from complete model yaml in one file
-    # must provide following inputs
-    day1,
-    dovax=false,
-    paramdir,
-    geofilename, 
-    socialfilename,
-    vaccinefilename,
-    scheddir,
-    variantfilename)
-
-    calls: setup_model
-    returns:
-        model = (ndays=ndays, day1=day1, locales=locales, dat=dat, series=series, geo=geodata,
-            progressionset=progressionset, dovax=dovax, vaxset=vaxset, vaxschedset=vaxschedset,
-            infectset=infectset, social=socialparams, trvec=trvec, variantlist=variantlist, vaxlist=vaxlist,
-            indoor_seq=indoor_seq, seriescolnames=seriescolnames)
-
-dat consists of: popdat, agegrp_idx. inputs are: locales, geodata, n_days
-    locales is a vector of locales to run during the simulation
-series consists of:
-*/
-
+struct Model {
+  int ndays{};
+  absl::CivilDay day1{};
+  int locale{};
+  bool dovax{};
+  ModelParams mp{};
+  PopData pop;
+  // later add historyseq, history_columns
+};
 
 ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
 {
@@ -83,8 +61,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   };
 }
 
-// return ndays, day1, locale, dovax, mp, pop
-std::tuple<int, absl::CivilDay, int, bool,  ModelParams, PopData> setup_sim(int ndays, int locale,  // require inputs
+Model setup_sim(int ndays, int locale,  // require inputs
     string date = "2020-01-01",   // all the rest have defaults...
     bool dovax = false,
     const fs::path project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim",
@@ -120,6 +97,10 @@ std::tuple<int, absl::CivilDay, int, bool,  ModelParams, PopData> setup_sim(int 
                 mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
                 Traits::Justint);
     auto day1 = parse_date(date);
-    
-    return {ndays, day1, locale, dovax,  mp, pop};
+
+    return Model {
+      .ndays = ndays, .day1 = day1, .locale = locale, .dovax = dovax,
+      .mp = std::move(mp),
+      .pop = std::move(pop)};
+    // return {ndays, day1, locale, dovax,  mp, pop};
 }

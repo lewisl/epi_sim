@@ -128,53 +128,66 @@ struct RuntimeEnum {
   }
 };
 
-
+// "fake" enums created at runtime to hold characteristics of persons in the simulation
+//     in the PopData table
 namespace Traits
-  {
-    inline RuntimeEnum Justint{};
+{
+  inline RuntimeEnum Justint{};
 
-    inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
+  inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
 
-    inline RuntimeEnum Condition = {
-        {"uninfected", "nil", "mild", "sick", "severe"}, // names
-        {{"uninfected", 0},
-          {"nil", 1},
-          {"mild", 2},
-          {"sick", 3},
-          {"severe", 4}}, // lookup
-        {0,1,2,3,4},      // valid_nums
+  inline RuntimeEnum Condition = {
+      {"uninfected", "nil", "mild", "sick", "severe"}, // names
+      {{"uninfected", 0},
+        {"nil", 1},
+        {"mild", 2},
+        {"sick", 3},
+        {"severe", 4}}, // lookup
+      {0,1,2,3,4},      // valid_nums
+      5};
+
+  inline RuntimeEnum Status = {
+      {"none", "unexposed", "infectious", "recovered", "dead"}, // names
+      {{"none", 0},
+        {"unexposed", 1},
+        {"infectious", 2},
+        {"recovered", 3},
+        {"dead", 4}}, // lookup
+      {1,2,3,4},  // valid_nums
         5};
 
-    inline RuntimeEnum Status = {
-        {"none", "unexposed", "infectious", "recovered", "dead"}, // names
-        {{"none", 0},
-          {"unexposed", 1},
-          {"infectious", 2},
-          {"recovered", 3},
-          {"dead", 4}}, // lookup
-        {1,2,3,4},  // valid_nums
-          5};
+  inline RuntimeEnum Agegrp = {
+      {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
+        "age80_up"}, // names
+      {{"unknown", 0},
+          {"age0_19", 1},
+          {"age20_39", 2},
+          {"age40_59", 3},
+          {"age60_79", 4},
+          {"age80_up", 5}}, // lookup
+      {1,2,3,4,5},  // valid_nums
+      6};
 
-    inline RuntimeEnum Agegrp = {
-        {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
-         "age80_up"}, // names
-        {{"unknown", 0},
-            {"age0_19", 1},
-            {"age20_39", 2},
-            {"age40_59", 3},
-            {"age60_79", 4},
-            {"age80_up", 5}}, // lookup
-        {1,2,3,4,5},  // valid_nums
-        6};
+  inline RuntimeEnum Vaxstatus = {
+      {"none", "first", "full", "booster"},
+      {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
+      {0,1,2,3},  // valid_nums
+      4};   // this should probably be moved into the vaxset struct?
+}
 
-    inline RuntimeEnum Vaxstatus = {
-        {"none", "first", "full", "booster"},
-        {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
-        {0,1,2,3},  // valid_nums
-        4};   // this should probably be moved into the vaxset struct?
-  }
-
-
+// parameters used throughout the simulation that are better global
+//    than passed into every function
+namespace sim {
+    inline int current_day = 0;
+    
+    inline int get_day() { 
+        return current_day; 
+    }
+    
+    inline void increment_day() { 
+        ++current_day; 
+    }
+}
 
 struct InfectParams {
   vector<float> sendrisk{};

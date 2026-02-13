@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cmath>
+#include <numeric>
 #include <vector>
 #include <array>
 #include <cstdint>
@@ -28,7 +29,8 @@ const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 
 class PopData {
   public:
-  std::uint32_t popn;
+    std::size_t popn; // actual population size
+    std::size_t popz; // array sizing for 1 indexing all vectors
 
   // vectors of pseudo enums as uint8_t or
   // vectors of vector for repeating count happening to a person
@@ -75,13 +77,13 @@ class PopData {
           RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
           RuntimeEnum true_false, RuntimeEnum Justint,
           const vector<double>& age_dist=AGE_DIST)
-      : popn(n), status(n, 1), 
-        agegrp(age_distribution(n, age_dist)), 
-        cond(n, 0), duration(n, 0),
-        variant(n), variant_count(n), sickday(n), sickday_count(n),
-        recovday(n), recovday_count(n), deadday(n, 0), ring(n, 0),
-        sdcase(n, 0), tested(n), tested_count(n), testday(n), quar(n, 0), quarday(n, 0),
-        vaxstatus(n, 0), vaxrcvd(n), vax_count(n), vaxday(n),
+      : popn(n), popz(n+1),status(n+1, 1), 
+        agegrp(age_distribution(n+1, age_dist)), 
+        cond(n+1, 0), duration(n+1, 0),
+        variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
+        recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
+        sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
+        vaxstatus(n+1, 0), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
         status_lbl (status_lbl), agegrp_lbl(agegrp_lbl), cond_lbl(cond_lbl), variant_lbl(variant_lbl),
         vax_lbl(vax_lbl), vaxstatus_lbl(vaxstatus_lbl), true_false(true_false), Justint(Justint)
         // clang-format on
@@ -180,42 +182,73 @@ class PopData {
       }
     }
 
-    vector<uint8_t> age_distribution(int n, const auto &age_parts) {
+    vector<uint8_t> age_distribution(int popz, const auto &age_parts) {
       assert(age_parts.size() == Traits::Agegrp.size() - 1); // ignore the "unknown" value
 
       // Convert proportions to counts using apportion
       vector<float> proportions(age_parts.begin(), age_parts.end());
-      vector<int> counts = apportion(n, proportions);
+      vector<int> counts = apportion(popz, proportions);
 
-      vector<uint8_t> agegrp(n, 0);
-      int start_idx{0};
+      std::cout << "Total counts: " <<  std::accumulate(counts.begin(), counts.end(), 0) << " popz: " << popz << " popn: " << popn << "\n";
+
+
+      vector<uint8_t> agegrp(popz, 0);
+
+      std::cout << "agegrp tmp size: " << agegrp.size() << " popz: " << popz << "\n";
+
+      std::cout << "Initialized values, at index 0: " << agegrp[0] << " at index 1: " << agegrp[1] << " at index popn: " 
+           << agegrp[popn] << "\n";
+
+      int start_idx{1};
       uint8_t agegrp_num {Traits::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
-
+      
       for (int num_of_age : counts) {
         fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, agegrp_num);
         start_idx += num_of_age;
         agegrp_num++;
       }
+        std::cout << "New values, at index 0: " << Traits::Agegrp.to_str(agegrp[0]) << " at index 1: " << Traits::Agegrp.to_str(agegrp[1]) << " at index popn: " 
+           << Traits::Agegrp.to_str(agegrp[popn]) << "\n";
+
       return agegrp;
     }
     
     vector<int> apportion(int n, vector<float> splits) {
       assert(n > 0);
       assert(splits.size() > 0);
-      assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0),
-                          1.0));
-      
+      assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0), 1.0));
+
+      std::cout << "\n=== APPORTION DEBUG (n=" << n << ") ===\n";
+
       vector<int> parts;
-      for (auto pct : splits) {
-        parts.push_back(static_cast<int>(round(n * pct)));
+      for (size_t i = 0; i < splits.size(); i++) {
+        int part = static_cast<int>(round(n * splits[i]));
+        parts.push_back(part);
+        std::cout << "  parts[" << i << "] = round(" << n << " * " << splits[i]
+                  << ") = " << part << "\n";
       }
+
+      // Calculate total before adjustment
+      int total_before = std::accumulate(parts.begin(), parts.end(), 0);
+      std::cout << "Total before adjustment: " << total_before << "\n";
 
       // fix rounding error
-      int diff = std::accumulate(parts.begin(), parts.end(), 0) - n;
+      int diff = total_before - n;
+      std::cout << "Difference (total - n): " << diff << "\n";
 
       if (diff != 0) {
-        parts.back() += diff;
+        std::cout << "Adjusting parts.back() from " << parts.back()
+                  << " to " << (parts.back() - diff) << "\n";
+        parts.back() -= diff;
       }
+
+      // Calculate total after adjustment
+      int total_after = std::accumulate(parts.begin(), parts.end(), 0);
+      std::cout << "Total after adjustment: " << total_after << "\n";
+      std::cout << "Expected (n): " << n << "\n";
+      std::cout << "Match: " << (total_after == n ? "YES" : "NO") << "\n";
+      std::cout << "=== END APPORTION DEBUG ===\n\n";
+
       assert(parts.back() > 0);  // should always be true for large n and reasonable splits
 
       return parts;
