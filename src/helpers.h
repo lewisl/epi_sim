@@ -17,4 +17,9 @@ bool approx_equal(double a, double b, double tolerance);
 
 absl::CivilDay parse_date(const std::string& s);
 
+double mean(const std::vector<double>& values);
+
+double stddev(const std::vector<double>& values);
+
+
 #endif

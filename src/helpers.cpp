@@ -9,6 +9,8 @@
 #include <cassert>
 #include <absl/time/civil_time.h>
 #include <absl/strings/str_format.h>
+#include <numeric>
+#include <cmath>
 
 #include "helpers.h"
 
@@ -40,4 +42,19 @@ absl::CivilDay parse_date(const std::string& s) {
     int y, m, d;
     std::sscanf(s.c_str(), "%d-%d-%d", &y, &m, &d);
     return absl::CivilDay(y, m, d);
+}
+
+
+
+double mean(const std::vector<double>& values) {
+    return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+}
+
+double stddev(const std::vector<double>& values) {
+    double m = mean(values);
+    double sq_sum = std::accumulate(values.begin(), values.end(), 0.0,
+        [m](double acc, double val) {
+            return acc + (val - m) * (val - m);
+        });
+    return std::sqrt(sq_sum / values.size());
 }

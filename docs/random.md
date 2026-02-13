@@ -226,3 +226,150 @@ For something like contact counts where you want:
 Gamma is perfect. Binomial would give you too many outcomes in the middle range.
 
 Your Julia approach of running trials, plotting the distributions, and picking shape/scale that "look right" is the sensible way to do it. The C++ `std::gamma_distribution` will behave identically with the same parameters.
+
+## using abseil BitGen
+
+Here's the Abseil version using absl::BitGen:
+```cpp
+#ifndef RANDOM_ABSL_H
+#define RANDOM_ABSL_H
+
+#include "absl/random/random.h"
+#include "absl/random/distributions.h"
+#include <random>  // for std::gamma_distribution
+#include <vector>
+#include <unordered_set>
+#include <algorithm>
+
+namespace Random
+{
+    // absl::BitGen is self-seeding, thread-safe, and lighter weight than mt19937
+    inline thread_local absl::BitGen gen{};
+
+    // [min, max] inclusive - note absl::Uniform is [min, max) so we add 1 to max
+    inline int get(int min, int max)
+    {
+        return absl::Uniform<int>(gen, min, max + 1);
+    }
+
+    template <typename T>
+    T get(T min, T max)
+    {
+        return absl::Uniform<T>(gen, min, max + 1);
+    }
+
+    template <typename R, typename S, typename T>
+    R get(S min, T max)
+    {
+        return absl::Uniform<R>(gen, static_cast<R>(min), static_cast<R>(max) + 1);
+    }
+
+    // k unique random ints from [min, max]  // this could be a template for floats, too
+    inline std::vector<int> get_unique(int min, int max, int k)
+    {
+        std::unordered_set<int> values;
+        values.reserve(k);
+        
+        while (values.size() < static_cast<size_t>(k)) {
+            values.insert(absl::Uniform<int>(gen, min, max + 1));
+        }
+        
+        return std::vector<int>(values.begin(), values.end());
+    }
+
+    // Bernoulli trial
+    inline int bernoulli(double p)
+    {
+        return absl::Bernoulli(gen, p) ? 1 : 0;
+    }
+
+    // Categorical - equal probabilities
+    inline int categorical_uniform(int k)
+    {
+        return absl::Uniform<int>(gen, 0, k);
+    }
+    
+    // Categorical - cumulative probabilities approach (fast for small k)
+    inline int categorical_fast(const std::vector<double>& cum_probs)
+    {
+        double u = absl::Uniform<double>(gen, 0.0, 1.0);
+        
+        for (size_t i = 0; i < cum_probs.size(); ++i) {
+            if (u <= cum_probs[i]) {
+                return static_cast<int>(i);
+            }
+        }
+        return static_cast<int>(cum_probs.size() - 1);
+    }
+
+    // Gamma distribution -> integer
+    inline int gamma_int(double shape, double scale, int max_value = 12)
+    {
+        double value = std::gamma_distribution<double>{shape, scale}(gen);
+        int result = static_cast<int>(std::round(value));
+        return std::clamp(result, 0, max_value);
+    }
+}
+
+#endif
+```
+
+## using xoshiro
+
+#### the code (paste into suitable named header file)
+```cpp
+#include <cstdint>
+#include <random>
+
+// Reference xoshiro256++ implementation (public domain)
+class xoshiro256pp {
+private:
+    uint64_t s[4];
+    
+    static inline uint64_t rotl(const uint64_t x, int k) {
+        return (x << k) | (x >> (64 - k));
+    }
+
+public:
+    using result_type = uint64_t;
+    
+    xoshiro256pp() {
+        std::random_device rd;
+        s[0] = (uint64_t(rd()) << 32) | rd();
+        s[1] = (uint64_t(rd()) << 32) | rd();
+        s[2] = (uint64_t(rd()) << 32) | rd();
+        s[3] = (uint64_t(rd()) << 32) | rd();
+    }
+    
+    static constexpr result_type min() { return 0; }
+    static constexpr result_type max() { return UINT64_MAX; }
+    
+    result_type operator()() {
+        const uint64_t result = rotl(s[0] + s[3], 23) + s[0];
+        const uint64_t t = s[1] << 17;
+        
+        s[2] ^= s[0];
+        s[3] ^= s[1];
+        s[1] ^= s[2];
+        s[0] ^= s[3];
+        s[2] ^= t;
+        s[3] = rotl(s[3], 45);
+        
+        return result;
+    }
+};
+```
+
+#### a trivial usage
+```cpp
+inline thread_local xoshiro256pp gen{};
+
+inline int get(int min, int max) {
+    return std::uniform_int_distribution{min, max}(gen);
+}
+
+inline int gamma_int(double shape, double scale, int max_value = 12) {
+    double value = std::gamma_distribution<double>{shape, scale}(gen);
+    return std::clamp(static_cast<int>(std::round(value)), 0, max_value);
+}
+```

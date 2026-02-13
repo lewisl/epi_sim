@@ -1,72 +1,84 @@
-#ifndef RANDOM_MT_H
-#define RANDOM_MT_H
+#ifndef XOSHIRO_H
+#define XOSHIRO_H
 
-#include <chrono>
-#include <random>
+// #include "absl/random/random.h"
+// #include "absl/random/distributions.h"
+#include <random>  // for std::gamma_distribution
+#include <vector>
+// #include <unordered_set>
+#include <algorithm>
 
-// This header-only Random namespace implements a self-seeding Mersenne Twister.
-// Requires C++17 or newer.
-// It can be #included into as many code files as needed (The inline keyword avoids ODR violations)
-// Freely redistributable, courtesy of learncpp.com (https://www.learncpp.com/cpp-tutorial/global-random-numbers-random-h/)
-namespace Random
+
+
+namespace Xoshiro
 {
-	// Returns a seeded Mersenne Twister
-	// Note: we'd prefer to return a std::seed_seq (to initialize a std::mt19937), but std::seed can't be copied, so it can't be returned by value.
-	// Instead, we'll create a std::mt19937, seed it, and then return the std::mt19937 (which can be copied).
-	inline std::mt19937 generate()
-	{
-		std::random_device rd{};
+class xoshiro256pp {
+private:
+    uint64_t s[4];
+    
+    static inline uint64_t rotl(const uint64_t x, int k) {
+        return (x << k) | (x >> (64 - k));
+    }
 
-		// Create seed_seq with clock and 7 random numbers from std::random_device
-		std::seed_seq ss{
-			static_cast<std::seed_seq::result_type>(std::chrono::steady_clock::now().time_since_epoch().count()),
-				rd(), rd(), rd(), rd(), rd(), rd(), rd() };
+public:
+    using result_type = uint64_t;
+    
+    xoshiro256pp() {
+        std::random_device rd;
+        s[0] = (uint64_t(rd()) << 32) | rd();
+        s[1] = (uint64_t(rd()) << 32) | rd();
+        s[2] = (uint64_t(rd()) << 32) | rd();
+        s[3] = (uint64_t(rd()) << 32) | rd();
+    }
+    
+    static constexpr result_type min() { return 0; }
+    static constexpr result_type max() { return UINT64_MAX; }
+    
+    result_type operator()() {
+        const uint64_t result = rotl(s[0] + s[3], 23) + s[0];
+        const uint64_t t = s[1] << 17;
+        
+        s[2] ^= s[0];
+        s[3] ^= s[1];
+        s[1] ^= s[2];
+        s[0] ^= s[3];
+        s[2] ^= t;
+        s[3] = rotl(s[3], 45);
+        
+        return result;
+    }
+};
 
-		return std::mt19937{ ss };
-	}
+inline thread_local xoshiro256pp gen{};
 
-	// Here's our global std::mt19937 object.
-	// The inline keyword means we only have one global instance for our whole program.
-	inline std::mt19937 mt{ generate() }; // generates a seeded std::mt19937 and copies it into our global object
+inline int get(int min, int max) {
+    return std::uniform_int_distribution{min, max}(gen);
+}
 
-	// Generate a random int between [min, max] (inclusive)
-        // * also handles cases where the two arguments have different types but can be converted to int
-	inline int get(int min, int max)
-	{
-		return std::uniform_int_distribution{min, max}(mt);
-	}
+inline int gamma_int(double shape, double scale, int max_value = 12) {
+    double value = std::gamma_distribution<double>{shape, scale}(gen);
+    return std::clamp(static_cast<int>(std::round(value)), 0, max_value);
+}
 
-	// The following function templates can be used to generate random numbers in other cases
+inline int bernoulli(double p) {
+    return std::bernoulli_distribution{p}(gen) ? 1 : 0;
+}
 
-	// See https://www.learncpp.com/cpp-tutorial/function-template-instantiation/
-	// You can ignore these if you don't understand them
+inline int categorical_uniform(int k) {
+    return std::uniform_int_distribution{0, k - 1}(gen);
+}
 
-	// Generate a random value between [min, max] (inclusive)
-	// * min and max must have the same type
-	// * return value has same type as min and max
-	// * Supported types:
-	// *    short, int, long, long long
-	// *    unsigned short, unsigned int, unsigned long, or unsigned long long
-	// Sample call: Random::get(1L, 6L);             // returns long
-	// Sample call: Random::get(1u, 6u);             // returns unsigned int
-	template <typename T>
-	T get(T min, T max)
-	{
-		return std::uniform_int_distribution<T>{min, max}(mt);
-	}
+inline int categorical_fast(const std::vector<double>& cum_probs) {
+    double u = std::uniform_real_distribution<double>{0.0, 1.0}(gen);
+    
+    for (size_t i = 0; i < cum_probs.size(); ++i) {
+        if (u <= cum_probs[i]) {
+            return static_cast<int>(i);
+        }
+    }
+    return static_cast<int>(cum_probs.size() - 1);
+}
 
-	// Generate a random value between [min, max] (inclusive)
-	// * min and max can have different types
-        // * return type must be explicitly specified as a template argument
-	// * min and max will be converted to the return type
-	// Sample call: Random::get<std::size_t>(0, 6);  // returns std::size_t
-	// Sample call: Random::get<std::size_t>(0, 6u); // returns std::size_t
-	// Sample call: Random::get<std::int>(0, 6u);    // returns int
-	template <typename R, typename S, typename T>
-	R get(S min, T max)
-	{
-		return get<R>(static_cast<R>(min), static_cast<R>(max));
-	}
 }
 
 #endif

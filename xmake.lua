@@ -23,11 +23,12 @@ target("this")
     set_default("false")
     add_files("scratch/fake_enums.cpp")  -- or any other cpp file in scratch dir
 
-target("benchmark")
+target("randstuff")
     set_kind("binary")
     set_default("false")
-    add_files("scratch/benchmark_lookup.cpp")
-    add_packages("vcpkg::abseil")
+    add_files("scratch/benchmark_rand.cpp")
+    add_files("src/helpers.cpp")
+    add_packages("vcpkg::abseil", "vcpkg::fmt")
 
 target("dates")
     set_kind("binary")
