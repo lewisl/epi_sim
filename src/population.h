@@ -3,16 +3,8 @@
 #ifndef POPULATION
 #define POPULATION
 
-#include <cassert>
-#include <cstdint>
-#include <cmath>
-#include <numeric>
-#include <vector>
-#include <array>
-#include <cstdint>
-#include <iostream>
-#include <string>
-#include <utility>
+#include "lib_includes.h"
+
 
 #include "helpers.h"
 #include "parameters.h"
@@ -183,7 +175,7 @@ class PopData {
     }
 
     vector<uint8_t> age_distribution(int popz, const auto &age_parts) {
-      assert(age_parts.size() == Traits::Agegrp.size() - 1); // ignore the "unknown" value
+      assert(age_parts.size() == Trait::Agegrp.size() - 1); // ignore the "unknown" value
 
       // Convert proportions to counts using apportion
       vector<float> proportions(age_parts.begin(), age_parts.end());
@@ -200,15 +192,15 @@ class PopData {
            << agegrp[popn] << "\n";
 
       int start_idx{1};
-      uint8_t agegrp_num {Traits::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
+      uint8_t agegrp_num {Trait::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
       
       for (int num_of_age : counts) {
         fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, agegrp_num);
         start_idx += num_of_age;
         agegrp_num++;
       }
-        std::cout << "New values, at index 0: " << Traits::Agegrp.to_str(agegrp[0]) << " at index 1: " << Traits::Agegrp.to_str(agegrp[1]) << " at index popn: " 
-           << Traits::Agegrp.to_str(agegrp[popn]) << "\n";
+        std::cout << "New values, at index 0: " << Trait::Agegrp.to_str(agegrp[0]) << " at index 1: " << Trait::Agegrp.to_str(agegrp[1]) << " at index popn: " 
+           << Trait::Agegrp.to_str(agegrp[popn]) << "\n";
 
       return agegrp;
     }

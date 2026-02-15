@@ -1,24 +1,6 @@
 #pragma once
 
-#include <csv2/reader.hpp> 
-#include <string>
-#include <algorithm>
-#include <vector>
-#include <array>
-// #include <iostream>
-// #include <fstream>
-// #include <iomanip>
-#include <cstdlib>
-// #include <unordered_map>
-#include "absl/container/flat_hash_map.h"
-#include <tuple>
-#include <utility>
-// #include <yaml-cpp/node/parse.h>
-// #include <yaml-cpp/yaml.h>
-#include <nlohmann/json.hpp>  // amazing for parsing complex files (maybe not for high speed web services)
-// #include <fmt/base.h>
-#include <fmt/format.h>  // only get what I use: about 12k in the executable!
-#include <fmt/ranges.h>  // for printing containers like vector
+#include "lib_includes.h"
 
 #include "helpers.h"    // for shifter
 
@@ -130,7 +112,7 @@ struct RuntimeEnum {
 
 // "fake" enums created at runtime to hold characteristics of persons in the simulation
 //     in the PopData table
-namespace Traits
+namespace Trait
 {
   inline RuntimeEnum Justint{};
 
@@ -139,22 +121,40 @@ namespace Traits
   inline RuntimeEnum Condition = {
       {"uninfected", "nil", "mild", "sick", "severe"}, // names
       {{"uninfected", 0},
-        {"nil", 1},
-        {"mild", 2},
-        {"sick", 3},
-        {"severe", 4}}, // lookup
-      {0,1,2,3,4},      // valid_nums
+       {"nil", 1},
+       {"mild", 2},
+       {"sick", 3},
+       {"severe", 4}}, // lookup
+      {0, 1, 2, 3, 4}, // valid_nums
       5};
+
+  // onetime calculation to create inline constants that refer to the values by name
+    namespace Cond {
+    inline const uint8_t uninfected = Condition("uninfected");  // Computed once at startup
+    inline const uint8_t nil = Condition("nil");
+    inline const uint8_t mild = Condition("mild");
+    inline const uint8_t sick = Condition("sick");
+    inline const uint8_t severe = Condition("severe");
+  }
 
   inline RuntimeEnum Status = {
       {"none", "unexposed", "infectious", "recovered", "dead"}, // names
       {{"none", 0},
-        {"unexposed", 1},
-        {"infectious", 2},
-        {"recovered", 3},
-        {"dead", 4}}, // lookup
-      {1,2,3,4},  // valid_nums
-        5};
+       {"unexposed", 1},
+       {"infectious", 2},
+       {"recovered", 3},
+       {"dead", 4}}, // lookup
+      {1, 2, 3, 4},  // valid_nums
+      5};
+
+  // constants for Status
+    namespace Stat {
+    inline const uint8_t none = Status("none");
+    inline const uint8_t unexposed = Status("unexposed");
+    inline const uint8_t infectious = Status("infectious");
+    inline const uint8_t recovered = Status("recovered");
+    inline const uint8_t dead = Status("dead");
+  }
 
   inline RuntimeEnum Agegrp = {
       {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
@@ -167,6 +167,16 @@ namespace Traits
           {"age80_up", 5}}, // lookup
       {1,2,3,4,5},  // valid_nums
       6};
+      
+  // constants for Agegrp
+    namespace Age {
+    inline const uint8_t unknown = Agegrp("unknown");
+    inline const uint8_t age0_19 = Agegrp("age0_19");
+    inline const uint8_t age20_39 = Agegrp("age20_39");
+    inline const uint8_t age40_59 = Agegrp("age40_59");
+    inline const uint8_t age60_79 = Agegrp("age60_79");
+    inline const uint8_t age80_up = Agegrp("age80_up");
+  }
 
   inline RuntimeEnum Vaxstatus = {
       {"none", "first", "full", "booster"},
@@ -175,27 +185,12 @@ namespace Traits
       4};   // this should probably be moved into the vaxset struct?
 }
 
-// parameters used throughout the simulation that are better global
-//    than passed into every function
-namespace sim {
-    inline int current_day = 0;
-    
-    inline int get_day() { 
-        return current_day; 
-    }
-    
-    inline void increment_day() { 
-        ++current_day; 
-    }
-}
-
 struct InfectParams {
   vector<float> sendrisk{};
   vector<float> recvrisk{};
   float basemultiplier{1.0};
   int immunehalflife {0};
 };
-
 
 struct InfectSet {
   vector<std::pair<string, InfectParams>> infectparams{};
@@ -224,7 +219,7 @@ struct Agetree {  // for 1 variant
 
     for (size_t age_idx = 0; age_idx < tree.size(); age_idx++) {
       const auto& breakday_map = tree[age_idx];
-      string age_name = Traits::Agegrp.to_str(age_idx + 1);
+      string age_name = Trait::Agegrp.to_str(age_idx + 1);
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {
@@ -245,7 +240,7 @@ struct Agetree {  // for 1 variant
 
         for (size_t cond_idx = 0; cond_idx < condition_vec.size(); cond_idx++) {
           const auto& outcome_probs = condition_vec[cond_idx];
-          string cond_name = Traits::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
+          string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
           for (size_t i = 0; i < outcome_probs.size(); i++) {
@@ -571,7 +566,7 @@ struct SocialParams {
 //
 struct ModelParams {
 
-  // Traits for each person in popdata
+  // Trait for each person in popdata
 
   GeoData geodata;
   RuntimeEnum Condition;

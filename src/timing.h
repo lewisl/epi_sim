@@ -1,5 +1,6 @@
 #ifndef TIMING_H
 #define TIMING_H
+#include <chrono>
 
 /** class Timing
 a simple way to time the execution of segments of code
@@ -20,10 +21,6 @@ stop: used by cum this_timer.reset();  // resets start, stop, and duration
 re-initialize it: Timing this_timer;
 */
 
-#include <chrono>
-// #include <ctime>
-
-using namespace std;
 
 
 class Timing {
@@ -40,7 +37,7 @@ class Timing {
     double ticks()
     {
         if (endt > begint)
-            return chrono::duration_cast<std::chrono::duration<double>>(endt - begint).count();
+            return std::chrono::duration_cast<std::chrono::duration<double>>(endt - begint).count();
         else
             return 0.0;
     }

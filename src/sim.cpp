@@ -2,6 +2,7 @@
 #include "population.h"
 #include "parameters.h"
 #include "random.h"
+#include "sim.h"
 
 // TODO later add parameters for runcases, showr0, silent, dovax?, vaxscheds?
 void runsim(Model model) {

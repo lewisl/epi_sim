@@ -1,9 +1,12 @@
-#include <cstdlib>
-#include <string>
-#include <iostream>
-#include <vector>
-#include <iomanip>
-#include <numeric>
+// #include <cstdlib>
+// #include <string>
+// #include <iostream>
+// #include <vector>
+// #include <iomanip>
+// #include <numeric>
+
+#include "../src/lib_includes.h"
+
 #include "../src/parameters.h"
 // #include <fmt/base.h>
 // #include <fmt/format.h>
@@ -23,81 +26,81 @@ void run_category_tests() {
     // Test Status namespace
     std::cout << "--- Testing Status Namespace ---\n";
     std::cout << "Enum values (0-indexed):\n";
-    std::cout << "  Status::none = " << static_cast<int>(Traits::Status("none")) << " (expected 0)\n";
-    std::cout << "  Traits::Status::unexposed = " << static_cast<int>(Traits::Status("unexposed")) << " (expected 1)\n";
-    std::cout << "  Status::infectious = " << static_cast<int>(Traits::Status("infectious")) << " (expected 2)\n";
-    std::cout << "  Status::recovered = " << static_cast<int>(Traits::Status("recovered")) << " (expected 3)\n";
-    std::cout << "  Status::dead = " << static_cast<int>(Traits::Status("dead")) << " (expected 4)\n";
+    std::cout << "  Status::none = " << static_cast<int>(Trait::Status("none")) << " (expected 0)\n";
+    std::cout << "  Trait::Status::unexposed = " << static_cast<int>(Trait::Status("unexposed")) << " (expected 1)\n";
+    std::cout << "  Status::infectious = " << static_cast<int>(Trait::Status("infectious")) << " (expected 2)\n";
+    std::cout << "  Status::recovered = " << static_cast<int>(Trait::Status("recovered")) << " (expected 3)\n";
+    std::cout << "  Status::dead = " << static_cast<int>(Trait::Status("dead")) << " (expected 4)\n";
     std::cout << "\nRound-trip tests:\n";
-    std::cout << "  Status::to_str(0) = \"" << Traits::Status.to_str(0) << "\" (expected \"none\")\n";
-    std::cout << "  Traits::Status::to_str(1) = \"" << Traits::Status.to_str(1) << "\" (expected \"unexposed\")\n";
-    std::cout << "  Status::to_str(2) = \"" << Traits::Status.to_str(2) << "\" (expected \"infectious\")\n";
-    std::cout << "  Status::to_str(3) = \"" << Traits::Status.to_str(3) << "\" (expected \"recovered\")\n";
-    std::cout << "  Status::to_str(4) = \"" << Traits::Status.to_str(4) << "\" (expected \"dead\")\n";
-    std::cout << "  Status::from_str(\"unexposed\") = " << static_cast<int>(Traits::Status("unexposed")) << " (expected 1)\n";
-    std::cout << "  Status::from_str(\"infectious\") = " << static_cast<int>(Traits::Status("infectious")) << " (expected 2)\n";
-    std::cout << "  Status::from_str(\"recovered\") = " << static_cast<int>(Traits::Status("recovered")) << " (expected 3)\n";
-    std::cout << "  Status::from_str(\"dead\") = " << static_cast<int>(Traits::Status("dead")) << " (expected 4)\n";
+    std::cout << "  Status::to_str(0) = \"" << Trait::Status.to_str(0) << "\" (expected \"none\")\n";
+    std::cout << "  Trait::Status::to_str(1) = \"" << Trait::Status.to_str(1) << "\" (expected \"unexposed\")\n";
+    std::cout << "  Status::to_str(2) = \"" << Trait::Status.to_str(2) << "\" (expected \"infectious\")\n";
+    std::cout << "  Status::to_str(3) = \"" << Trait::Status.to_str(3) << "\" (expected \"recovered\")\n";
+    std::cout << "  Status::to_str(4) = \"" << Trait::Status.to_str(4) << "\" (expected \"dead\")\n";
+    std::cout << "  Status::from_str(\"unexposed\") = " << static_cast<int>(Trait::Status("unexposed")) << " (expected 1)\n";
+    std::cout << "  Status::from_str(\"infectious\") = " << static_cast<int>(Trait::Status("infectious")) << " (expected 2)\n";
+    std::cout << "  Status::from_str(\"recovered\") = " << static_cast<int>(Trait::Status("recovered")) << " (expected 3)\n";
+    std::cout << "  Status::from_str(\"dead\") = " << static_cast<int>(Trait::Status("dead")) << " (expected 4)\n";
     std::cout << "  Status::from_str(\"invalid\") = "
-              << static_cast<int>(Traits::Status("invalid"))
+              << static_cast<int>(Trait::Status("invalid"))
               << " (expected 99 - default to none)\n";
     std::cout << "\n";
 
     // Test Condition namespace
     std::cout << "--- Testing Condition Namespace ---\n";
     std::cout << "Enum values (0-indexed):\n";
-    std::cout << "  Condition::uninfected = " << static_cast<int>(Traits::Condition("uninfected")) << " (expected 0)\n";
-    std::cout << "  Condition::nil = " << static_cast<int>(Traits::Condition("nil")) << " (expected 1)\n";
-    std::cout << "  Condition::mild = " << static_cast<int>(Traits::Condition("mild")) << " (expected 2)\n";
-    std::cout << "  Condition::sick = " << static_cast<int>(Traits::Condition("sick")) << " (expected 3)\n";
-    std::cout << "  Condition::severe = " << static_cast<int>(Traits::Condition("severe")) << " (expected 4)\n";
+    std::cout << "  Condition::uninfected = " << static_cast<int>(Trait::Condition("uninfected")) << " (expected 0)\n";
+    std::cout << "  Condition::nil = " << static_cast<int>(Trait::Condition("nil")) << " (expected 1)\n";
+    std::cout << "  Condition::mild = " << static_cast<int>(Trait::Condition("mild")) << " (expected 2)\n";
+    std::cout << "  Condition::sick = " << static_cast<int>(Trait::Condition("sick")) << " (expected 3)\n";
+    std::cout << "  Condition::severe = " << static_cast<int>(Trait::Condition("severe")) << " (expected 4)\n";
     std::cout << "\nRound-trip tests:\n";
-    std::cout << "  Condition::to_str(0) = \"" << Traits::Condition.to_str(0) << "\" (expected \"uninfected\")\n";
-    std::cout << "  Condition::to_str(1) = \"" << Traits::Condition.to_str(1) << "\" (expected \"nil\")\n";
-    std::cout << "  Condition::to_str(2) = \"" << Traits::Condition.to_str(2) << "\" (expected \"mild\")\n";
-    std::cout << "  Condition::to_str(3) = \"" << Traits::Condition.to_str(3) << "\" (expected \"sick\")\n";
-    std::cout << "  Condition::to_str(4) = \"" << Traits::Condition.to_str(4) << "\" (expected \"severe\")\n";
-    std::cout << "  Condition::from_str(\"uninfected\") = " << static_cast<int>(Traits::Condition("uninfected")) << " (expected 0)\n";
-    std::cout << "  Condition::from_str(\"nil\") = " << static_cast<int>(Traits::Condition("nil")) << " (expected 1)\n";
-    std::cout << "  Condition::from_str(\"mild\") = " << static_cast<int>(Traits::Condition("mild")) << " (expected 2)\n";
-    std::cout << "  Condition::from_str(\"sick\") = " << static_cast<int>(Traits::Condition("sick")) << " (expected 3)\n";
-    std::cout << "  Condition::from_str(\"severe\") = " << static_cast<int>(Traits::Condition("severe")) << " (expected 4)\n";
+    std::cout << "  Condition::to_str(0) = \"" << Trait::Condition.to_str(0) << "\" (expected \"uninfected\")\n";
+    std::cout << "  Condition::to_str(1) = \"" << Trait::Condition.to_str(1) << "\" (expected \"nil\")\n";
+    std::cout << "  Condition::to_str(2) = \"" << Trait::Condition.to_str(2) << "\" (expected \"mild\")\n";
+    std::cout << "  Condition::to_str(3) = \"" << Trait::Condition.to_str(3) << "\" (expected \"sick\")\n";
+    std::cout << "  Condition::to_str(4) = \"" << Trait::Condition.to_str(4) << "\" (expected \"severe\")\n";
+    std::cout << "  Condition::from_str(\"uninfected\") = " << static_cast<int>(Trait::Condition("uninfected")) << " (expected 0)\n";
+    std::cout << "  Condition::from_str(\"nil\") = " << static_cast<int>(Trait::Condition("nil")) << " (expected 1)\n";
+    std::cout << "  Condition::from_str(\"mild\") = " << static_cast<int>(Trait::Condition("mild")) << " (expected 2)\n";
+    std::cout << "  Condition::from_str(\"sick\") = " << static_cast<int>(Trait::Condition("sick")) << " (expected 3)\n";
+    std::cout << "  Condition::from_str(\"severe\") = " << static_cast<int>(Trait::Condition("severe")) << " (expected 4)\n";
     std::cout << "  Condition::from_str(\"invalid\") = "
-              << static_cast<int>(Traits::Condition("invalid"))
+              << static_cast<int>(Trait::Condition("invalid"))
               << " (expected 99 - default to uninfected)\n";
-    std::cout << Traits::Condition.to_str(0) << " expected \"uninfected\"\n";
+    std::cout << Trait::Condition.to_str(0) << " expected \"uninfected\"\n";
   
     std::cout << "\n";
 
     // Test Agegrp namespace
     std::cout << "--- Testing Agegrp Namespace ---\n";
     std::cout << "Enum values (0-indexed):\n";
-    std::cout << "  Agegrp::unknown = " << static_cast<int>(Traits::Agegrp("unknown")) << " (expected 0)\n";
-    std::cout << "  Agegrp::age0_19 = " << static_cast<int>(Traits::Agegrp("age0_19")) << " (expected 1)\n";
-    std::cout << "  Agegrp::age20_39 = " << static_cast<int>(Traits::Agegrp("age20_39")) << " (expected 2)\n";
-    std::cout << "  Agegrp::age40_59 = " << static_cast<int>(Traits::Agegrp("age40_59")) << " (expected 3)\n";
-    std::cout << "  Agegrp::age60_79 = " << static_cast<int>(Traits::Agegrp("age60_79")) << " (expected 4)\n";
-    std::cout << "  Agegrp::age80_up = " << static_cast<int>(Traits::Agegrp("age80_up")) << " (expected 5)\n";
+    std::cout << "  Agegrp::unknown = " << static_cast<int>(Trait::Agegrp("unknown")) << " (expected 0)\n";
+    std::cout << "  Agegrp::age0_19 = " << static_cast<int>(Trait::Agegrp("age0_19")) << " (expected 1)\n";
+    std::cout << "  Agegrp::age20_39 = " << static_cast<int>(Trait::Agegrp("age20_39")) << " (expected 2)\n";
+    std::cout << "  Agegrp::age40_59 = " << static_cast<int>(Trait::Agegrp("age40_59")) << " (expected 3)\n";
+    std::cout << "  Agegrp::age60_79 = " << static_cast<int>(Trait::Agegrp("age60_79")) << " (expected 4)\n";
+    std::cout << "  Agegrp::age80_up = " << static_cast<int>(Trait::Agegrp("age80_up")) << " (expected 5)\n";
     std::cout << "\nRound-trip tests:\n";
-    std::cout << "  Agegrp::to_str(0) = \"" << Traits::Agegrp.to_str(0) << "\" (expected \"unknown\")\n";
-    std::cout << "  Agegrp::to_str(1) = \"" << Traits::Agegrp.to_str(1) << "\" (expected \"age0_19\")\n";
-    std::cout << "  Agegrp::to_str(2) = \"" << Traits::Agegrp.to_str(2) << "\" (expected \"age20_39\")\n";
-    std::cout << "  Agegrp::to_str(3) = \"" << Traits::Agegrp.to_str(3) << "\" (expected \"age40_59\")\n";
-    std::cout << "  Agegrp::to_str(4) = \"" << Traits::Agegrp.to_str(4) << "\" (expected \"age60_79\")\n";
-    std::cout << "  Agegrp::to_str(5) = \"" << Traits::Agegrp.to_str(5) << "\" (expected \"age80_up\")\n";
-    std::cout << "  Agegrp::from_str(\"age0_19\") = " << static_cast<int>(Traits::Agegrp("age0_19")) << " (expected 1)\n";
-    std::cout << "  Agegrp::from_str(\"age20_39\") = " << static_cast<int>(Traits::Agegrp("age20_39")) << " (expected 2)\n";
-    std::cout << "  Agegrp::from_str(\"age40_59\") = " << static_cast<int>(Traits::Agegrp("age40_59")) << " (expected 3)\n";
-    std::cout << "  Agegrp::from_str(\"age60_79\") = " << static_cast<int>(Traits::Agegrp("age60_79")) << " (expected 4)\n";
-    std::cout << "  Agegrp::from_str(\"age80_up\") = " << static_cast<int>(Traits::Agegrp("age80_up")) << " (expected 5)\n";
-    std::cout << "  Agegrp::from_str(\"invalid\") = " << static_cast<int>(Traits::Agegrp("invalid")) << " (expected 99 - default to unknown)\n";
+    std::cout << "  Agegrp::to_str(0) = \"" << Trait::Agegrp.to_str(0) << "\" (expected \"unknown\")\n";
+    std::cout << "  Agegrp::to_str(1) = \"" << Trait::Agegrp.to_str(1) << "\" (expected \"age0_19\")\n";
+    std::cout << "  Agegrp::to_str(2) = \"" << Trait::Agegrp.to_str(2) << "\" (expected \"age20_39\")\n";
+    std::cout << "  Agegrp::to_str(3) = \"" << Trait::Agegrp.to_str(3) << "\" (expected \"age40_59\")\n";
+    std::cout << "  Agegrp::to_str(4) = \"" << Trait::Agegrp.to_str(4) << "\" (expected \"age60_79\")\n";
+    std::cout << "  Agegrp::to_str(5) = \"" << Trait::Agegrp.to_str(5) << "\" (expected \"age80_up\")\n";
+    std::cout << "  Agegrp::from_str(\"age0_19\") = " << static_cast<int>(Trait::Agegrp("age0_19")) << " (expected 1)\n";
+    std::cout << "  Agegrp::from_str(\"age20_39\") = " << static_cast<int>(Trait::Agegrp("age20_39")) << " (expected 2)\n";
+    std::cout << "  Agegrp::from_str(\"age40_59\") = " << static_cast<int>(Trait::Agegrp("age40_59")) << " (expected 3)\n";
+    std::cout << "  Agegrp::from_str(\"age60_79\") = " << static_cast<int>(Trait::Agegrp("age60_79")) << " (expected 4)\n";
+    std::cout << "  Agegrp::from_str(\"age80_up\") = " << static_cast<int>(Trait::Agegrp("age80_up")) << " (expected 5)\n";
+    std::cout << "  Agegrp::from_str(\"invalid\") = " << static_cast<int>(Trait::Agegrp("invalid")) << " (expected 99 - default to unknown)\n";
     std::cout << "\n";
 
     // Test boundary conditions
     std::cout << "--- Testing Boundary Conditions ---\n";
-    std::cout << "  Status::to_str(99) = \"" << Traits::Status.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
-    std::cout << "  Condition::to_str(99) = \"" << Traits::Condition.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
-    std::cout << "  Agegrp::to_str(99) = \"" << Traits::Agegrp.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
+    std::cout << "  Status::to_str(99) = \"" << Trait::Status.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
+    std::cout << "  Condition::to_str(99) = \"" << Trait::Condition.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
+    std::cout << "  Agegrp::to_str(99) = \"" << Trait::Agegrp.to_str(99) << "\" (expected \"INVALID\" - out of range)\n";
     // std::cout << "  Vaccine::to_str(99) = \"" << Vaccine::to_str(99) << "\" (expected \"unknown\" - out of range)\n";
     std::cout << "\n";
 
@@ -241,7 +244,7 @@ int main() {
 
   cout << "Vector sizing: " << model.pop.status.size() << " popz "
        << model.pop.popz << "\n";
-  cout << "Index to actual population size: " << Traits::Agegrp.to_str(model.pop.agegrp[model.pop.popn])
+  cout << "Index to actual population size: " << Trait::Agegrp.to_str(model.pop.agegrp[model.pop.popn])
        << "\n";
 
   return 0;

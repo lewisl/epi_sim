@@ -6,10 +6,7 @@ Overall TODO
 - random number generation helpers
 */
 
-
-#include <filesystem>
-#include <absl/time/civil_time.h>
-#include <absl/strings/str_format.h>
+#include "../src/lib_includes.h"
 
 #include "parameters.h"
 #include "helpers.h"
@@ -93,9 +90,9 @@ Model setup_sim(int ndays, int locale,  // require inputs
     auto locale_idx = locale_pos - mp.geodata.fips.begin();
     int popn = mp.geodata.pop[locale_idx];
 
-    PopData pop(popn, Traits::Status, Traits::Agegrp, Traits::Condition,
-                mp.variants, mp.vaxlist, Traits::Vaxstatus, Traits::true_false,
-                Traits::Justint);
+    PopData pop(popn, Trait::Status, Trait::Agegrp, Trait::Condition,
+                mp.variants, mp.vaxlist, Trait::Vaxstatus, Trait::true_false,
+                Trait::Justint);
     auto day1 = parse_date(date);
 
     return Model {

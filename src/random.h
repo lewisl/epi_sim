@@ -1,13 +1,7 @@
 #ifndef XOSHIRO_H
 #define XOSHIRO_H
 
-// #include "absl/random/random.h"
-// #include "absl/random/distributions.h"
-#include <random>  // for std::gamma_distribution
-#include <vector>
-// #include <unordered_set>
-#include <algorithm>
-
+#include "lib_includes.h"
 
 
 namespace Xoshiro
