@@ -50,6 +50,7 @@ double mean(const std::vector<double>& values) {
     return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 }
 
+// we'll rewrite this as a normal loop for the exercise of doing it and for better clarity...
 double stddev(const std::vector<double>& values) {
     double m = mean(values);
     double sq_sum = std::accumulate(values.begin(), values.end(), 0.0,

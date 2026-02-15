@@ -30,6 +30,17 @@ public:
         s[2] = (uint64_t(rd()) << 32) | rd();
         s[3] = (uint64_t(rd()) << 32) | rd();
     }
+
+    xoshiro256pp(uint64_t seed) {
+        uint64_t z = seed;
+        for (int i = 0; i < 4; i++) {
+            z += 0x9e3779b97f4a7c15;
+            uint64_t temp = z;
+            temp = (temp ^ (temp >> 30)) * 0xbf58476d1ce4e5b9;
+            temp = (temp ^ (temp >> 27)) * 0x94d049bb133111eb;
+            s[i] = temp ^ (temp >> 31);
+        }
+    }
     
     static constexpr result_type min() { return 0; }
     static constexpr result_type max() { return UINT64_MAX; }
@@ -49,7 +60,13 @@ public:
     }
 };
 
+
 inline thread_local xoshiro256pp gen{};
+
+// Use this if you want to seed with a specific value
+inline void seed(uint64_t s) {
+    gen = xoshiro256pp{s};
+}
 
 inline int get(int min, int max) {
     return std::uniform_int_distribution{min, max}(gen);
