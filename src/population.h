@@ -165,7 +165,7 @@ class PopData {
       }      
     };
 
-    void print_table(const vector<int> &rows, const vector<Column> &cols) {
+    void print_table(const vector<size_t> &rows, const vector<Column> &cols) {
       for (int r : rows) {
         std::cout << r << ":\t";
         CellPrinter printer{r};
@@ -245,6 +245,8 @@ class PopData {
 
       return parts;
     }
+
+    void make_sick(size_t p, uint8_t var, uint8_t condition = Trait::Cond::nil, uint8_t durationdays = 0);
 };
 
 

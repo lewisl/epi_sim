@@ -3,7 +3,7 @@ Overall TODO
 - setup history series including 
 - with history series struct have caldays: simulation ordinal days converted to CivilDays
 - for simulation, create indoor_seq:  pre-calculate which days get the indoor uplift on transmission
-- random number generation helpers
+- turn runtime enum into a template
 */
 
 #include "../src/lib_includes.h"
@@ -11,18 +11,9 @@ Overall TODO
 #include "parameters.h"
 #include "helpers.h"
 #include "population.h"
+#include "setup.h"
 
-namespace fs = std::filesystem;
 
-struct Model {
-  int ndays{};
-  absl::CivilDay day1{};
-  int locale{};
-  bool dovax{};
-  ModelParams mp{};
-  PopData pop;
-  // later add historyseq, history_columns
-};
 
 ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
 {
@@ -59,17 +50,17 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
 }
 
 Model setup_sim(int ndays, int locale,  // require inputs
-    string date = "2020-01-01",   // all the rest have defaults...
-    bool dovax = false,
-    const fs::path project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim",
-    const fs::path paramdir = "sample_parameters",
-    const fs::path geodata_fname = "geo2data.csv",
-    const fs::path param_dir = "sample_parameters",
-    const fs::path variants_fname = "variants.json",
-    const fs::path social_fname = "SocialParams.json",
-    const fs::path vax_fname = "vaccines.json",
-    const fs::path vax_sched_dir = "vaccine_100k",
-    const fs::path vax_sched_fname = "loc38015_old.json")
+    string date,   // all the rest have defaults...
+    bool dovax,
+    const fs::path project_dir,
+    const fs::path paramdir,
+    const fs::path geodata_fname,
+    const fs::path param_dir,
+    const fs::path variants_fname,
+    const fs::path social_fname,
+    const fs::path vax_fname,
+    const fs::path vax_sched_dir,
+    const fs::path vax_sched_fname)
 {
     // Full paths to parameter files
     const string variants_path = (project_dir / param_dir / variants_fname).string();

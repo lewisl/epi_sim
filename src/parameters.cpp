@@ -105,6 +105,7 @@ std::tuple<RuntimeEnum, InfectSet> load_variants_data(json jdata) {
   // json jdata = load_json_params(fpath);
 
   RuntimeEnum variants{};
+  variants.add_item("none");  // default for variants name and index = 0
   for (auto variant : jdata.items()) {
     variants.add_item(variant.key());
   }

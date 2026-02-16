@@ -84,13 +84,13 @@ struct RuntimeEnum {
   }
 
     // String → Index (linear search - fast for small N)
-  int operator()(const string& name) const {
+  uint8_t operator()(const string& name) const {
       auto it = std::find(names.begin(), names.end(), name);
       return (it != names.end()) ? std::distance(names.begin(), it) : 99;
   }
 
   // String → Index (hash map - for large N or explicit use)
-  int to_int(const std::string& name) const {
+  uint8_t to_int(const std::string& name) const {
       auto it = lookup.find(name);
       return (it != lookup.end()) ? it->second : 99;
   }
