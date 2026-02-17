@@ -20,9 +20,9 @@
 #include <nlohmann/json.hpp> // amazing for parsing complex files (maybe not for high speed web services)
 #include <numeric>
 #include <random> // for std::gamma_distribution
+#include <ranges>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <algorithm>

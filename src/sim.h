@@ -6,18 +6,21 @@
 #include "parameters.h"
 #include "random.h"
 
+// Forward declaration
+struct Model;
+
 // parameters used throughout the simulation that are better global
 //    than passed into every function
 namespace sim {
     inline int current_day = 0;
-    
-    inline int get_day() { 
-        return current_day; 
+
+    inline int get_day() {
+        return current_day;
     }
-    
-    inline void increment_day() { 
-        ++current_day; 
-    }
+
+    inline void incr_day() { ++current_day; }
+
+    inline void reset_day() {current_day=0;}
 }
 
 struct SeedFilter {
@@ -63,3 +66,6 @@ struct SeedCase {
     return seeded_persons;
   }
 };
+
+// Simulation runner function
+void runsim(Model& model);

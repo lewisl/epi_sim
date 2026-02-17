@@ -30,4 +30,9 @@ void show_type(T&&) {
     #endif
 }
 
+// less typing for static_cast to use uint8_t's as array indices
+inline size_t idx(uint8_t i) {
+    return static_cast<size_t>(i);
+}
+
 #endif

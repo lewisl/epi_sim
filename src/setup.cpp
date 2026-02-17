@@ -4,6 +4,7 @@ Overall TODO
 - with history series struct have caldays: simulation ordinal days converted to CivilDays
 - for simulation, create indoor_seq:  pre-calculate which days get the indoor uplift on transmission
 - turn runtime enum into a template
+- add status filtering to seeding
 */
 
 #include "../src/lib_includes.h"

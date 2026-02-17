@@ -4,7 +4,7 @@
 #include "lib_includes.h"
 
 
-namespace Xoshiro
+namespace xo  // short for xoshiro
 {
 class xoshiro256pp {
 private:
@@ -55,33 +55,48 @@ public:
 };
 
 
-inline thread_local xoshiro256pp gen{};
+// Use a function to return a reference to the thread_local generator
+// This avoids linker issues with inline thread_local variables
+inline xoshiro256pp& get_gen() {
+    static thread_local xoshiro256pp gen{};
+    return gen;
+}
 
 // Use this if you want to seed with a specific value
 inline void seed(uint64_t s) {
-    gen = xoshiro256pp{s};
+    get_gen() = xoshiro256pp{s};
 }
 
 inline int get(int min, int max) {
-    return std::uniform_int_distribution{min, max}(gen);
+    return std::uniform_int_distribution{min, max}(get_gen());
+}
+
+inline std::vector<int> get_n_draws(int min, int max, int n) {
+  std::vector<int> peeps;
+  peeps.reserve(n);
+  std::uniform_int_distribution<int> dist{min, max};  // Create once
+  for (int i = 0; i < n; ++i) {
+    peeps.push_back(dist(get_gen()));
+  }
+  return peeps;
 }
 
 inline int gamma_int(double shape, double scale, int max_value = 12) {
-    double value = std::gamma_distribution<double>{shape, scale}(gen);
+    double value = std::gamma_distribution<double>{shape, scale}(get_gen());
     return std::clamp(static_cast<int>(std::round(value)), 0, max_value);
 }
 
 inline int bernoulli(double p) {
-    return std::bernoulli_distribution{p}(gen) ? 1 : 0;
+    return std::bernoulli_distribution{p}(get_gen()) ? 1 : 0;
 }
 
 inline int categorical_uniform(int k) {
-    return std::uniform_int_distribution{0, k - 1}(gen);
+    return std::uniform_int_distribution{0, k - 1}(get_gen());
 }
 
 inline int categorical_fast(const std::vector<double>& cum_probs) {
-    double u = std::uniform_real_distribution<double>{0.0, 1.0}(gen);
-    
+    double u = std::uniform_real_distribution<double>{0.0, 1.0}(get_gen());
+
     for (size_t i = 0; i < cum_probs.size(); ++i) {
         if (u <= cum_probs[i]) {
             return static_cast<int>(i);

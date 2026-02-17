@@ -6,6 +6,9 @@
 #include "../src/sim.h"
 #include "../src/population.h"
 #include "../src/helpers.h"
+#include "../src/random.h"
+#include "../src/timing.h"
+#include "../src/spread.h"
 
 using std::string;
 using std::vector;
@@ -411,41 +414,183 @@ void test_seedcase_multiple_infections() {
   std::cout << "\n=== SeedCase Multiple Infections Test Completed ===\n";
 }
 
+void test_seeding_and_spread() {
+  std::cout << "\n=== Integration Test: Seeding and Spread Contact Generation ===\n\n";
+
+  // Setup simulation - this creates the model with real parameters
+  std::cout << "Setting up simulation with locale 38015, for 3 days...\n";
+  Model model = setup_sim(3, 38015, "2020-01-01", false);
+
+  std::cout << "Population size: " << model.pop.popn << "\n";
+  std::cout << "Number of days: " << model.ndays << "\n";
+  std::cout << "Start date: " << absl::FormatCivilTime(model.day1) << "\n\n";
+
+  std::cout << "--- Running Simulation ---\n";
+  std::cout << "This will use the SeedCases defined in sim.cpp\n";
+  std::cout << "Expected: 6 people infected (3 age20_39 + 3 age40_59) with duration=5\n";
+  std::cout << "The spread() function will print contacts for each infectious person\n\n";
+
+  // Run the actual simulation - this uses the real SeedCases from sim.cpp
+  runsim(model);
+
+  std::cout << "\n=== Integration Test Completed ===\n";
+}
+
+void test_random_functions() {
+  std::cout << "\n=== Testing xo::random Functions ===\n\n";
+
+  // Seed the RNG for reproducible results
+  xo::seed(12345);
+
+  // Test get_n_draws with min=1, max=100001, n=7
+  std::cout << "--- Testing xo::get_n_draws ---\n";
+  std::cout << "Parameters: min=1, max=100001, n=7\n\n";
+
+  Timing timer;
+  timer.start();
+  std::vector<int> draws = xo::get_n_draws(1, 100001, 7);
+  timer.cum();
+
+  std::cout << "Generated " << draws.size() << " random integers in "
+            << timer.show() << " seconds\n";
+  for (size_t i = 0; i < draws.size(); ++i) {
+    std::cout << "  [" << i << "] = " << draws[i] << "\n";
+  }
+
+  // Verify the results
+  std::cout << "\n--- Verification ---\n";
+  bool all_valid = true;
+  bool correct_count = (draws.size() == 7);
+
+  std::cout << "Count check: " << (correct_count ? "PASS" : "FAIL")
+            << " (expected 7, got " << draws.size() << ")\n";
+
+  for (size_t i = 0; i < draws.size(); ++i) {
+    bool in_range = (draws[i] >= 1 && draws[i] <= 100001);
+    if (!in_range) {
+      all_valid = false;
+      std::cout << "  Value [" << i << "] = " << draws[i]
+                << " is OUT OF RANGE [1, 100001]\n";
+    }
+  }
+
+  if (all_valid) {
+    std::cout << "Range check: PASS (all values in [1, 100001])\n";
+  } else {
+    std::cout << "Range check: FAIL (some values out of range)\n";
+  }
+
+  // Test other random functions
+  std::cout << "\n--- Testing other xo functions ---\n";
+
+  // Test xo::get
+  int single_draw = xo::get(1, 100);
+  std::cout << "xo::get(1, 100) = " << single_draw
+            << " (should be in [1, 100]): "
+            << ((single_draw >= 1 && single_draw <= 100) ? "PASS" : "FAIL") << "\n";
+
+  // Test xo::gamma_int with shape=1.0, scale=1.4
+  int gamma_val = xo::gamma_int(1.0, 1.4, 12);
+  std::cout << "xo::gamma_int(1.0, 1.4, 12) = " << gamma_val
+            << " (should be in [0, 12]): "
+            << ((gamma_val >= 0 && gamma_val <= 12) ? "PASS" : "FAIL") << "\n";
+
+  // Test xo::bernoulli
+  int bern_val = xo::bernoulli(0.5);
+  std::cout << "xo::bernoulli(0.5) = " << bern_val
+            << " (should be 0 or 1): "
+            << ((bern_val == 0 || bern_val == 1) ? "PASS" : "FAIL") << "\n";
+
+  // Test xo::categorical_uniform
+  int cat_val = xo::categorical_uniform(5);
+  std::cout << "xo::categorical_uniform(5) = " << cat_val
+            << " (should be in [0, 4]): "
+            << ((cat_val >= 0 && cat_val <= 4) ? "PASS" : "FAIL") << "\n";
+
+  // Performance test with timing
+  std::cout << "\n--- Performance Testing with Timing class ---\n";
+
+  // Test 1: Generate many small draws
+  timer.reset();
+  timer.start();
+  for (int i = 0; i < 10000; ++i) {
+    xo::get(1, 100);
+  }
+  timer.cum();
+  std::cout << "10,000 calls to xo::get(1, 100): " << timer.show() << " seconds\n";
+
+  // Test 2: Generate large batch
+  timer.reset();
+  timer.start();
+  auto large_batch = xo::get_n_draws(1, 100001, 10000);
+  timer.cum();
+  std::cout << "Single call to xo::get_n_draws(1, 100001, 10000): "
+            << timer.show() << " seconds\n";
+  std::cout << "  (Generated " << large_batch.size() << " values)\n";
+
+  // Test 3: Multiple cumulative timing
+  timer.reset();
+  std::cout << "\nTesting cumulative timing with multiple segments:\n";
+
+  timer.start();
+  xo::get_n_draws(1, 1000, 1000);
+  timer.cum();
+  std::cout << "  After segment 1: " << timer.show() << " seconds\n";
+
+  timer.start();
+  xo::get_n_draws(1, 1000, 1000);
+  timer.cum();
+  std::cout << "  After segment 2: " << timer.show() << " seconds (cumulative)\n";
+
+  timer.start();
+  xo::get_n_draws(1, 1000, 1000);
+  timer.cum();
+  std::cout << "  After segment 3: " << timer.show() << " seconds (cumulative)\n";
+
+  std::cout << "\n=== Random Functions Test Completed ===\n";
+}
+
 
 int main() {
+  // Test seeding and spread contact generation
+  test_seeding_and_spread();
+
+  // Test random number generator functions
+  // test_random_functions();
+
   // tests
   // run_category_tests();
 
-  Model model = setup_sim(1000, 38015, "2020-01-01", false);
+  // Model model = setup_sim(1000, 38015, "2020-01-01", false);
 
   // test_popdata_print_table(model.pop);
 
-  test_age_distribution(model.pop);
+  // test_age_distribution(model.pop);
 
-  cout << "\nday1: " << absl::FormatCivilTime(model.day1) << "\n";
+  // cout << "\nday1: " << absl::FormatCivilTime(model.day1) << "\n";
 
   // test make_sick and SeedCase
-  sim::increment_day();
-  fmt::println("day of sim: {}", sim::get_day());
-  show_type(model.mp.variants.to_int("base"));
-  cout << "index enum value for \"base\": " << static_cast<int>(model.mp.variants("base"))
-       << "\n";
-  model.mp.variants.print();
+  // sim::incr_day();
+  // fmt::println("day of sim: {}", sim::get_day());
+  // show_type(model.mp.variants.to_int("base"));
+  // cout << "index enum value for \"base\": " << static_cast<int>(model.mp.variants("base"))
+  //      << "\n";
+  // model.mp.variants.print();
 
-  vector<SeedFilter> sf {
-    {Trait::Age::age20_39, Trait::Cond::nil, 0, model.mp.variants("base"), 3},
-    {Trait::Age::age40_59, Trait::Cond::nil, 0, model.mp.variants("base"), 3}};
-  SeedCase sc1(1, true, sf, model.pop);
+  // vector<SeedFilter> sf {
+  //   {Trait::Age::age20_39, Trait::Cond::nil, 0, model.mp.variants("base"), 3},
+  //   {Trait::Age::age40_59, Trait::Cond::nil, 0, model.mp.variants("base"), 3}};
+  // SeedCase sc1(1, true, sf, model.pop);
 
-  auto seeded = sc1();
-  fmt::println("seeded: {}", seeded);
-  test_popdata_print_table(model.pop, seeded);
+  // auto seeded = sc1();
+  // fmt::println("seeded: {}", seeded);
+  // test_popdata_print_table(model.pop, seeded);
 
   // Test multiple infections over time
-  test_multiple_infections();
+  // test_multiple_infections();
 
   // Test SeedCase with multiple infections
-  test_seedcase_multiple_infections();
+  // test_seedcase_multiple_infections();
 
   // test_model_params(model.mp);
 

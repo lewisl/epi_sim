@@ -1,5 +1,5 @@
 {
-    "gammashape": 1,
+    "gammashape": 1.0,
     "indoor_uplift": 1.1,
     "contactfactors": {
         "age0_19": {

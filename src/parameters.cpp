@@ -111,6 +111,9 @@ std::tuple<RuntimeEnum, InfectSet> load_variants_data(json jdata) {
   }
 
   InfectSet infectset{};
+  // Add a dummy "none" entry at index 0 to align with variants RuntimeEnum
+  infectset.infectparams.emplace_back("none", InfectParams{});
+
   for (auto variant : jdata.items()) {
     infectset.infectparams.emplace_back( // pair members string, InfectParams
         variant.key(), InfectParams{
