@@ -70,7 +70,7 @@ class PopData {
           RuntimeEnum true_false, RuntimeEnum Justint,
           const vector<double>& age_dist=AGE_DIST)
       : popn(n), popz(n+1),status(n+1, 1), 
-        agegrp(age_distribution(n+1, age_dist)), 
+        agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
         cond(n+1, 0), duration(n+1, 0),
         variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
         recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
@@ -246,7 +246,30 @@ class PopData {
       return parts;
     }
 
-    void make_sick(size_t p, uint8_t var, uint8_t condition = Trait::Cond::nil, uint8_t durationdays = 0);
+    // some complex getters and setters that modify multiple vectors at the same index
+    // make_sick definition is in disease_modeling.cpp
+    void make_sick(size_t p, uint8_t var, uint8_t condition = Trait::Cond::nil,
+                   uint8_t durationdays = 0);
+    
+    // how to return if person p is not sick?  does it matter: we might want to know the last variant experienced if any
+    // return the most recent (or last) variant of virus infection
+    // note we don't allow a set_variant because it should only happen if all the invariants for getting sick are met,
+    // which happens in the make_sick method.
+    uint8_t get_variant(size_t p) const {
+      if (variant_count[p] == 0) return 0; // maps to "none"
+      else if (variant_count[p] >= 16) return variant[p].back();
+      else return variant[p][variant_count[p] - 1];
+    }
+    uint8_t get_variant(size_t p, size_t v_count) const {  // not sure this is needed--return a specific variant
+      assert(v_count > 0 && v_count <= variant_count[p]);
+      return variant[p][v_count - 1];
+    }
+
+    void incr_duration(size_t p) {
+      if (duration[p] < DURATIONLIM) duration[p]++;
+    }
+
+    void make_well(size_t p);
 };
 
 

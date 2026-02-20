@@ -192,21 +192,6 @@ struct InfectParams {
   int immunehalflife {0};
 };
 
-struct InfectSet {
-  vector<std::pair<string, InfectParams>> infectparams{};
-
-  void print() {
-    for (const auto& vp : infectparams) {
-      fmt::print("variant: {:<9}\n  sendrisk={},\n  recvrisk={},\n  base={:.2f}, halflife={}\n",
-                 vp.first,
-                 vp.second.sendrisk,
-                 vp.second.recvrisk,
-                 vp.second.basemultiplier,
-                 vp.second.immunehalflife);
-    }
-  }
-};
-
 
 struct Agetree {  // for 1 variant
   vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree{};  // would be matrices in Julia--must be vec of vec in c++
@@ -575,7 +560,7 @@ struct ModelParams {
 
   //based on variants parameters json file
   RuntimeEnum variants;
-  InfectSet infectset;
+  vector<InfectParams> infectparams;
   ProgressionSet progressionset;
   vector<float> trvec;
 
@@ -600,13 +585,13 @@ json load_json_params(string fpath);
 GeoData load_geodata_csv(const std::string& filename);
 
 
-std::tuple<RuntimeEnum, InfectSet> load_variants_data(json jdata);
+std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata);
 
 
 std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata);
 
 
-std::tuple<InfectSet, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath);
+std::tuple<vector<InfectParams>, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath);
 
 
 std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants);
@@ -616,3 +601,6 @@ VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist);
 
 
 SocialParams load_social_params(string social_path);
+
+// Helper function to print infectparams
+void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeEnum& variants);

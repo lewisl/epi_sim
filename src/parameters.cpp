@@ -1,27 +1,7 @@
+#include "lib_includes.h"
+
 
 #include "parameters.h"
-
-
-#include <csv2/reader.hpp> 
-#include <string>
-// #include <algorithm>
-#include <vector>
-#include <array>
-#include <iostream>
-#include <fstream>
-// #include <iomanip>
-#include <cstdlib>
-// #include <unordered_map>
-#include "absl/container/flat_hash_map.h"
-#include <tuple>
-#include <utility>
-// #include <yaml-cpp/node/parse.h>
-// #include <yaml-cpp/yaml.h>
-#include <nlohmann/json.hpp>  // amazing for parsing complex files (maybe not for high speed web services)
-// #include <fmt/base.h>
-#include <fmt/format.h>  // only get what I use: about 12k in the executable!
-#include <fmt/ranges.h>  // for printing containers like vector
-
 #include "helpers.h"    // for shifter
 
 // using json = nlohmann::json;
@@ -101,7 +81,7 @@ GeoData load_geodata_csv(const std::string& filename) {
 //
 
 
-std::tuple<RuntimeEnum, InfectSet> load_variants_data(json jdata) {
+std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata) {
   // json jdata = load_json_params(fpath);
 
   RuntimeEnum variants{};
@@ -110,20 +90,20 @@ std::tuple<RuntimeEnum, InfectSet> load_variants_data(json jdata) {
     variants.add_item(variant.key());
   }
 
-  InfectSet infectset{};
+  vector<InfectParams> infectparams{};
   // Add a dummy "none" entry at index 0 to align with variants RuntimeEnum
-  infectset.infectparams.emplace_back("none", InfectParams{});
+  infectparams.emplace_back(InfectParams{});
 
   for (auto variant : jdata.items()) {
-    infectset.infectparams.emplace_back( // pair members string, InfectParams
-        variant.key(), InfectParams{
+    infectparams.emplace_back(
+        InfectParams{
                            .sendrisk = variant.value()["spread"]["sendrisk"],
                            .recvrisk = variant.value()["spread"]["recvrisk"],
                            .basemultiplier = variant.value()["spread"]["basemultiplier"],
                            .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
   }
 
-  return {variants, infectset};  // gonna have more data structures: ProgressionParams, trvec
+  return {variants, infectparams};
 }
 
 /*
@@ -189,16 +169,16 @@ std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata) {
   return {progressionset, trvec};
 }
 
-std::tuple<InfectSet, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath) {
+std::tuple<vector<InfectParams>, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath) {
   // use one big json file for multiple output structs, etc.
   json jdata = load_json_params(fpath);
 
-  auto [variants, infectset] = load_variants_data(jdata);
+  auto [variants, infectparams] = load_variants_data(jdata);
 
   auto [progressionset, trvec] = load_progression_set(jdata);
 
 
-  return {infectset, progressionset, trvec, variants};
+  return {infectparams, progressionset, trvec, variants};
 };
 
 /*
@@ -328,4 +308,18 @@ SocialParams load_social_params(string social_path) {
   }
 
   return socialp;
+}
+
+// Helper function to print infectparams
+void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeEnum& variants) {
+  fmt::println("========== InfectParams =============");
+  for (size_t i = 0; i < infectparams.size(); ++i) {
+    fmt::println(" ==== infectparams of variant {} ====", variants.to_str(i));
+    fmt::print("  sendrisk={},\n  recvrisk={},\n  base={:.2f},   halflife={}\n",
+               infectparams[i].sendrisk,
+               infectparams[i].recvrisk,
+               infectparams[i].basemultiplier,
+               infectparams[i].immunehalflife);
+  }
+  fmt::println("========== End InfectParams =============");
 }

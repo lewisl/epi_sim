@@ -2,6 +2,7 @@ add_rules("mode.debug", "mode.release")
 add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 set_languages("c++23")
 set_toolchains("llvm")
+set_optimize("fastest")
 set_pcxxheader("src/lib_includes.h") -- put all includes for stdlib, stl, external packages here
 
 target("epi_sim")

@@ -71,23 +71,48 @@ inline int get(int min, int max) {
     return std::uniform_int_distribution{min, max}(get_gen());
 }
 
-inline std::vector<int> get_n_draws(int min, int max, int n) {
-  std::vector<int> peeps;
-  peeps.reserve(n);
-  std::uniform_int_distribution<int> dist{min, max};  // Create once
+// inline std::vector<int> get_n_draws(int min, int max, int n) {
+//   std::vector<int> peeps;
+//   peeps.reserve(n);
+//   std::uniform_int_distribution<int> dist{min, max};  // Create once
+//   for (int i = 0; i < n; ++i) {
+//     peeps.push_back(dist(get_gen()));
+//   }
+//   return peeps;
+// }
+
+// updates passed in buffer reference in place
+template<typename IntType = int>
+void get_n_draws(IntType min, IntType max, int n, std::vector<IntType> &buffer) {
+  buffer.clear();
+  std::uniform_int_distribution<IntType> dist{min, max};
   for (int i = 0; i < n; ++i) {
-    peeps.push_back(dist(get_gen()));
+    buffer.push_back(dist(get_gen()));
   }
-  return peeps;
 }
 
-inline int gamma_int(double shape, double scale, int max_value = 12) {
+
+// returns vector result:  don't know if we'll use
+template<typename IntType = int>
+std::vector<IntType> get_n_draws(IntType min, IntType max, int n) {
+  std::vector<IntType> buffer;
+  buffer.reserve(n);  // one allocation
+  std::uniform_int_distribution<IntType> dist{min, max};
+  for (int i = 0; i < n; ++i) {
+    buffer.push_back(dist(get_gen()));
+  }
+  return buffer;
+}
+
+
+
+inline int gamma_int(double shape, double scale, int max_value = 50) {
     double value = std::gamma_distribution<double>{shape, scale}(get_gen());
     return std::clamp(static_cast<int>(std::round(value)), 0, max_value);
 }
 
-inline int bernoulli(double p) {
-    return std::bernoulli_distribution{p}(get_gen()) ? 1 : 0;
+inline bool bernoulli(double p) {
+    return std::bernoulli_distribution{p}(get_gen());
 }
 
 inline int categorical_uniform(int k) {

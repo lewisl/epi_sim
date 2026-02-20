@@ -8,6 +8,7 @@
 #include "setup.h"
 #include "disease_modeling.h"
 #include "spread.h"
+#include "progression.h"
 
 
 
@@ -17,7 +18,10 @@ void runsim(Model& model)
     // other arguments to add: runcases, showr0, silent, dovax, vaxscheds?
 {
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
-  PopData& pop = model.pop;    // all person data
+  PopData &pop = model.pop;    // all person data
+
+  // seed the random number generator
+  xo::seed(12345);
 
   // setup before day loop starts
   //    alias names for series columns
@@ -39,6 +43,9 @@ void runsim(Model& model)
 
   auto seeded = sc1();
 
+  // create useful pre-allocated vectors
+  vector<size_t> contacts(250);
+
   std::cout << "Seeded " << seeded.size() << " people: ";
   for (auto p : seeded) {
     std::cout << p << " ";
@@ -55,24 +62,34 @@ void runsim(Model& model)
 
     // do vaccination if using vaccination
 
-    // infectious iterator:  we only loop through people who have the virus
-    auto infectious = std::views::iota(size_t{1}, pop.status.size())
-      | std::views::filter([&](size_t i) {
-        return pop.status[i] == Trait::Stat::infectious;
-    });
+    // Loop through all people and process infectious ones (no vector allocation needed)
+    int infectious_count = 0;
+    for (size_t p = 1; p <= pop.popn; p++) {
+      if (pop.status[p] != Trait::Stat::infectious) continue;
 
-    for (auto p : infectious) {
+      infectious_count++;
 
       // spread kernel
       auto spr_duration = pop.duration[p];  // a uint8_t
       auto variant_count = pop.variant_count[p];
       if (variant_count == 0) continue;  // Skip if no variant assigned
-      auto spr_variant = pop.variant[p][variant_count - 1];    // variant_count is 1-based, array is 0-based
-      auto sendrisk = mp.infectset.infectparams[static_cast<size_t>(spr_variant)].second.sendrisk[spr_duration];
-      if (sendrisk > 0.0) spread(pop, p, mp.socialdata, mp.infectset);
+      auto spr_variant = pop.get_variant(p);    // variant_count is 1-based, array is 0-based
+      auto sendrisk = mp.infectparams[static_cast<size_t>(spr_variant)].sendrisk[spr_duration];
+      if (sendrisk > 0.0) spread(pop, p, mp.socialdata, mp.infectparams, contacts);
 
+      // progression kernel
+      progression(pop, p);
 
-    }  // end infectious loop
+    }  // end person loop
+
+    // Count recovered people (only for final report)
+    // int recovered_count = 0;
+    // for (size_t i = 1; i <= pop.popn; i++) {
+    //   if (pop.status[i] == Trait::Stat::recovered) recovered_count++;
+    // }
+
+    // Print daily infection count
+    // fmt::println("Day {}: {} infectious, {} recovered", sim::get_day(), infectious_count, recovered_count);
 
     // run end of day cases
 

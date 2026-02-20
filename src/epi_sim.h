@@ -1,8 +1,10 @@
-// todo items:
-// finish data structures and load for progressionset
-// order testing for variants and vaccines in several places where these are loaded into paramter structs
-
-
+// TODO items:
+// Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
+     // only matters if we model viral load and if contact affects progression to more severe condition
+// history series
+// indoor seq
+// use density factor
+// move apportion debug into testing from apportion method of PopData
 
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 

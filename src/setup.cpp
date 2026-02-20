@@ -21,7 +21,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);
-  auto [infectset, progressionset, trvec, variants] =
+  auto [infectparams, progressionset, trvec, variants] =
       load_infect_params(variants_path);
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
@@ -33,14 +33,14 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       vaxsched = load_vax_sched(vaxsched_path, vaxlist);
     }
   auto socialdata = load_social_params(social_path);
- 
+
 
   // Use aggregate initialization to construct model_params with all members at once
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
       .geodata = std::move(geodata),
       .variants = std::move(variants),
-      .infectset = std::move(infectset),
+      .infectparams = std::move(infectparams),
       .progressionset = std::move(progressionset),
       .trvec = std::move(trvec),
       .socialdata = std::move(socialdata),
@@ -53,15 +53,15 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
 Model setup_sim(int ndays, int locale,  // require inputs
     string date,   // all the rest have defaults...
     bool dovax,
-    const fs::path project_dir,
-    const fs::path paramdir,
-    const fs::path geodata_fname,
-    const fs::path param_dir,
-    const fs::path variants_fname,
-    const fs::path social_fname,
-    const fs::path vax_fname,
-    const fs::path vax_sched_dir,
-    const fs::path vax_sched_fname)
+    const fs::path& project_dir,
+    const fs::path& paramdir,
+    const fs::path& geodata_fname,
+    const fs::path& param_dir,
+    const fs::path& variants_fname,
+    const fs::path& social_fname,
+    const fs::path& vax_fname,
+    const fs::path& vax_sched_dir,
+    const fs::path& vax_sched_fname)
 {
     // Full paths to parameter files
     const string variants_path = (project_dir / param_dir / variants_fname).string();
