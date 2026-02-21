@@ -569,19 +569,24 @@ int main() {
   // test_model_params(model.mp);
 
   // Test spread function with 180-day simulation
-  std::cout << "\n=== Testing Spread Function (180-day simulation) ===\n\n";
-  Model model = setup_sim(180, 38015, "2020-01-01", false);
-  std::cout << "Population: " << model.pop.popn << "\n";
-  std::cout << "Running simulation for " << model.ndays << " days...\n\n";
+      std::cout << "\n=== Testing Spread Function (180-day simulation) ===\n\n";
+      Model model = setup_sim(180, 38015, "2020-01-01", false);
+      std::cout << "Population: " << model.pop.popn << "\n";
+      std::cout << "Running simulation for " << model.ndays << " days...\n\n";
 
-  runsim(model);
+      runsim(model);
 
   // Count occurrences of infected and recovered--> gut check
-    // auto count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::recovered);
-    // std::cout << "Count of recovered: " << count << '\n';
-    // count = std::count_if(model.pop.variant_count.begin(), model.pop.variant_count.end(),
-    //                            [](int x) { return x > 0; });
-    // std::cout << "Count of variant_count > 0: " << count << '\n';
+    auto count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::recovered);
+    std::cout << "Count of recovered: " << count << '\n';
+    count = std::count_if(model.pop.variant_count.begin(), model.pop.variant_count.end(),
+                               [](int x) { return x > 0; });
+    std::cout << "Count of variant_count > 0: " << count << '\n';
+
+    count = std::count_if(model.pop.variant_count.begin(), model.pop.variant_count.end(),
+                               [](int x) { return x > 1; });
+    std::cout << "Count of variant_count > 1: " << count << '\n';
+
 
   std::cout << "\n=== Simulation Complete ===\n";
 

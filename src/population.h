@@ -265,6 +265,12 @@ class PopData {
       return variant[p][v_count - 1];
     }
 
+    size_t get_recovday(size_t p) const {    // don't need a setter because it happens in make_well()
+      if (recovday_count[p] == 0) return 0; // maps to "none"
+      else if (recovday_count[p] >= 16) return recovday[p].back();
+      else return recovday[p][recovday_count[p] - 1];    
+    }
+
     void incr_duration(size_t p) {
       if (duration[p] < DURATIONLIM) duration[p]++;
     }

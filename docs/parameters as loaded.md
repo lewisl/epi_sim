@@ -44,7 +44,7 @@ New values, at index 0: unknown at index 1: age0_19 at index popn: age80_up
  5: omicron_ba2
  6: omicron_ba4_5
 
-========== InfectSet =============
+========== vector<InfectParams> =============
  ==== infectparams of variant none ====
   sendrisk=[],
   recvrisk=[],
@@ -73,7 +73,7 @@ New values, at index 0: unknown at index 1: age0_19 at index popn: age80_up
   sendrisk=[0, 0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25, 1.075, 0.9, 0.75, 0.5, 0.1, 0.05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   recvrisk=[0.1, 0.39, 0.44, 0.54, 0.56],
   base=1.40,   halflife=360
-========== End InfectSet =============
+========== End vector<InfectParams> =============
 
 gammashape: 1 indoor_uplift: 1.1
 contactfactors (4x5):

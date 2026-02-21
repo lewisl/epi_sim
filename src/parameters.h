@@ -188,6 +188,7 @@ namespace Trait
 struct InfectParams {
   vector<float> sendrisk{};
   vector<float> recvrisk{};
+  vector<float> recovery_immunity{};
   float basemultiplier{1.0};
   int immunehalflife {0};
 };

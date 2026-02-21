@@ -2,7 +2,7 @@
 
 
 #include "parameters.h"
-#include "helpers.h"    // for shifter
+#include "helpers.h"    // for shifter range compressor
 
 // using json = nlohmann::json;
 using json = nlohmann::ordered_json;
@@ -95,12 +95,24 @@ std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata) {
   infectparams.emplace_back(InfectParams{});
 
   for (auto variant : jdata.items()) {
-    infectparams.emplace_back(
-        InfectParams{
-                           .sendrisk = variant.value()["spread"]["sendrisk"],
-                           .recvrisk = variant.value()["spread"]["recvrisk"],
-                           .basemultiplier = variant.value()["spread"]["basemultiplier"],
-                           .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
+
+    auto recovery_imm_obj = variant.value()["immunity"]["recovery_immunity"];
+    
+    // Build the recovery_immunity vector in the correct order
+    vector<float> recovery_immunity(variants.names.size(), 0.0f);  // default to 0
+    for (size_t i = 0; i < variants.names.size(); ++i) {
+        const auto& vname = variants.names[i];
+        if (recovery_imm_obj.contains(vname)) {
+            recovery_immunity[i] = recovery_imm_obj[vname].get<float>();
+        }
+    }
+
+    infectparams.emplace_back(InfectParams{
+        .sendrisk = variant.value()["spread"]["sendrisk"],
+        .recvrisk = variant.value()["spread"]["recvrisk"],
+        .recovery_immunity = std::move(recovery_immunity),
+        .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
+
   }
 
   return {variants, infectparams};
@@ -315,9 +327,10 @@ void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeE
   fmt::println("========== InfectParams =============");
   for (size_t i = 0; i < infectparams.size(); ++i) {
     fmt::println(" ==== infectparams of variant {} ====", variants.to_str(i));
-    fmt::print("  sendrisk={},\n  recvrisk={},\n  base={:.2f},   halflife={}\n",
+    fmt::print("  sendrisk={},\n  recvrisk={},\n  recovery_immunity={},\n  base={:.2f},   halflife={}\n",
                infectparams[i].sendrisk,
                infectparams[i].recvrisk,
+               infectparams[i].recovery_immunity,
                infectparams[i].basemultiplier,
                infectparams[i].immunehalflife);
   }
