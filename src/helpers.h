@@ -22,11 +22,11 @@ double stddev(const std::vector<double>& values);
 template<typename T>
 void show_type(T&&) {
     #ifdef __GNUC__
-    std::cout << __PRETTY_FUNCTION__ << '\n';
+    fmt::println("{}", __PRETTY_FUNCTION__);
     #elif defined(_MSC_VER)
-    std::cout << __FUNCSIG__ << '\n';
+    fmt::println("{}", __FUNCSIG__);
     #else
-    std::cout << "Compiler doesn't support type introspection\n";
+    fmt::println("Compiler doesn't support type introspection");
     #endif
 }
 

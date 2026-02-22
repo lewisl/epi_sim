@@ -68,7 +68,7 @@ GeoData load_geodata_csv(const std::string& filename) {
     data.indoor_st.push_back(values[8]);
     data.indoor_end.push_back(values[9]);
       
-    data.num_rows++;
+    ++data.num_rows;
   }
 
   shifter(data.density, 0.9, 1.25);  // turn population density of cities into a compressed index
@@ -327,10 +327,9 @@ void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeE
   fmt::println("========== InfectParams =============");
   for (size_t i = 0; i < infectparams.size(); ++i) {
     fmt::println(" ==== infectparams of variant {} ====", variants.to_str(i));
-    fmt::print("  sendrisk={},\n  recvrisk={},\n  recovery_immunity={},\n  base={:.2f},   halflife={}\n",
+    fmt::print("  sendrisk={},\n  recvrisk={},\n  base={:.2f},   halflife={}\n",
                infectparams[i].sendrisk,
                infectparams[i].recvrisk,
-               infectparams[i].recovery_immunity,
                infectparams[i].basemultiplier,
                infectparams[i].immunehalflife);
   }

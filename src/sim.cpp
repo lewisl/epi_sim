@@ -46,11 +46,11 @@ void runsim(Model& model)
   // create useful pre-allocated vectors
   vector<size_t> contacts(250);
 
-  std::cout << "Seeded " << seeded.size() << " people: ";
-  for (auto p : seeded) {
-    std::cout << p << " ";
-  }
-  std::cout << "\n";
+  // std::cout << "Seeded " << seeded.size() << " people: ";
+  // for (auto p : seeded) {
+  //   std::cout << p << " ";
+  // }
+  fmt::print("\n");
 
   // start totaltime
 
@@ -64,7 +64,7 @@ void runsim(Model& model)
 
     // Loop through all people and process infectious ones (no vector allocation needed)
     int infectious_count = 0;
-    for (size_t p = 1; p <= pop.popn; p++) {
+    for (size_t p = 1; p <= pop.popn; ++p) {
       if (pop.status[p] != Trait::Stat::infectious) continue;
 
       infectious_count++;

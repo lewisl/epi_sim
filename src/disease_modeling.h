@@ -34,3 +34,5 @@ float expdecay(size_t t, float h);
 float sigdecay(size_t t, float h, float csig = 5.0, float decay_lower = 0.1);
 
 float tbrk(float h, float lower);
+
+float intercept(size_t t, float hl);

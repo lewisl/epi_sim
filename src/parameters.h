@@ -79,7 +79,7 @@ struct RuntimeEnum {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
           names.push_back(newname);
           lookup[newname] = nextnum;
-          nextnum++;
+          ++nextnum;
       }
   }
 
@@ -203,7 +203,7 @@ struct Agetree {  // for 1 variant
       return;
     }
 
-    for (size_t age_idx = 0; age_idx < tree.size(); age_idx++) {
+    for (size_t age_idx = 0; age_idx < tree.size(); ++age_idx) {
       const auto& breakday_map = tree[age_idx];
       string age_name = Trait::Agegrp.to_str(age_idx + 1);
       fmt::println("    Age group: {}", age_name);
@@ -224,12 +224,12 @@ struct Agetree {  // for 1 variant
         const auto& condition_vec = breakday_map.at(day);
         fmt::println("      Day {}: {} conditions", day, condition_vec.size());
 
-        for (size_t cond_idx = 0; cond_idx < condition_vec.size(); cond_idx++) {
+        for (size_t cond_idx = 0; cond_idx < condition_vec.size(); ++cond_idx) {
           const auto& outcome_probs = condition_vec[cond_idx];
           string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
-          for (size_t i = 0; i < outcome_probs.size(); i++) {
+          for (size_t i = 0; i < outcome_probs.size(); ++i) {
             if (i > 0) fmt::print(", ");
             fmt::print("{:.2f}", outcome_probs[i]);
           }
@@ -253,7 +253,7 @@ struct ProgressionFactors {  // for one variant
       fmt::println("    riskadjust: <empty>");
     } else {
       fmt::print("    riskadjust: [");
-      for (size_t i = 0; i < riskadjust.size(); i++) {
+      for (size_t i = 0; i < riskadjust.size(); ++i) {
         if (i > 0) fmt::print(", ");
         fmt::print("{:.2f}", riskadjust[i]);
       }
@@ -297,7 +297,7 @@ struct ProgressionSet {  // collection of all variants
     fmt::println("\n=== ProgressionSet ===");
     fmt::println("Total variants: {}", progression.size());
 
-    for (size_t i = 0; i < progression.size(); i++) {
+    for (size_t i = 0; i < progression.size(); ++i) {
       string variant_name = (i < variants.names.size()) ? variants.names[i] : fmt::format("variant_{}", i);
       progression[i].print(variant_name);
     }
@@ -377,7 +377,7 @@ struct VaxSet {
     fmt::println("Total vaccines: {}", vaxset.size());
 
     fmt::print("Shot types: ");
-    for (size_t i = 0; i < shot_types.names.size(); i++) {
+    for (size_t i = 0; i < shot_types.names.size(); ++i) {
       if (i > 0) fmt::print(", ");
       fmt::print("{}", shot_types.names[i]);
     }
@@ -413,7 +413,7 @@ struct PerVaxSpec {
       fmt::println("      Alternates: <none>");
     } else {
       fmt::print("      Alternates: ");
-      for (size_t i = 0; i < alternate.size(); i++) {
+      for (size_t i = 0; i < alternate.size(); ++i) {
         if (i > 0) fmt::print(", ");
         fmt::print("{}", alternate[i]);
       }
@@ -451,7 +451,7 @@ struct VaxSched {
       fmt::println("  Filter: <none>");
     } else {
       fmt::print("  Filter: ");
-      for (size_t i = 0; i < filtervec.size(); i++) {
+      for (size_t i = 0; i < filtervec.size(); ++i) {
         if (i > 0) fmt::print(", ");
         fmt::print("{}", filtervec[i]);
       }
@@ -466,7 +466,7 @@ struct VaxSched {
       fmt::println("  Pattern: <empty>");
     } else {
       fmt::print("  Pattern: [");
-      for (size_t i = 0; i < pattern.size(); i++) {
+      for (size_t i = 0; i < pattern.size(); ++i) {
         if (i > 0) fmt::print(", ");
         fmt::print("{:.2f}", pattern[i]);
       }

@@ -149,28 +149,28 @@ class PopData {
       int current_row;
 
       void operator()(const vector<uint8_t> &vec, RuntimeEnum label) const {
-        std::cout << "   " << label.to_str(vec[current_row]) << "\t|";
+        fmt::print("   {}\t|", label.to_str(vec[current_row]));
       }
 
       void operator()(const vector<int16_t> &vec, RuntimeEnum label) const {
-        std::cout << "   " << label.to_str(vec[current_row]) << "\t|";
+        fmt::print("   {}\t|", label.to_str(vec[current_row]));
       }
 
       void operator()(const std::vector<array<uint8_t, 16>> &vec, RuntimeEnum label) {
-        std::cout << "   " <<  label.to_str(vec[current_row][0]) << "...    | ";
+        fmt::print("   {}...    | ", label.to_str(vec[current_row][0]));
       }
 
       void operator()(const std::vector<array<int16_t, 16>> &vec, RuntimeEnum label) {
-        std::cout << "   " <<  label.to_str(vec[current_row][0]) << "...    | ";
-      }      
+        fmt::print("   {}...    | ", label.to_str(vec[current_row][0]));
+      }
     };
 
     void print_table(const vector<size_t> &rows, const vector<Column> &cols) {
       for (int r : rows) {
-        std::cout << r << ":\t";
+        fmt::print("{}:\t", r);
         CellPrinter printer{r};
         apply_to_columns(cols, printer);
-        std::cout << "\n";
+        fmt::print("\n");
       }
     }
 
@@ -181,15 +181,15 @@ class PopData {
       vector<float> proportions(age_parts.begin(), age_parts.end());
       vector<int> counts = apportion(popz, proportions);
 
-      std::cout << "Total counts: " <<  std::accumulate(counts.begin(), counts.end(), 0) << " popz: " << popz << " popn: " << popn << "\n";
+      // std::cout << "Total counts: " <<  std::accumulate(counts.begin(), counts.end(), 0) << " popz: " << popz << " popn: " << popn << "\n";
 
 
       vector<uint8_t> agegrp(popz, 0);
 
-      std::cout << "agegrp tmp size: " << agegrp.size() << " popz: " << popz << "\n";
+      // std::cout << "agegrp tmp size: " << agegrp.size() << " popz: " << popz << "\n";
 
-      std::cout << "Initialized values, at index 0: " << agegrp[0] << " at index 1: " << agegrp[1] << " at index popn: " 
-           << agegrp[popn] << "\n";
+      // std::cout << "Initialized values, at index 0: " << agegrp[0] << " at index 1: " << agegrp[1] << " at index popn: " 
+      //      << agegrp[popn] << "\n";
 
       int start_idx{1};
       uint8_t agegrp_num {Trait::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
@@ -197,10 +197,10 @@ class PopData {
       for (int num_of_age : counts) {
         fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, agegrp_num);
         start_idx += num_of_age;
-        agegrp_num++;
+        ++agegrp_num;
       }
-        std::cout << "New values, at index 0: " << Trait::Agegrp.to_str(agegrp[0]) << " at index 1: " << Trait::Agegrp.to_str(agegrp[1]) << " at index popn: " 
-           << Trait::Agegrp.to_str(agegrp[popn]) << "\n";
+        // std::cout << "New values, at index 0: " << Trait::Agegrp.to_str(agegrp[0]) << " at index 1: " << Trait::Agegrp.to_str(agegrp[1]) << " at index popn: " 
+        //    << Trait::Agegrp.to_str(agegrp[popn]) << "\n";
 
       return agegrp;
     }
@@ -210,36 +210,36 @@ class PopData {
       assert(splits.size() > 0);
       assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0), 1.0));
 
-      std::cout << "\n=== APPORTION DEBUG (n=" << n << ") ===\n";
+      // std::cout << "\n=== APPORTION DEBUG (n=" << n << ") ===\n";
 
       vector<int> parts;
-      for (size_t i = 0; i < splits.size(); i++) {
+      for (size_t i = 0; i < splits.size(); ++i) {
         int part = static_cast<int>(round(n * splits[i]));
         parts.push_back(part);
-        std::cout << "  parts[" << i << "] = round(" << n << " * " << splits[i]
-                  << ") = " << part << "\n";
+        // std::cout << "  parts[" << i << "] = round(" << n << " * " << splits[i]
+        //           << ") = " << part << "\n";
       }
 
-      // Calculate total before adjustment
+      // // Calculate total before adjustment
       int total_before = std::accumulate(parts.begin(), parts.end(), 0);
-      std::cout << "Total before adjustment: " << total_before << "\n";
+      // std::cout << "Total before adjustment: " << total_before << "\n";
 
-      // fix rounding error
+      // // fix rounding error
       int diff = total_before - n;
-      std::cout << "Difference (total - n): " << diff << "\n";
+      // std::cout << "Difference (total - n): " << diff << "\n";
 
       if (diff != 0) {
-        std::cout << "Adjusting parts.back() from " << parts.back()
-                  << " to " << (parts.back() - diff) << "\n";
+        // std::cout << "Adjusting parts.back() from " << parts.back()
+        //           << " to " << (parts.back() - diff) << "\n";
         parts.back() -= diff;
       }
 
-      // Calculate total after adjustment
-      int total_after = std::accumulate(parts.begin(), parts.end(), 0);
-      std::cout << "Total after adjustment: " << total_after << "\n";
-      std::cout << "Expected (n): " << n << "\n";
-      std::cout << "Match: " << (total_after == n ? "YES" : "NO") << "\n";
-      std::cout << "=== END APPORTION DEBUG ===\n\n";
+      // // Calculate total after adjustment
+      // int total_after = std::accumulate(parts.begin(), parts.end(), 0);
+      // std::cout << "Total after adjustment: " << total_after << "\n";
+      // std::cout << "Expected (n): " << n << "\n";
+      // std::cout << "Match: " << (total_after == n ? "YES" : "NO") << "\n";
+      // std::cout << "=== END APPORTION DEBUG ===\n\n";
 
       assert(parts.back() > 0);  // should always be true for large n and reasonable splits
 
@@ -272,7 +272,7 @@ class PopData {
     }
 
     void incr_duration(size_t p) {
-      if (duration[p] < DURATIONLIM) duration[p]++;
+      if (duration[p] < DURATIONLIM) ++duration[p];
     }
 
     void make_well(size_t p);

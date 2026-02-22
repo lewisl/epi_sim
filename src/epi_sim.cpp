@@ -1,12 +1,11 @@
 #include "epi_sim.h"
-#include <iostream>
 #include "setup.cpp"
 #include "parameters.h"
 #include "population.h"
 
 
 int main() {
-  std::cout << "Deeply Under Construction." << std::endl;
+  fmt::println("Deeply Under Construction.");
 
   setup_sim();
   run_sim();

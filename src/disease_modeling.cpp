@@ -21,7 +21,7 @@ void PopData::make_sick(size_t p, uint8_t var, uint8_t condition, uint8_t durati
       std::shift_left(sickday[p].begin(), sickday[p].end(), 1);
       variant[p].back() = var;
       sickday[p].back() = sim::get_day();
-      variant_count[p]++;
+      ++variant_count[p];
       std::cerr << "Variant overflow for person " << p
               << ". Oldest variant lost.\n";
       std::cerr << "variant_count increased to " << variant_count[p] << "\n";  
@@ -40,7 +40,7 @@ void PopData::make_well(size_t p) {
   } else {
       std::shift_left(recovday[p].begin(), recovday[p].end(), 1);
       recovday[p].back() = sim::get_day();
-      recovday_count[p]++;
+      ++recovday_count[p];
       std::cerr << "Recovday overflow for person " << p
               << ". Oldest recovday lost.\n";
       std::cerr << "recovday_count increased to " << recovday_count[p] << "\n";  
@@ -76,7 +76,6 @@ bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 
   return xo::bernoulli(touchprob);
 }
 
-// TODO add inputs vaxfactor and recovfactor
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
                  uint8_t spr_duration, uint8_t contact_agegrp, float recovfactor, float vaxfactor) {
     // spreader person characteristics
@@ -91,7 +90,7 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
     auto risk = std::clamp(combinedfactor, 0.0f, 0.97f);    // required because combinedfactor could exceed 1.0
 
   return risk;
-  }
+}
                   
 
 /*
@@ -117,7 +116,7 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
         infectrisk(infectparams, spr_variant, pop.duration[spreader],
                    pop.agegrp[contact], recovfactor, 1.0); 
 
-    return xo::bernoulli(risk) == 1;  // get a bool not 0 or 1
+    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1
 }
 
 
@@ -125,9 +124,9 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
     recoveffect(recovday, contact_varient, spr_variant, infectset)
 
 Immunity from recovery for a single person.
+defaults: csig = 6.0, decay_lower = 0.15
 */
-float recoveffect(const PopData &pop, size_t thisday, size_t contact,
-                  uint8_t spr_variant,
+float recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t spr_variant,
                   vector<InfectParams> &infectparams, float csig, float decay_lower) {
 
     float factor = 1.0f; 
@@ -153,8 +152,7 @@ float recoveffect(const PopData &pop, size_t thisday, size_t contact,
             factor = 1.0f - (time_mod * immstrength);
         }
   }
-
-    return factor;
+  return factor;
 }
 
 // gradual decay of vaccine effectiveness or recovery immunity based on assumed half-life
@@ -165,11 +163,12 @@ float recoveffect(const PopData &pop, size_t thisday, size_t contact,
   
 Immunity effectiveness from vaccination or recovery ramps up.
 Returns a value between mineff and 1.0. Linear increase.
+Default mineff = 0.65, delay_days = 14
 */
 float effect_rise(size_t days_since, float mineff, float delay_days) {
   float y = 0.0f;
   if (days_since >= delay_days) y = 1.0f;
-  else y = mineff + (days_since/delay_days * (1.0f - mineff));
+  else y = mineff + (days_since/delay_days * (1.0f - mineff));  // rises from mineff to just below 1.0
   return y;
 }
 
@@ -194,9 +193,9 @@ float sigdecay(size_t t, float h, float csig, float decay_lower) {
 float tbrk(float h, float lower) {
   float y = 2.0f * h - (2.0f * h * lower);
   return y;
-  }
+}
 
-  float intercept(size_t t, float hl) {
-    float tfl = static_cast<float>(t);
-    return -0.3 * tfl / hl + 1.0;
-    }
+float intercept(size_t t, float hl) {
+  float tfl = static_cast<float>(t);
+  return -0.3 * tfl / hl + 1.0;
+}

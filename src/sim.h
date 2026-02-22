@@ -51,7 +51,7 @@ struct SeedCase {
         if (pop.agegrp[i] == filt.agegrp) {
           pop.make_sick(i, filt.variant, filt.condition, filt.duration );
           seeded_persons.push_back(i);
-          count_of_seeds++;
+          ++count_of_seeds;
           // pop.cond[i] = filt.condition;
           // pop.duration[i] = filt.duration;
           // pop.variant[i][0] = filt.variant;

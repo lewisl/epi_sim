@@ -28,7 +28,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
     RuntimeEnum vaxlist;
     VaxSched vaxsched;
     if (dovax) {
-      std::cout << "we got here to load valid vax parameters...\n";
+      fmt::println("we got here to load valid vax parameters...");
       std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); // load the returned tuple into existing variables
       vaxsched = load_vax_sched(vaxsched_path, vaxlist);
     }

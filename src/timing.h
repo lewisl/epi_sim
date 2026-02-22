@@ -9,8 +9,7 @@ ex:
       this_timer.start();  // starts this_timer and saves the time
       < bunch-o-code >
       this_timer.cum();    // stops this_timer and adds the time since start to
-cumulative duration of this_timer cout << "This code took " << this_timer.show()
-<< " seconds\n";
+cumulative duration of this_timer fmt::println("This code took {} seconds", this_timer.show());
 
       other methods:
       this_timer.stop();   // stops this_timer and saves the time: used by cum

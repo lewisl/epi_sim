@@ -27,7 +27,7 @@ public:
 
     xoshiro256pp(uint64_t seed) {
         uint64_t z = seed;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; ++i) {
             z += 0x9e3779b97f4a7c15;
             uint64_t temp = z;
             temp = (temp ^ (temp >> 30)) * 0xbf58476d1ce4e5b9;
