@@ -9,6 +9,7 @@
 #include "../src/random.h"
 #include "../src/timing.h"
 #include "../src/spread.h"
+#include "../src/progression.h"
 
 using std::string;
 using std::vector;
@@ -590,6 +591,10 @@ void sim_test(size_t ndays=180) {
     count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::recovered);
     fmt::println("Count of everyone who recovered:              {}", count);
 
+    count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::dead);
+    fmt::println("Count of everyone who died:                   {}", count);
+
+
   fmt::println("\n=== Simulation Complete ===");
 }
 
@@ -607,8 +612,8 @@ int main() {
   // Model model = setup_sim(1000, 38015, "2020-01-01", true);
   // test_model_params(model.mp);
 
-  // Test spread function with 180-day simulation
-  sim_test();
+  // Test spread function n days simulation
+  sim_test(180);
 
   return 0;
 }

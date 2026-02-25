@@ -77,8 +77,9 @@ void runsim(Model& model)
       auto sendrisk = mp.infectparams[static_cast<size_t>(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) spread(pop, p, mp.socialdata, mp.infectparams, contacts);
 
-      // progression kernel
-      progression(pop, p);
+      // progression kernel  before trvec mp.infectparams,
+      progression(pop, p, mp.progressionset, 
+                  mp.trvec);
 
     }  // end person loop
 

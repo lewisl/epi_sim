@@ -119,15 +119,24 @@ inline int categorical_uniform(int k) {
     return std::uniform_int_distribution{0, k - 1}(get_gen());
 }
 
-inline int categorical_fast(const std::vector<double>& cum_probs) {
-    double u = std::uniform_real_distribution<double>{0.0, 1.0}(get_gen());
+template<typename ReturnType = int, typename FloatType = double>
+inline ReturnType categorical_fast(const std::vector<FloatType>& probs) {
+    FloatType sum = FloatType{0};
+    for (auto p : probs) sum += p;
+    const FloatType tol = std::sqrt(std::numeric_limits<FloatType>::epsilon());
+    if (std::abs(sum - FloatType{1}) > tol) {
+        return static_cast<ReturnType>(0);  // matches Julia: return 0 for invalid distribution
+    }
 
-    for (size_t i = 0; i < cum_probs.size(); ++i) {
-        if (u <= cum_probs[i]) {
-            return static_cast<int>(i);
+    FloatType u = std::uniform_real_distribution<FloatType>{}(get_gen());
+    FloatType cumpr = FloatType{0};
+    for (size_t i = 0; i < probs.size(); ++i) {
+        cumpr += probs[i];
+        if (u <= cumpr) {
+            return static_cast<ReturnType>(i);
         }
     }
-    return static_cast<int>(cum_probs.size() - 1);
+    return static_cast<ReturnType>(probs.size() - 1);
 }
 
 }

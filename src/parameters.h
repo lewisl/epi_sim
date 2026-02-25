@@ -10,70 +10,32 @@ using std::array;
 using std::string;
 using std::vector;
 
-//
-// forward declarations of essential variables used to build structs
-//
-
-
-struct GeoData {
-    // Column metadata
-    vector<string> column_names = {
-        "fips", "county", "city", "state", "sizecat",
-        "pop", "density", "anchor", "indoor_st", "indoor_end"
-    };
-
-    size_t num_rows = 0;
-
-    // Typed data vectors
-    vector<int> fips;
-    vector<string> county;
-    vector<string> city;
-    vector<string> state;
-    vector<int> sizecat;
-    vector<int> pop;
-    vector<float> density;
-    vector<string> anchor;      // Date stored as string (could parse to date type)
-    vector<string> indoor_st;   // Date stored as string
-    vector<string> indoor_end;  // Date stored as string
-
-    // Helper to get type name for a column
-    std::string get_type(const std::string& col_name) const {
-        if (col_name == "fips" || col_name == "sizecat" ||
-            col_name == "pop") return "int";
-
-        if (col_name == "density") return "float";
-        return "string";
-    }
-
-    void print() {
-      // Header
-      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n",
-                "", "fips", "county", "city", "state",
-                "sizecat", "pop", "density", "anchor");
-
-      // Rows
-      for (size_t i = 0; i < num_rows; ++i) {
-          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n",
-              //  fmt::format("{}:", i),
-              i,
-                fips[i],
-                county[i],
-                city[i],
-                state[i],
-                sizecat[i],
-                pop[i],
-                density[i],
-                anchor[i]);
-      }
-    }    
-};
-
 struct RuntimeEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
   absl::flat_hash_map<std::string, int>
       lookup; // Name-to-Index (String -> Number)
   std::vector<uint8_t> valid_nums{};
   std::uint8_t nextnum{0};
+
+  // contructors
+  RuntimeEnum() = default;
+  // restore aggregate initializer style constructor
+  RuntimeEnum(vector<string> names_,
+            absl::flat_hash_map<string, int> lookup_,
+            vector<uint8_t> valid_nums_,
+            uint8_t nextnum_)
+    : names(std::move(names_)),
+      lookup(std::move(lookup_)),
+      valid_nums(std::move(valid_nums_)),
+      nextnum(nextnum_) {}
+  // constructor for map literal--maintains invariants, always consistent, shortest
+  RuntimeEnum(vector<std::pair<string, uint8_t>> mapliteral) {
+    for (auto pr : mapliteral) {
+      names.push_back(pr.first);
+      valid_nums.push_back(pr.second);
+      lookup[pr.first] = pr.second;
+    }
+  }
 
   void add_item(std::string newname) {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
@@ -156,6 +118,43 @@ namespace Trait
     inline const uint8_t dead = Status("dead");
   }
 
+  /*
+  During progression, people progress to recover, any of the disease conditions, or dead. 
+  This mixes states from 2 different enums in a different order. This special enum
+  provides that mapping in the right order captures in the probvec in function progression.
+  */
+  inline RuntimeEnum Progressionmap(
+      {{"recovered", 0},
+       {"nil",       1},
+       {"mild",      2},
+       {"sick",      3},
+       {"severe",    4},
+       {"dead",      5}}
+  );
+
+      // = {
+      // // names
+      // {"recovered", "nil", "mild", "sick", "severe", "dead"},
+      // // lookup
+      // {{"recovered", 0},
+      //  {"nil", 1},
+      //  {"mild", 2},
+      //  {"sick", 3},
+      //  {"severe", 4},
+      //  {"dead", 5}},
+      // // valid_nums
+      // {0,1,2,3,4,5}, 6};
+
+  // constants for Progression
+  namespace Progressmap {
+  inline const uint8_t recovered = Progressionmap("recovered");
+  inline const uint8_t nil = Progressionmap("nil");
+  inline const uint8_t mild = Progressionmap("mild");
+  inline const uint8_t sick = Progressionmap("sick");
+  inline const uint8_t severe = Progressionmap("severe");
+  inline const uint8_t dead = Progressionmap("dead");
+  }
+
   inline RuntimeEnum Agegrp = {
       {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
         "age80_up"}, // names
@@ -183,7 +182,63 @@ namespace Trait
       {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
       {0,1,2,3},  // valid_nums
       4};   // this should probably be moved into the vaxset struct?
-}
+}  // end namespace Trait
+
+
+struct GeoData {
+    // Column metadata
+    vector<string> column_names = {
+        "fips", "county", "city", "state", "sizecat",
+        "pop", "density", "anchor", "indoor_st", "indoor_end"
+    };
+
+    size_t num_rows = 0;
+
+    // Typed data vectors
+    vector<int> fips;
+    vector<string> county;
+    vector<string> city;
+    vector<string> state;
+    vector<int> sizecat;
+    vector<int> pop;
+    vector<float> density;
+    vector<string> anchor;      // Date stored as string (could parse to date type)
+    vector<string> indoor_st;   // Date stored as string
+    vector<string> indoor_end;  // Date stored as string
+
+    // Helper to get type name for a column
+    std::string get_type(const std::string& col_name) const {
+        if (col_name == "fips" || col_name == "sizecat" ||
+            col_name == "pop") return "int";
+
+        if (col_name == "density") return "float";
+        return "string";
+    }
+
+    void print() {
+      // Header
+      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n",
+                "", "fips", "county", "city", "state",
+                "sizecat", "pop", "density", "anchor");
+
+      // Rows
+      for (size_t i = 0; i < num_rows; ++i) {
+          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n",
+              //  fmt::format("{}:", i),
+              i,
+                fips[i],
+                county[i],
+                city[i],
+                state[i],
+                sizecat[i],
+                pop[i],
+                density[i],
+                anchor[i]);
+      }
+    }    
+};
+
+
 
 struct InfectParams {
   vector<float> sendrisk{};
@@ -194,10 +249,59 @@ struct InfectParams {
 };
 
 
-struct Agetree {  // for 1 variant
-  vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree{};  // would be matrices in Julia--must be vec of vec in c++
+
+struct ProgressionFactors {  // for one variant
+  vector<float> riskadjust {};  // 0 elements, will be 6 elements if used
+  absl::flat_hash_map<string, float>  // vaccine to single float value
+      vaxhalflifeadjust {}; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
 
   void print() const {
+    fmt::println("  Progression Factors:");
+
+    if (riskadjust.empty()) {
+      fmt::println("    riskadjust: <empty>");
+    } else {
+      fmt::print("    riskadjust: [");
+      for (size_t i = 0; i < riskadjust.size(); ++i) {
+        if (i > 0) fmt::print(", ");
+        fmt::print("{:.2f}", riskadjust[i]);
+      }
+      fmt::println("]");
+    }
+
+    if (vaxhalflifeadjust.empty()) {
+      fmt::println("    vaxhalflifeadjust: <empty>");
+    } else {
+      fmt::println("    vaxhalflifeadjust:");
+      // Sort keys for consistent output
+      vector<string> vax_names;
+      for (const auto& [vax, _] : vaxhalflifeadjust) {
+        vax_names.push_back(vax);
+      }
+      std::sort(vax_names.begin(), vax_names.end());
+
+      for (const auto& vax : vax_names) {
+        fmt::println("      {}: {:.2f}", vax, vaxhalflifeadjust.at(vax));
+      }
+    }
+  }
+};
+
+using Agetree = vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>>;
+
+struct Progression { // for one variant
+  vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree {};
+  // Agetree tree {};  // index by variant index, string = variant name
+  ProgressionFactors factors {};
+
+  void print(const string& variant_name) const {
+    fmt::println("\nVariant: {}", variant_name);
+    factors.print();
+    fmt::println("  Progression Tree:");
+    tree_print();
+  }
+
+    void tree_print() const {
     if (tree.empty()) {
       fmt::println("    Tree: <empty>");
       return;
@@ -238,60 +342,11 @@ struct Agetree {  // for 1 variant
       }
     }
   }
-};
 
-
-struct ProgressionFactors {  // for one variant
-  vector<float> riskadjust {};  // 0 elements, will be 6 elements if used
-  absl::flat_hash_map<string, float>  // vaccine to single float value
-      vaxhalflifeadjust {}; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
-
-  void print() const {
-    fmt::println("  Progression Factors:");
-
-    if (riskadjust.empty()) {
-      fmt::println("    riskadjust: <empty>");
-    } else {
-      fmt::print("    riskadjust: [");
-      for (size_t i = 0; i < riskadjust.size(); ++i) {
-        if (i > 0) fmt::print(", ");
-        fmt::print("{:.2f}", riskadjust[i]);
-      }
-      fmt::println("]");
-    }
-
-    if (vaxhalflifeadjust.empty()) {
-      fmt::println("    vaxhalflifeadjust: <empty>");
-    } else {
-      fmt::println("    vaxhalflifeadjust:");
-      // Sort keys for consistent output
-      vector<string> vax_names;
-      for (const auto& [vax, _] : vaxhalflifeadjust) {
-        vax_names.push_back(vax);
-      }
-      std::sort(vax_names.begin(), vax_names.end());
-
-      for (const auto& vax : vax_names) {
-        fmt::println("      {}: {:.2f}", vax, vaxhalflifeadjust.at(vax));
-      }
-    }
-  }
-};
-
-struct Progression {     // for one variant
-  Agetree tree {};  // index by variant index, string = variant name
-  ProgressionFactors factors {};
-
-  void print(const string& variant_name) const {
-    fmt::println("\nVariant: {}", variant_name);
-    factors.print();
-    fmt::println("  Progression Tree:");
-    tree.print();
-  }
 };
 
 struct ProgressionSet {  // collection of all variants
-  vector<Progression> progression{}; // index by variant uint8_t
+  vector<Progression> progression{}; // index by variant using values of type uint8_t
 
   void print(const RuntimeEnum& variants) const {
     fmt::println("\n=== ProgressionSet ===");

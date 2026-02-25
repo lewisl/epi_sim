@@ -95,9 +95,16 @@ touchfactors (6x5):
 
 
 === ProgressionSet ===
-Total variants: 6
+Total variants: 7
 
 Variant: none
+  Progression Factors:
+    riskadjust: <empty>
+    vaxhalflifeadjust: <empty>
+  Progression Tree:
+    Tree: <empty>
+
+Variant: base
   Progression Factors:
     riskadjust: <empty>
     vaxhalflifeadjust:
@@ -236,7 +243,7 @@ Variant: none
         sick: [0.68, 0.00, 0.00, 0.00, 0.00, 0.32]
         severe: [0.68, 0.00, 0.00, 0.00, 0.00, 0.32]
 
-Variant: base
+Variant: alpha
   Progression Factors:
     riskadjust: [1.00, 1.00, 1.00, 1.10, 1.10, 1.10]
     vaxhalflifeadjust:
@@ -246,7 +253,7 @@ Variant: base
   Progression Tree:
     Tree: <empty>
 
-Variant: alpha
+Variant: delta
   Progression Factors:
     riskadjust: [1.00, 1.00, 1.00, 1.10, 1.10, 1.10]
     vaxhalflifeadjust:
@@ -256,7 +263,7 @@ Variant: alpha
   Progression Tree:
     Tree: <empty>
 
-Variant: delta
+Variant: omicron_ba1
   Progression Factors:
     riskadjust: [1.10, 1.05, 1.05, 0.90, 0.70, 0.60]
     vaxhalflifeadjust:
@@ -266,7 +273,7 @@ Variant: delta
   Progression Tree:
     Tree: <empty>
 
-Variant: omicron_ba1
+Variant: omicron_ba2
   Progression Factors:
     riskadjust: [1.10, 1.05, 1.05, 0.90, 0.50, 0.60]
     vaxhalflifeadjust:
@@ -276,7 +283,7 @@ Variant: omicron_ba1
   Progression Tree:
     Tree: <empty>
 
-Variant: omicron_ba2
+Variant: omicron_ba4_5
   Progression Factors:
     riskadjust: [1.10, 1.05, 1.05, 0.90, 0.50, 0.60]
     vaxhalflifeadjust:

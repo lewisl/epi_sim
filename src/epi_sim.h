@@ -1,10 +1,18 @@
-// TODO items:
-// Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
-    // only matters if we model viral load and if contact affects progression to more severe condition
-// history series
-// indoor seq
-// use density factor
-// move apportion debug into testing from apportion method of PopData
+/* TODO items:
+Build out derived progression trees at setup or on the fly?   has to be at setup TODO
+Simplify RuntimeEnum class to include constructor with map literal as input-> generates
+        valid_nums, and names
+Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
+    only matters if we model viral load and if contact affects progression to more severe condition
+history series
+indoor seq
+use density factor
+*/
+
+/* commit items
+add dummy 0th entry to ProgressionSet so that "base" is item 1
+simplify agetree by eliminating spurious struct container
+*/
 
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 

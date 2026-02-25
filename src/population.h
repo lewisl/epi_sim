@@ -15,7 +15,7 @@ using std::vector;
 
 // control constants
 const vector<double> AGE_DIST = {0.251, 0.271, 0.255, 0.184, 0.039};
-const auto DURATIONLIM { 25 };   // maximum length of illness in days for anyone
+const uint8_t DURATIONLIM { 25 };   // maximum length of illness in days for anyone
 const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 
 

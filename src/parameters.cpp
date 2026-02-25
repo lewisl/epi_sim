@@ -141,7 +141,11 @@ std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata) {
   // json jdata = load_json_params(fpath);
   ProgressionSet progressionset{};
 
-  for (const auto &[variant, body] : jdata.items()) {  // variant loop
+    // add empty dummy for entry 0, not used
+    progressionset.progression.emplace_back(Agetree{}, ProgressionFactors{} );
+
+  for (const auto &[variant, body] : jdata.items()) { // variant loop
+
     ProgressionFactors factors{};
 
     auto jsontree = body["progression_tree"];
@@ -165,9 +169,10 @@ std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata) {
         one_age_map[std::stoi(duration)] = tmpvec;
       };
       age_vec.push_back(one_age_map);
-    };
+    }; // age loop
+    
     Progression pg {
-      .tree = Agetree{age_vec},
+      .tree = age_vec,
       .factors = factors
       };
 
