@@ -119,8 +119,9 @@ inline int categorical_uniform(int k) {
     return std::uniform_int_distribution{0, k - 1}(get_gen());
 }
 
-template<typename ReturnType = int, typename FloatType = double>
-inline ReturnType categorical_fast(const std::vector<FloatType>& probs) {
+template<typename ReturnType = int, typename Container>
+inline ReturnType categorical_fast(const Container& probs) {
+    using FloatType = typename Container::value_type;
     FloatType sum = FloatType{0};
     for (auto p : probs) sum += p;
     const FloatType tol = std::sqrt(std::numeric_limits<FloatType>::epsilon());

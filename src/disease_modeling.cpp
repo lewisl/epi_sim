@@ -114,9 +114,10 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
     // binomial probability of the contact getting infected from the contact with this spreader
     float risk =
         infectrisk(infectparams, spr_variant, pop.duration[spreader],
-                   pop.agegrp[contact], recovfactor, 1.0); 
+                   pop.agegrp[contact], recovfactor, 1.0);
 
-    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1
+    // multiplicative factor for debugging TODO
+    return xo::bernoulli(risk * 0.84f) == 1;  // return a bool, not 0 or 1
 }
 
 

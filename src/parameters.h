@@ -618,7 +618,7 @@ struct ModelParams {
   RuntimeEnum variants;
   vector<InfectParams> infectparams;
   ProgressionSet progressionset;
-  vector<float> trvec;
+  array<float, 6> trvec;
 
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
@@ -644,10 +644,10 @@ GeoData load_geodata_csv(const std::string& filename);
 std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata);
 
 
-std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata);
+std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
 
 
-std::tuple<vector<InfectParams>, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath);
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, RuntimeEnum> load_infect_params(string fpath);
 
 
 std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants);

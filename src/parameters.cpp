@@ -137,7 +137,7 @@ if no tree apply riskadjust and vaxhalflifeadjust to base
 
 
 
-std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata) {
+std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
   // json jdata = load_json_params(fpath);
   ProgressionSet progressionset{};
 
@@ -181,12 +181,12 @@ std::tuple<ProgressionSet, vector<float>> load_progression_set(json jdata) {
   } // variant loop
 
   // pre-allocate small vector for performance in progression kernel function
-  vector<float> trvec = vector<float>(6, 0.0f); 
+  array<float, 6> trvec {}; 
   
   return {progressionset, trvec};
 }
 
-std::tuple<vector<InfectParams>, ProgressionSet, vector<float>, RuntimeEnum> load_infect_params(string fpath) {
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, RuntimeEnum> load_infect_params(string fpath) {
   // use one big json file for multiple output structs, etc.
   json jdata = load_json_params(fpath);
 
