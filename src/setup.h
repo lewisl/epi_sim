@@ -4,18 +4,27 @@
 
 #include "parameters.h"
 #include "population.h"
+namespace fs = std::filesystem;
+
+using series_type = absl::flat_hash_map<string, vector<float>>;
 
 struct Model {
   int ndays{};
   absl::CivilDay day1{};
+  vector<absl::CivilDay> caldays;
+  series_type series;
+  vector<float> indoor_seq;
   int locale{};
   bool dovax{};
   ModelParams mp{};
   PopData pop;
-  // later add historyseq, history_columns
 };
 
-namespace fs = std::filesystem;
+
+series_type build_series(int n_days, absl::CivilDay day1,
+                         vector<string> series_colnames); 
+
+vector < absl::CivilDay >build_caldays(int n_days, absl::CivilDay day1);
 
 ModelParams setup_model_params(bool dovax, string geo_path,
                                string variants_path, string social_path,

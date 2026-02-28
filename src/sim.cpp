@@ -37,14 +37,23 @@ void runsim(Model& model)
 
   // create SeedCases
   vector<SeedFilter> sf {
-    {Trait::Age::age20_39, Trait::Cond::nil, 5, model.mp.variants("base"), 3},
-    {Trait::Age::age40_59, Trait::Cond::nil, 5, model.mp.variants("base"), 3}};
+    {Trait::Age::age20_39, Trait::Cond::nil, 1, model.mp.variants("base"), 3},
+    {Trait::Age::age40_59, Trait::Cond::nil, 1, model.mp.variants("base"), 3}};
   SeedCase sc1(1, true, sf, pop);
 
   auto seeded = sc1();
 
   // create useful pre-allocated vectors
   vector<size_t> contacts(250);
+
+  // access density factor for current locale
+  auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
+  if (locale_pos == mp.geodata.fips.end()) {
+    throw std::runtime_error("Invalid locale input: " + std::to_string(model.locale) + ". Must match a locale from geodata.");
+  }
+  auto locale_idx = locale_pos - mp.geodata.fips.begin();
+
+  float density_factor = mp.geodata.density[locale_idx];
 
   // std::cout << "Seeded " << seeded.size() << " people: ";
   // for (auto p : seeded) {
@@ -75,10 +84,11 @@ void runsim(Model& model)
       if (variant_count == 0) continue;  // Skip if no variant assigned
       auto spr_variant = pop.get_variant(p);    // variant_count is 1-based, array is 0-based
       auto sendrisk = mp.infectparams[static_cast<size_t>(spr_variant)].sendrisk[spr_duration];
-      if (sendrisk > 0.0) spread(pop, p, mp.socialdata, mp.infectparams, contacts);
+      if (sendrisk > 0.0)
+        spread(pop, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
 
       // progression kernel  before trvec mp.infectparams,
-      progression(pop, p, mp.progressionset, 
+      progression(pop, p, mp.progressionset, mp.infectparams,
                   mp.trvec);
 
     }  // end person loop

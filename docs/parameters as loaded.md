@@ -19,22 +19,22 @@ Total counts: 95627 popz: 95627 popn: 95626
 agegrp tmp size: 95627 popz: 95627
 Initialized values, at index 0:  at index 1:  at index popn: 
 New values, at index 0: unknown at index 1: age0_19 at index popn: age80_up
-    fips    county            city              state   sizecat   pop       density   anchor      
- 0: 6075    San Francisco     San Francisco     CA      2         881549    1.04      2020-02-01  
- 1: 53033   Seattle           Seattle           WA      2         2252782   0.932     2020-02-01  
- 2: 36061   New York          New York          NY      1         8336817   1.25      2020-02-01  
- 3: 39035   Cuyahoga          Cleveland         OH      2         1235072   0.912     2020-02-01  
- 4: 48113   Dallas            Dallas            TX      2         2635516   0.921     2020-02-01  
- 5: 39151   Stark             Canton            OH      3         370606    0.9       2020-02-01  
- 6: 34013   Essex             Newark            NJ      3         798975    0.943     2020-02-01  
- 7: 13089   DeKalb            Atlanta           GA      2         1063937   0.909     2020-02-01  
- 8: 17167   Sangamon          Springfield       IL      3         194672    0.901     2020-02-01  
- 9: 38015   Burleigh          Bismarck          ND      3         95626     0.904     2020-02-01  
-10: 4013    Maricopa          Phoenix           AZ      1         4485414   0.91      2020-03-01  
-11: 42003   Allegheny         Pittsburgh        PA      2         1216045   0.934     2020-02-01  
-12: 27053   Hennepin          Minneapolis       MN      2         1265843   0.956     2020-02-01  
-13: 31055   Douglas           Omaha             NE      2         571327    0.915     2020-02-01  
-14: 8031    Denver            Denver            CO      2         727211    0.926     2020-02-01  
+    fips    county            city              state   sizecat   pop       density   anchor      indoor_st   indoor_end  
+ 0: 6075    San Francisco     San Francisco     CA      2         881549    1.04      2020-02-01  0001-09-15  0002-05-30  
+ 1: 53033   Seattle           Seattle           WA      2         2252782   0.932     2020-02-01  0001-09-15  0002-05-30  
+ 2: 36061   New York          New York          NY      1         8336817   1.25      2020-02-01  0001-09-15  0002-05-30  
+ 3: 39035   Cuyahoga          Cleveland         OH      2         1235072   0.912     2020-02-01  0001-09-15  0002-05-30  
+ 4: 48113   Dallas            Dallas            TX      2         2635516   0.921     2020-02-01  0001-09-15  0002-05-30  
+ 5: 39151   Stark             Canton            OH      3         370606    0.9       2020-02-01  0001-09-15  0002-05-30  
+ 6: 34013   Essex             Newark            NJ      3         798975    0.943     2020-02-01  0001-09-15  0002-05-30  
+ 7: 13089   DeKalb            Atlanta           GA      2         1063937   0.909     2020-02-01  0001-09-15  0002-05-30  
+ 8: 17167   Sangamon          Springfield       IL      3         194672    0.901     2020-02-01  0001-09-15  0002-05-30  
+ 9: 38015   Burleigh          Bismarck          ND      3         95626     0.904     2020-02-01  0001-09-15  0002-05-30  
+10: 4013    Maricopa          Phoenix           AZ      1         4485414   0.91      2020-03-01  0001-09-15  0002-05-30  
+11: 42003   Allegheny         Pittsburgh        PA      2         1216045   0.934     2020-02-01  0001-09-15  0002-05-30  
+12: 27053   Hennepin          Minneapolis       MN      2         1265843   0.956     2020-02-01  0001-09-15  0002-05-30  
+13: 31055   Douglas           Omaha             NE      2         571327    0.915     2020-02-01  0001-09-15  0002-05-30  
+14: 8031    Denver            Denver            CO      2         727211    0.926     2020-02-01  0001-09-15  0002-05-30  
 
  0: none    
  1: base    

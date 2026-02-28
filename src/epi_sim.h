@@ -5,8 +5,7 @@ Simplify RuntimeEnum class to include constructor with map literal as input-> ge
 Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
     only matters if we model viral load and if contact affects progression to more severe condition
 history series
-indoor seq
-use density factor
+indoor seq and indoor_factor
 */
 
 /* commit items

@@ -5,6 +5,7 @@
 #include "sim.h"
 #include "progression.h"
 #include "random.h"
+#include "disease_modeling.h"
 
 /*
     progression(PopData &pop, size_t p, ProgressionSet &progset, vaxset, vector<float> probvec)
@@ -12,9 +13,9 @@
 People who have become infected progress through conditions from
 nil (asymptomatic) to mild to sick to severe, depending on their
 agegroup, days of being exposed, and some probability. Finally,  
-they move to recovered or dead.
+they move to recovered or dead. Note: p is the contacted person.
 */      // before probvec InfectParams &infpar, 
-void progression(PopData &pop, size_t p, ProgressionSet &progset,
+void progression(PopData &pop, size_t p, ProgressionSet &progset, vector<InfectParams> infectparams,
                  array<float, 6> &probvec,
                  bool dovax, VaxSet vaxset) {
   auto today = sim::get_day();
@@ -27,29 +28,35 @@ void progression(PopData &pop, size_t p, ProgressionSet &progset,
   const auto p_vaxstatus = pop.vaxstatus[p];  // won't update this
   auto p_recovday = pop.get_recovday(p); // will be changed my make_well
   auto p_variant = pop.get_variant(p);
+  // get scope to function level
+  float risk{};
+  float recoveff{};
 
   // just for debugging output
-  fmt::println("");
-  fmt::println("Before cond: {} duration: {} status: {}", p_cond, p_duration, p_status);
+  // fmt::println("");
+  // fmt::println("Before cond: {} duration: {} status: {}", p_cond, p_duration, p_status);
 
   auto &probtree = progset.progression[p_variant].tree;
 
   if (probtree.at(p_agegrp - 1).contains(p_duration)) {
     const auto& src = probtree[p_agegrp - 1][p_duration][p_cond - 1];  // compile time pointer
     std::copy(src.begin(), src.end(), probvec.begin());  // make a copy so we can alter this person's probs
-    float recoveff = (p_status == Trait::Stat::recovered) ? 1.0f    :   1.0f;  // more to do here...
+
+    recoveff = recoveffect(pop, today, p, p_variant, infectparams);                            
+                                                    
     float vaxeff = 1.0f; // more to do!
 
-    auto risk = riskfactor(recoveff, vaxeff);
+    risk = riskfactor(recoveff, vaxeff);
     redistribute_probability(probvec, risk, p_duration);
     do_progression(pop, p, probvec);
     
-  } else {
+  } else {   // not at a break point; no pr array applies
     ++p_duration;
   };
 
   // just for debugging output
-  fmt::println("After  cond: {} duration: {} status: {}", p_cond, p_duration, p_status);
+  if (recoveff < 1.0f && recoveff > 0.0f)
+    fmt::println("After  cond: {} duration: {} status: {} recoveff: {}", p_cond, p_duration, p_status, recoveff);
 
 
 }

@@ -52,28 +52,35 @@ Returns the number of contacts that someone spreading the disease will make on a
 method uses the spreadcase applicable to the current spreader but with contactfactors set by
 a spreadcase.
 */
-int how_many_contacts(float gammashape, uint8_t spr_agegrp,
+int how_many_contacts(float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
                      uint8_t spr_cond, const array<array<float, 5>, 4>& contactfactors) {
-  // TODO density_factor, indoor_factor
-  auto scale = contactfactors[idx(spr_cond)][idx(spr_agegrp)];
+  auto scale = density_factor * indoor_factor * contactfactors[idx(spr_cond) - 1][idx(spr_agegrp) - 1];
   return xo::gamma_int(gammashape, scale, 12);
 }
 
 // Update passed in vector of contacts, which are indices to the population table
-void get_contacts(const PopData &pop, float gammashape, uint8_t spr_agegrp,
+void get_contacts(const PopData &pop, float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
                             uint8_t spr_cond, const array<array<float, 5>, 4> &contactfactors, vector<size_t> &contacts) {
-  auto num_contacts = how_many_contacts(gammashape, spr_agegrp, spr_cond, contactfactors);
+  auto num_contacts = how_many_contacts(density_factor, indoor_factor, gammashape, spr_agegrp, spr_cond, contactfactors);
   xo::get_n_draws<size_t>(1, pop.popz, num_contacts, contacts);
 }
 
-bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors) { // TODO add indoor_factor
+bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
   // logic copies Julia code but is wrong. only works because of touchfactors input values  TODO:  fix
   uint8_t contact_status = pop.status[contact];
   float touchprob{0.0};
   if ((contact_status == Trait::Stat::unexposed) || (contact_status == Trait::Stat::recovered)) {
-    touchprob = touchfactors[idx(contact_status)][idx(pop.agegrp[contact])];
+    if (indoor_factor == 1.0f) {
+      touchprob = touchfactors[idx(contact_status)][idx(pop.agegrp[contact]) - 1];
+    } else {
+      touchprob = std::clamp(
+          touchfactors[idx(contact_status)][idx(pop.agegrp[contact]) - 1] *
+              indoor_factor,
+          0.0f, 0.97f);
+      }
+    return xo::bernoulli(touchprob) == 1;
   }
-  return xo::bernoulli(touchprob);
+  return false;
 }
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
@@ -82,7 +89,7 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
     auto sendrisk = infectparams[spr_variant].sendrisk[spr_duration];
 
     // contact person characteristics
-    auto recvrisk = infectparams[spr_variant].recvrisk[contact_agegrp];
+    auto recvrisk = infectparams[spr_variant].recvrisk[contact_agegrp - 1];
 
     // vax_recov is meant to be a function for separation of concerns, but it is just minimum for now
     auto vax_recov = std::min(vaxfactor, recovfactor);
@@ -116,13 +123,14 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
         infectrisk(infectparams, spr_variant, pop.duration[spreader],
                    pop.agegrp[contact], recovfactor, 1.0);
 
-    // multiplicative factor for debugging TODO
-    return xo::bernoulli(risk * 0.84f) == 1;  // return a bool, not 0 or 1
+    // multiplicative factor for debugging TODO: had used 0.84f before implementing density_factor
+    return xo::bernoulli(risk * 0.935f) == 1;  // return a bool, not 0 or 1
 }
 
 
 /*
-    recoveffect(recovday, contact_varient, spr_variant, infectset)
+    recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t 
+      vector<InfectParams> &infectparams, float csig=6.0, float decay_lower=0.15)
 
 Immunity from recovery for a single person.
 defaults: csig = 6.0, decay_lower = 0.15
@@ -130,29 +138,29 @@ defaults: csig = 6.0, decay_lower = 0.15
 float recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t spr_variant,
                   vector<InfectParams> &infectparams, float csig, float decay_lower) {
 
-    float factor = 1.0f; 
+    float factor = 1.0f; // return value
 
     if (pop.status[contact] == Trait::Stat::recovered) {
         size_t recovday = pop.get_recovday(contact);
         size_t days_post_recov = thisday - recovday;
 
-        uint8_t contact_variant = pop.get_variant(contact);
-
         if (days_post_recov >= 0) {
+            uint8_t contact_variant = pop.get_variant(contact);
+
             // get the max immunity for the variant that target recovered from against the variant of the spreader
             float immstrength = infectparams[contact_variant].recovery_immunity[spr_variant];
 
             // get the declined value
             float immhalflife = infectparams[contact_variant].immunehalflife;
 
-            float immdecline = lindecay(days_post_recov, immhalflife, decay_lower);
+            // float immdecline = lindecay(days_post_recov, immhalflife, decay_lower);
             float decay = sigdecay(days_post_recov, immhalflife, csig, decay_lower);
             float rise = effect_rise(days_post_recov);
             float time_mod = rise * decay;
 
             factor = 1.0f - (time_mod * immstrength);
         }
-  }
+    }
   return factor;
 }
 

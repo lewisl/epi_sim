@@ -50,6 +50,68 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   };
 }
 
+series_type build_series(int n_days, absl::CivilDay day1,
+                         vector<string> series_colnames) {
+
+  // series container
+  series_type series {};
+  /*
+  TODO build it here
+  */
+  return series;
+};
+
+vector <absl::CivilDay> build_caldays(int n_days, absl::CivilDay day1) {
+  // vector of all calendar dates in the simulation
+  vector<absl::CivilDay> caldays{};
+  for (auto d = day1; d < day1 + n_days; ++d) {
+    caldays.push_back(d);
+  }
+  return caldays;
+}
+
+vector<float> build_indoor_seq(int ndays, int locale, GeoData geodata,
+                               vector<absl::CivilDay> caldays, float indoor_lift) {
+
+  vector<float> indoor_seq(ndays, 1.0f);
+
+  // access density factor for current locale
+  auto locale_pos = find(geodata.fips.begin(), geodata.fips.end(), locale);
+  if (locale_pos == geodata.fips.end()) {
+    throw std::runtime_error("Invalid locale input: " + std::to_string(locale) + ". Must match a locale from geodata.");
+  }
+  auto locale_idx = locale_pos - geodata.fips.begin();
+
+  absl::CivilDay indoor_st = parse_date(geodata.indoor_st[locale_idx]);
+  absl::CivilDay indoor_end = parse_date(geodata.indoor_end[locale_idx]);
+  int year_end = indoor_end.year();
+  int year_st = indoor_st.year();
+
+  if (year_end == year_st) {
+    for (auto i = 0; i < indoor_seq.size(); ++i) {
+      absl::CivilDay testdate(year_end, caldays[i].month(), caldays[i].day());
+      if (testdate >= indoor_st && testdate <= indoor_end) {
+        indoor_seq[i] *= indoor_lift;
+      }
+    }
+
+  } else if (year_end > year_st) {
+
+    for (auto i = 0; i < indoor_seq.size(); ++i) {
+        auto set_year = (caldays[i].month() >= indoor_st.month()) ? year_st : year_end;
+        absl::CivilDay testdate(set_year, caldays[i].month(), caldays[i].day());
+        if (testdate >= indoor_st && testdate <= indoor_end) {
+            indoor_seq[i] *= indoor_lift;
+        }
+      }
+    } else {
+    throw std::runtime_error("Invalid indoor start and end input for locale: " + std::to_string(locale) + ".");
+  }
+
+  return indoor_seq;
+}
+
+// clang-format off
 Model setup_sim(int ndays, int locale,  // require inputs
     string date,   // all the rest have defaults...
     bool dovax,
@@ -87,9 +149,20 @@ Model setup_sim(int ndays, int locale,  // require inputs
                 Trait::Justint);
     auto day1 = parse_date(date);
 
+    series_type series = build_series(ndays, day1, std::vector<std::string>{});
+    vector<absl::CivilDay> caldays = build_caldays(ndays, day1);
+
+    vector<float> indoor_seq = build_indoor_seq(ndays, locale, mp.geodata, caldays, mp.socialdata.indoor_uplift);
+
     return Model {
-      .ndays = ndays, .day1 = day1, .locale = locale, .dovax = dovax,
+      .ndays = ndays, 
+      .day1 = day1, 
+      .caldays = caldays, 
+      .series = series,
+      .indoor_seq = indoor_seq,
+      .locale = locale,
+      .dovax = dovax,
       .mp = std::move(mp),
       .pop = std::move(pop)};
-    // return {ndays, day1, locale, dovax,  mp, pop};
 }
+// clang-format on

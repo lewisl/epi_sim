@@ -8,6 +8,7 @@
 
 // before probvec  InfectParams &infpar, 
 void progression(PopData &pop, size_t p, ProgressionSet &progset,
+                 vector<InfectParams> infectparams,
                  array<float, 6> &probvec, bool dovax=false, VaxSet vaxset={});
 
 void redistribute_probability(array<float, 6> &probvec, float riskfactor,

@@ -4,8 +4,11 @@
 #include "disease_modeling.h"
 #include "sim.h"
 
-// simplified early version of spread  TODO need vaxset, dovax sdcases
-void spread(PopData &pop, size_t p, SocialParams &social, vector<InfectParams> &infectparams, vector<size_t> &contacts) {
+  // simplified early version of spread  TODO need vaxset, dovax sdcases
+  void spread(PopData &pop, size_t p, SocialParams &social,
+              vector<InfectParams> &infectparams, vector<size_t> &contacts,
+              float density_factor,
+              vector<float> &indoor_seq) {
 
   auto spreader = p;
   auto thisday = sim::get_day();
@@ -14,13 +17,13 @@ void spread(PopData &pop, size_t p, SocialParams &social, vector<InfectParams> &
   const auto& contactfactors = social.contactfactors;
   const auto& touchfactors = social.touchfactors;
   auto gammashape = social.gammashape;
-  // indoor_factor = indoor_seq[thisday];   // TODO
+  auto indoor_factor = indoor_seq[thisday - 1];   // TODO
 
   // which contacts does the infected person have? use pre-allocated buffer contacts
-  get_contacts(pop, gammashape, pop.agegrp[spreader], pop.cond[spreader], contactfactors, contacts);
+  get_contacts(pop, density_factor, indoor_factor, gammashape, pop.agegrp[spreader], pop.cond[spreader], contactfactors, contacts);
 
   for (auto c : contacts) {
-    if (istouched(pop, c, touchfactors)) {
+    if (istouched(pop, c, touchfactors, indoor_factor)) {
       if (isinfected(pop, c, spreader, infectparams, thisday)) {  // TODO need vaxset, dovax
         pop.make_sick(c, pop.variant[spreader][pop.variant_count[spreader] - 1]);
       }

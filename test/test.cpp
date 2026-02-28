@@ -194,7 +194,8 @@ void test_age_distribution(const PopData& pop) {
     fmt::println("\n=== Age Distribution Test Completed ===");
 }
 
-ModelParams test_model_params(ModelParams mp) {
+void test_model_params(ModelParams mp, Model model) {
+  fmt::println("==================== Model Parameters ==================");
   mp.geodata.print();
   fmt::print("\n");
   mp.variants.print();
@@ -202,6 +203,7 @@ ModelParams test_model_params(ModelParams mp) {
   print_infectparams(mp.infectparams, mp.variants);
   fmt::print("\n");
   mp.socialdata.print();
+  fmt::print("\n");
   fmt::print("\n");
   mp.progressionset.print(mp.variants);
   fmt::print("\n");
@@ -214,7 +216,19 @@ ModelParams test_model_params(ModelParams mp) {
   mp.vaxsched.print();
   fmt::print("\n");
 
-  return mp;
+  fmt::println("==================== Simulation Parameters ==================");
+  fmt::println(" first day of sim: {} -- last day of sim: {}\n\n",
+              absl::FormatCivilTime(model.caldays.front()),
+              absl::FormatCivilTime(model.caldays.back()));
+  fmt::println("==================== indoor_seq ==================");
+  int item_ctr{0};
+  for (auto factor : model.indoor_seq) {
+    fmt::print("{:5}", factor);
+    ++item_ctr;
+    if (item_ctr % 15 == 0) fmt::println("\n");
+  }
+  fmt::println("\n");
+
 }
 
 void test_popdata_size(Model model) {
@@ -609,11 +623,12 @@ int main() {
   // run_category_tests();
 
   // Test model params
-  // Model model = setup_sim(1000, 38015, "2020-01-01", true);
-  // test_model_params(model.mp);
+  // Model model = setup_sim(180, 38015, "2020-02-01", true);
+  // test_model_params(model.mp, model);
+
+
 
   // Test spread function n days simulation
   sim_test(180);
 
-  return 0;
 }

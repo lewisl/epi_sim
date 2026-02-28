@@ -45,7 +45,8 @@ struct RuntimeEnum {
       }
   }
 
-    // String → Index (linear search - fast for small N)
+  // String → Index (linear search - fast for small N)
+  //    example: Status("none")->returns 0   Status("unexposed")->returns 1
   uint8_t operator()(const string& name) const {
       auto it = std::find(names.begin(), names.end(), name);
       return (it != names.end()) ? std::distance(names.begin(), it) : 99;
@@ -217,13 +218,13 @@ struct GeoData {
 
     void print() {
       // Header
-      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}\n",
+      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}{:<12}{:<12}\n",
                 "", "fips", "county", "city", "state",
-                "sizecat", "pop", "density", "anchor");
+                "sizecat", "pop", "density", "anchor", "indoor_st", "indoor_end");
 
       // Rows
       for (size_t i = 0; i < num_rows; ++i) {
-          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}\n",
+          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}{:<12}{:<12}\n",
               //  fmt::format("{}:", i),
               i,
                 fips[i],
@@ -233,7 +234,9 @@ struct GeoData {
                 sizecat[i],
                 pop[i],
                 density[i],
-                anchor[i]);
+                anchor[i],
+                indoor_st[i],
+                indoor_end[i]);
       }
     }    
 };

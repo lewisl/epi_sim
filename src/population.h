@@ -22,7 +22,7 @@ const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 class PopData {
   public:
     std::size_t popn; // actual population size
-    std::size_t popz; // array sizing for 1 indexing all vectors
+    std::size_t popz; // popn+1: array sizing for 1 indexing all vectors
 
   // vectors of pseudo enums as uint8_t or
   // vectors of vector for repeating count happening to a person
