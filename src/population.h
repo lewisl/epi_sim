@@ -26,9 +26,9 @@ class PopData {
 
   // vectors of pseudo enums as uint8_t or
   // vectors of vector for repeating count happening to a person
-  vector<uint8_t> status; // default unexposed = 1
-  vector<uint8_t> agegrp;
-  vector<uint8_t> cond;
+  vector<Status> status; // default unexposed = 1
+  vector<Agegrp> agegrp;
+  vector<Condition> cond;
   vector<uint8_t> duration;
   vector<array<uint8_t, 16>> variant; 
   vector<std::uint8_t> variant_count;
@@ -51,9 +51,6 @@ class PopData {
 
   // domains of valid values for columns
       // what is the stub to use for int valued columns that print as ints?
-  RuntimeEnum cond_lbl;
-  RuntimeEnum status_lbl;
-  RuntimeEnum agegrp_lbl;
   RuntimeEnum variant_lbl;
   RuntimeEnum vax_lbl;
   RuntimeEnum vaxstatus_lbl;
@@ -65,18 +62,17 @@ class PopData {
 
   // constructor
       // clang-format off
-  PopData(size_t n, RuntimeEnum status_lbl, RuntimeEnum agegrp_lbl, RuntimeEnum cond_lbl,
-          RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
+  PopData(size_t n, RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
           RuntimeEnum true_false, RuntimeEnum Justint,
           const vector<double>& age_dist=AGE_DIST)
-      : popn(n), popz(n+1),status(n+1, 1), 
+      : popn(n), popz(n+1),status(n+1, Stat::Unexposed),
         agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
-        cond(n+1, 0), duration(n+1, 0),
+        cond(n+1, Cond::Uninfected), duration(n+1, 0),
         variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
         recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
         sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
         vaxstatus(n+1, 0), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
-        status_lbl (status_lbl), agegrp_lbl(agegrp_lbl), cond_lbl(cond_lbl), variant_lbl(variant_lbl),
+        variant_lbl(variant_lbl),
         vax_lbl(vax_lbl), vaxstatus_lbl(vaxstatus_lbl), true_false(true_false), Justint(Justint)
         // clang-format on
       {
@@ -115,9 +111,9 @@ class PopData {
     void apply_to_columns(const vector<Column> &cols, Action &&action) {
       for (auto col : cols) {
         switch (col) {
-        case Column::status:          action(status, status_lbl);        break;
-        case Column::agegrp:          action(agegrp, agegrp_lbl);        break;
-        case Column::cond:            action(cond, cond_lbl);            break;
+        case Column::status:          action(status);                    break;
+        case Column::agegrp:          action(agegrp);                    break;
+        case Column::cond:            action(cond);                      break;
         case Column::duration:        action(duration, Justint);         break;
         case Column::variant:         action(variant, variant_lbl);      break;
         case Column::variant_count:   action(variant_count, Justint);    break;
@@ -163,6 +159,13 @@ class PopData {
       void operator()(const std::vector<array<int16_t, 16>> &vec, RuntimeEnum label) {
         fmt::print("   {}...    | ", label.to_str(vec[current_row][0]));
       }
+
+      // TraitType overload: uses built-in .name() — no RuntimeEnum label needed
+      template<typename T>
+        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string_view>; }
+      void operator()(const vector<T>& vec) const {
+        fmt::print("   {}\t|", vec[current_row].name());
+      }
     };
 
     void print_table(const vector<size_t> &rows, const vector<Column> &cols) {
@@ -174,33 +177,23 @@ class PopData {
       }
     }
 
-    vector<uint8_t> age_distribution(int popz, const auto &age_parts) {
-      assert(age_parts.size() == Trait::Agegrp.size() - 1); // ignore the "unknown" value
+    vector<Agegrp> age_distribution(int popn, const auto &age_parts) {
+      assert(age_parts.size() == 5);
 
       // Convert proportions to counts using apportion
       vector<float> proportions(age_parts.begin(), age_parts.end());
-      vector<int> counts = apportion(popz, proportions);
+      vector<int> counts = apportion(popn, proportions);  // distribute popn people
 
-      // std::cout << "Total counts: " <<  std::accumulate(counts.begin(), counts.end(), 0) << " popz: " << popz << " popn: " << popn << "\n";
-
-
-      vector<uint8_t> agegrp(popz, 0);
-
-      // std::cout << "agegrp tmp size: " << agegrp.size() << " popz: " << popz << "\n";
-
-      // std::cout << "Initialized values, at index 0: " << agegrp[0] << " at index 1: " << agegrp[1] << " at index popn: " 
-      //      << agegrp[popn] << "\n";
+      // +1 for 1-based indexing: index 0 stays Age::Unknown (unused)
+      vector<Agegrp> agegrp(popn + 1, Age::Unknown);
 
       int start_idx{1};
-      uint8_t agegrp_num {Trait::Agegrp.valid_nums[0]};  // index 0 will retrieve the first agegrp
-      
-      for (int num_of_age : counts) {
-        fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, agegrp_num);
+      size_t age_idx = 0;
+      for (auto this_age : {Age::Age0_19, Age::Age20_39, Age::Age40_59, Age::Age60_79, Age::Age80_up}) {
+        int num_of_age = counts[age_idx++];  // pair each age with its own count (not nested)
+        fill(agegrp.begin() + start_idx, agegrp.begin() + start_idx + num_of_age, this_age);
         start_idx += num_of_age;
-        ++agegrp_num;
       }
-        // std::cout << "New values, at index 0: " << Trait::Agegrp.to_str(agegrp[0]) << " at index 1: " << Trait::Agegrp.to_str(agegrp[1]) << " at index popn: " 
-        //    << Trait::Agegrp.to_str(agegrp[popn]) << "\n";
 
       return agegrp;
     }
@@ -248,7 +241,7 @@ class PopData {
 
     // some complex getters and setters that modify multiple vectors at the same index
     // make_sick definition is in disease_modeling.cpp
-    void make_sick(size_t p, uint8_t var, uint8_t condition = Trait::Cond::nil,
+    void make_sick(size_t p, uint8_t var, Condition condition = Cond::Nil,
                    uint8_t durationdays = 0);
     
     // how to return if person p is not sick?  does it matter: we might want to know the last variant experienced if any

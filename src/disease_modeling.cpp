@@ -8,10 +8,10 @@
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::make_sick(size_t p, uint8_t var, uint8_t condition, uint8_t durationdays) {
+void PopData::make_sick(size_t p, uint8_t var, Condition condition, uint8_t durationdays) {
   cond[p] = condition;
   duration[p] = durationdays;
-  status[p] = Trait::Stat::infectious;
+  status[p] = Stat::Infectious;
   if (variant_count[p] < 16) {
     variant[p][variant_count[p]] = var;
     sickday[p][variant_count[p]] = sim::get_day();
@@ -31,8 +31,8 @@ void PopData::make_sick(size_t p, uint8_t var, uint8_t condition, uint8_t durati
 // make_well: make one person better->recovered and uninfected
 // declaration is in population.h
 void PopData::make_well(size_t p) {
-  cond[p] = Trait::Cond::uninfected;
-  status[p] = Trait::Stat::recovered;
+  cond[p] = Cond::Uninfected;
+  status[p] = Stat::Recovered;
   duration[p] = 0;
   if (recovday_count[p] < 16) {
     recovday[p][recovday_count[p]] = sim::get_day();
@@ -69,7 +69,7 @@ bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 
   // logic copies Julia code but is wrong. only works because of touchfactors input values  TODO:  fix
   uint8_t contact_status = pop.status[contact];
   float touchprob{0.0};
-  if ((contact_status == Trait::Stat::unexposed) || (contact_status == Trait::Stat::recovered)) {
+  if ((contact_status == Stat::Unexposed) || (contact_status == Stat::Recovered)) {
     if (indoor_factor == 1.0f) {
       touchprob = touchfactors[idx(contact_status)][idx(pop.agegrp[contact]) - 1];
     } else {
@@ -140,7 +140,7 @@ float recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t sp
 
     float factor = 1.0f; // return value
 
-    if (pop.status[contact] == Trait::Stat::recovered) {
+    if (pop.status[contact] == Stat::Recovered) {
         size_t recovday = pop.get_recovday(contact);
         size_t days_post_recov = thisday - recovday;
 

@@ -67,17 +67,17 @@ vaccination, recovery from prior infection and the variant of the patient.
 */
 void redistribute_probability(array<float, 6> &probvec, float riskfactor, uint8_t duration) {
     float tot_excess = 0.0f;
-    for (auto to_idx : {Trait::Progressmap::sick, Trait::Progressmap::severe, Trait::Progressmap::dead}) {
+    for (auto to_idx : {Progressmap::ToSick, Progressmap::ToSevere, Progressmap::ToDead}) {
         float excess = probvec[to_idx] * (1.0f - riskfactor);
         probvec[to_idx] -= excess;
         tot_excess += excess;
     }
 
     if (duration == DURATIONLIM) {
-        probvec[Trait::Progressmap::recovered] += tot_excess;
+        probvec[Progressmap::ToRecover] += tot_excess;
     } else {
         tot_excess /= 3.0f;
-        for (auto to_idx : {Trait::Progressmap::recovered, Trait::Progressmap::nil, Trait::Progressmap::mild}) {
+        for (auto to_idx : {Progressmap::ToRecover, Progressmap::ToNil, Progressmap::ToMild}) {
             probvec[to_idx] += tot_excess;
         }
     }
@@ -94,13 +94,13 @@ void do_progression(PopData &pop, size_t p, const array<float,6> &probvec) {
 
   uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
 
-  if (outcome == Trait::Progressmap::dead) {  // for outcome == 5
+  if (outcome == Progressmap::ToDead) {  // for outcome == 5
     pop.deadday[p] = sim::get_day();
-    pop.status[p] = Trait::Stat::dead;   // todo will we need to set cond to uninfected for any other logic?
-  } else if (outcome == Trait::Progressmap::recovered) {     // for outcome == 0
+    pop.status[p] = Stat::Dead;   // todo will we need to set cond to uninfected for any other logic?
+  } else if (outcome == Progressmap::ToRecover) {     // for outcome == 0
     pop.make_well(p);
   } else {
-    pop.cond[p] = outcome;  // turns out this works because conds are 1..4 in Progressmap
+    pop.cond[p] = static_cast<Condition>(outcome);  // turns out this works because conds are 1..4 in Progressmap
     ++pop.duration[p];
   }
 }

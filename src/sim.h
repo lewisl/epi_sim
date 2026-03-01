@@ -24,8 +24,8 @@ namespace sim {
 }
 
 struct SeedFilter {
-  uint8_t agegrp;     //filter criterion
-  uint8_t condition;  // update value
+  Agegrp agegrp;     //filter criterion
+  Condition condition;  // update value
   uint8_t duration;   // update value
   uint8_t variant;    // update value
   int8_t count;       // number of people to update

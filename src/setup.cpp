@@ -144,8 +144,7 @@ Model setup_sim(int ndays, int locale,  // require inputs
     auto locale_idx = locale_pos - mp.geodata.fips.begin();
     int popn = mp.geodata.pop[locale_idx];
 
-    PopData pop(popn, Trait::Status, Trait::Agegrp, Trait::Condition,
-                mp.variants, mp.vaxlist, Trait::Vaxstatus, Trait::true_false,
+    PopData pop(popn, mp.variants, mp.vaxlist, Trait::Vaxstatus, Trait::true_false,
                 Trait::Justint);
     auto day1 = parse_date(date);
 

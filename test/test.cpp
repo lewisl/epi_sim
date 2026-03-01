@@ -21,79 +21,79 @@ void run_category_tests() {
     // Test Status namespace
     fmt::println("--- Testing Status Namespace ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Status::none = {} (expected 0)", static_cast<int>(Trait::Status("none")));
-    fmt::println("  Trait::Status::unexposed = {} (expected 1)", static_cast<int>(Trait::Status("unexposed")));
-    fmt::println("  Status::infectious = {} (expected 2)", static_cast<int>(Trait::Status("infectious")));
-    fmt::println("  Status::recovered = {} (expected 3)", static_cast<int>(Trait::Status("recovered")));
-    fmt::println("  Status::dead = {} (expected 4)", static_cast<int>(Trait::Status("dead")));
+    fmt::println("  Status::none = {} (expected 0)", static_cast<int>(Stat::None));
+    fmt::println("  Status::unexposed = {} (expected 1)", static_cast<int>(Stat::Unexposed));
+    fmt::println("  Status::infectious = {} (expected 2)", static_cast<int>(Stat::Infectious));
+    fmt::println("  Status::recovered = {} (expected 3)", static_cast<int>(Stat::Recovered));
+    fmt::println("  Status::dead = {} (expected 4)", static_cast<int>(Stat::Dead));
     fmt::print("\nRound-trip tests:\n");
-    fmt::println("  Status::to_str(0) = \"{}\" (expected \"none\")", Trait::Status.to_str(0));
-    fmt::println("  Trait::Status::to_str(1) = \"{}\" (expected \"unexposed\")", Trait::Status.to_str(1));
-    fmt::println("  Status::to_str(2) = \"{}\" (expected \"infectious\")", Trait::Status.to_str(2));
-    fmt::println("  Status::to_str(3) = \"{}\" (expected \"recovered\")", Trait::Status.to_str(3));
-    fmt::println("  Status::to_str(4) = \"{}\" (expected \"dead\")", Trait::Status.to_str(4));
-    fmt::println("  Status::from_str(\"unexposed\") = {} (expected 1)", static_cast<int>(Trait::Status("unexposed")));
-    fmt::println("  Status::from_str(\"infectious\") = {} (expected 2)", static_cast<int>(Trait::Status("infectious")));
-    fmt::println("  Status::from_str(\"recovered\") = {} (expected 3)", static_cast<int>(Trait::Status("recovered")));
-    fmt::println("  Status::from_str(\"dead\") = {} (expected 4)", static_cast<int>(Trait::Status("dead")));
+    fmt::println("  Status::to_str(0) = \"{}\" (expected \"none\")", Status::names[0]);
+    fmt::println("  Status::to_str(1) = \"{}\" (expected \"unexposed\")", Status::names[1]);
+    fmt::println("  Status::to_str(2) = \"{}\" (expected \"infectious\")", Status::names[2]);
+    fmt::println("  Status::to_str(3) = \"{}\" (expected \"recovered\")", Status::names[3]);
+    fmt::println("  Status::to_str(4) = \"{}\" (expected \"dead\")", Status::names[4]);
+    fmt::println("  Status::from_str(\"unexposed\") = {} (expected 1)", static_cast<int>(Stat::Unexposed));
+    fmt::println("  Status::from_str(\"infectious\") = {} (expected 2)", static_cast<int>(Stat::Infectious));
+    fmt::println("  Status::from_str(\"recovered\") = {} (expected 3)", static_cast<int>(Stat::Recovered));
+    fmt::println("  Status::from_str(\"dead\") = {} (expected 4)", static_cast<int>(Stat::Dead));
     fmt::println("  Status::from_str(\"invalid\") = {} (expected 99 - default to none)",
-                 static_cast<int>(Trait::Status("invalid")));
+                 static_cast<int>(Stat::None));
     fmt::print("\n");
 
     // Test Condition namespace
     fmt::println("--- Testing Condition Namespace ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Condition::uninfected = {} (expected 0)", static_cast<int>(Trait::Condition("uninfected")));
-    fmt::println("  Condition::nil = {} (expected 1)", static_cast<int>(Trait::Condition("nil")));
-    fmt::println("  Condition::mild = {} (expected 2)", static_cast<int>(Trait::Condition("mild")));
-    fmt::println("  Condition::sick = {} (expected 3)", static_cast<int>(Trait::Condition("sick")));
-    fmt::println("  Condition::severe = {} (expected 4)", static_cast<int>(Trait::Condition("severe")));
+    fmt::println("  Condition::uninfected = {} (expected 0)", static_cast<int>(Cond::Uninfected));
+    fmt::println("  Condition::nil = {} (expected 1)", static_cast<int>(Cond::Nil));
+    fmt::println("  Condition::mild = {} (expected 2)", static_cast<int>(Cond::Mild));
+    fmt::println("  Condition::sick = {} (expected 3)", static_cast<int>(Cond::Sick));
+    fmt::println("  Condition::severe = {} (expected 4)", static_cast<int>(Cond::Severe));
     fmt::print("\nRound-trip tests:\n");
-    fmt::println("  Condition::to_str(0) = \"{}\" (expected \"uninfected\")", Trait::Condition.to_str(0));
-    fmt::println("  Condition::to_str(1) = \"{}\" (expected \"nil\")", Trait::Condition.to_str(1));
-    fmt::println("  Condition::to_str(2) = \"{}\" (expected \"mild\")", Trait::Condition.to_str(2));
-    fmt::println("  Condition::to_str(3) = \"{}\" (expected \"sick\")", Trait::Condition.to_str(3));
-    fmt::println("  Condition::to_str(4) = \"{}\" (expected \"severe\")", Trait::Condition.to_str(4));
-    fmt::println("  Condition::from_str(\"uninfected\") = {} (expected 0)", static_cast<int>(Trait::Condition("uninfected")));
-    fmt::println("  Condition::from_str(\"nil\") = {} (expected 1)", static_cast<int>(Trait::Condition("nil")));
-    fmt::println("  Condition::from_str(\"mild\") = {} (expected 2)", static_cast<int>(Trait::Condition("mild")));
-    fmt::println("  Condition::from_str(\"sick\") = {} (expected 3)", static_cast<int>(Trait::Condition("sick")));
-    fmt::println("  Condition::from_str(\"severe\") = {} (expected 4)", static_cast<int>(Trait::Condition("severe")));
+    fmt::println("  Condition::to_str(0) = \"{}\" (expected \"uninfected\")", Condition::names[0]);
+    fmt::println("  Condition::to_str(1) = \"{}\" (expected \"nil\")", Condition::names[1]);
+    fmt::println("  Condition::to_str(2) = \"{}\" (expected \"mild\")", Condition::names[2]);
+    fmt::println("  Condition::to_str(3) = \"{}\" (expected \"sick\")", Condition::names[3]);
+    fmt::println("  Condition::to_str(4) = \"{}\" (expected \"severe\")", Condition::names[4]);
+    fmt::println("  Condition::from_str(\"uninfected\") = {} (expected 0)", static_cast<int>(Cond::Uninfected));
+    fmt::println("  Condition::from_str(\"nil\") = {} (expected 1)", static_cast<int>(Cond::Nil));
+    fmt::println("  Condition::from_str(\"mild\") = {} (expected 2)", static_cast<int>(Cond::Mild));
+    fmt::println("  Condition::from_str(\"sick\") = {} (expected 3)", static_cast<int>(Cond::Sick));
+    fmt::println("  Condition::from_str(\"severe\") = {} (expected 4)", static_cast<int>(Cond::Severe));
     fmt::println("  Condition::from_str(\"invalid\") = {} (expected 99 - default to uninfected)",
-                 static_cast<int>(Trait::Condition("invalid")));
-    fmt::println("{} expected \"uninfected\"", Trait::Condition.to_str(0));
+                 static_cast<int>(Cond::Uninfected));
+    fmt::println("{} expected \"uninfected\"", Condition::names[0]);
 
     fmt::print("\n");
 
     // Test Agegrp namespace
     fmt::println("--- Testing Agegrp Namespace ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Agegrp::unknown = {} (expected 0)", static_cast<int>(Trait::Agegrp("unknown")));
-    fmt::println("  Agegrp::age0_19 = {} (expected 1)", static_cast<int>(Trait::Agegrp("age0_19")));
-    fmt::println("  Agegrp::age20_39 = {} (expected 2)", static_cast<int>(Trait::Agegrp("age20_39")));
-    fmt::println("  Agegrp::age40_59 = {} (expected 3)", static_cast<int>(Trait::Agegrp("age40_59")));
-    fmt::println("  Agegrp::age60_79 = {} (expected 4)", static_cast<int>(Trait::Agegrp("age60_79")));
-    fmt::println("  Agegrp::age80_up = {} (expected 5)", static_cast<int>(Trait::Agegrp("age80_up")));
+    fmt::println("  Agegrp::unknown = {} (expected 0)", static_cast<int>(Age::Unknown));
+    fmt::println("  Agegrp::age0_19 = {} (expected 1)", static_cast<int>(Age::Age0_19));
+    fmt::println("  Agegrp::age20_39 = {} (expected 2)", static_cast<int>(Age::Age20_39));
+    fmt::println("  Agegrp::age40_59 = {} (expected 3)", static_cast<int>(Age::Age40_59));
+    fmt::println("  Agegrp::age60_79 = {} (expected 4)", static_cast<int>(Age::Age60_79));
+    fmt::println("  Agegrp::age80_up = {} (expected 5)", static_cast<int>(Age::Age80_up));
     fmt::print("\nRound-trip tests:\n");
-    fmt::println("  Agegrp::to_str(0) = \"{}\" (expected \"unknown\")", Trait::Agegrp.to_str(0));
-    fmt::println("  Agegrp::to_str(1) = \"{}\" (expected \"age0_19\")", Trait::Agegrp.to_str(1));
-    fmt::println("  Agegrp::to_str(2) = \"{}\" (expected \"age20_39\")", Trait::Agegrp.to_str(2));
-    fmt::println("  Agegrp::to_str(3) = \"{}\" (expected \"age40_59\")", Trait::Agegrp.to_str(3));
-    fmt::println("  Agegrp::to_str(4) = \"{}\" (expected \"age60_79\")", Trait::Agegrp.to_str(4));
-    fmt::println("  Agegrp::to_str(5) = \"{}\" (expected \"age80_up\")", Trait::Agegrp.to_str(5));
-    fmt::println("  Agegrp::from_str(\"age0_19\") = {} (expected 1)", static_cast<int>(Trait::Agegrp("age0_19")));
-    fmt::println("  Agegrp::from_str(\"age20_39\") = {} (expected 2)", static_cast<int>(Trait::Agegrp("age20_39")));
-    fmt::println("  Agegrp::from_str(\"age40_59\") = {} (expected 3)", static_cast<int>(Trait::Agegrp("age40_59")));
-    fmt::println("  Agegrp::from_str(\"age60_79\") = {} (expected 4)", static_cast<int>(Trait::Agegrp("age60_79")));
-    fmt::println("  Agegrp::from_str(\"age80_up\") = {} (expected 5)", static_cast<int>(Trait::Agegrp("age80_up")));
-    fmt::println("  Agegrp::from_str(\"invalid\") = {} (expected 99 - default to unknown)", static_cast<int>(Trait::Agegrp("invalid")));
+    fmt::println("  Agegrp::to_str(0) = \"{}\" (expected \"unknown\")", Agegrp::names[0]);
+    fmt::println("  Agegrp::to_str(1) = \"{}\" (expected \"age0_19\")", Agegrp::names[1]);
+    fmt::println("  Agegrp::to_str(2) = \"{}\" (expected \"age20_39\")", Agegrp::names[2]);
+    fmt::println("  Agegrp::to_str(3) = \"{}\" (expected \"age40_59\")", Agegrp::names[3]);
+    fmt::println("  Agegrp::to_str(4) = \"{}\" (expected \"age60_79\")", Agegrp::names[4]);
+    fmt::println("  Agegrp::to_str(5) = \"{}\" (expected \"age80_up\")", Agegrp::names[5]);
+    fmt::println("  Agegrp::from_str(\"age0_19\") = {} (expected 1)", static_cast<int>(Age::Age0_19));
+    fmt::println("  Agegrp::from_str(\"age20_39\") = {} (expected 2)", static_cast<int>(Age::Age20_39));
+    fmt::println("  Agegrp::from_str(\"age40_59\") = {} (expected 3)", static_cast<int>(Age::Age40_59));
+    fmt::println("  Agegrp::from_str(\"age60_79\") = {} (expected 4)", static_cast<int>(Age::Age60_79));
+    fmt::println("  Agegrp::from_str(\"age80_up\") = {} (expected 5)", static_cast<int>(Age::Age80_up));
+    fmt::println("  Agegrp::from_str(\"invalid\") = {} (expected 99 - default to unknown)", static_cast<int>(Age::Unknown));
     fmt::print("\n");
 
     // Test boundary conditions
     fmt::println("--- Testing Boundary Conditions ---");
-    fmt::println("  Status::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Trait::Status.to_str(99));
-    fmt::println("  Condition::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Trait::Condition.to_str(99));
-    fmt::println("  Agegrp::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Trait::Agegrp.to_str(99));
+    fmt::println("  Status::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Status::names[99]);
+    fmt::println("  Condition::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Condition::names[99]);
+    fmt::println("  Agegrp::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Agegrp::names[99]);
     // fmt::println("  Vaccine::to_str(99) = \"{}\" (expected \"unknown\" - out of range)", Vaccine::to_str(99));
     fmt::print("\n");
 
@@ -181,7 +181,7 @@ void test_age_distribution(const PopData& pop) {
         double diff = actual_pct - expected_pct;
 
         fmt::println("{:<15} | {:>5} | {:>8.2f}% | {:>10.2f}% | {:>+6.2f}%",
-                     pop.agegrp_lbl.to_str(i), age_counts[i], actual_pct, expected_pct, diff);
+                     Agegrp::names[i], age_counts[i], actual_pct, expected_pct, diff);
     }
 
     fmt::println("\nNote: Small differences are expected due to rounding when distributing");
@@ -234,7 +234,7 @@ void test_model_params(ModelParams mp, Model model) {
 void test_popdata_size(Model model) {
   fmt::println("Vector sizing: {} popz {}", model.pop.status.size(), model.pop.popz);
   fmt::println("Index to actual population size: {}",
-               Trait::Agegrp.to_str(model.pop.agegrp[model.pop.popn]));
+               Agegrp::names[model.pop.agegrp[model.pop.popn]]);
 }
 
 void test_multiple_infections() {
@@ -251,10 +251,10 @@ void test_multiple_infections() {
   size_t person_age60_79 = 0;
 
   for (size_t i = 1; i <= pop.popn; ++i) {
-    if (person_age20_39 == 0 && pop.agegrp[i] == Trait::Age::age20_39) {
+    if (person_age20_39 == 0 && pop.agegrp[i] == Age::Age20_39) {
       person_age20_39 = i;
     }
-    if (person_age60_79 == 0 && pop.agegrp[i] == Trait::Age::age60_79) {
+    if (person_age60_79 == 0 && pop.agegrp[i] == Age::Age60_79) {
       person_age60_79 = i;
     }
     if (person_age20_39 != 0 && person_age60_79 != 0) {
@@ -269,12 +269,12 @@ void test_multiple_infections() {
 
   fmt::println("Testing with:");
   fmt::println("  Person {} (age group: {}) - will be infected 10 times",
-               person_age20_39, Trait::Agegrp.to_str(pop.agegrp[person_age20_39]));
+               person_age20_39, Agegrp::names[pop.agegrp[person_age20_39]]);
   fmt::println("  Person {} (age group: {}) - will be infected 17 times\n",
-               person_age60_79, Trait::Agegrp.to_str(pop.agegrp[person_age60_79]));
+               person_age60_79, Agegrp::names[pop.agegrp[person_age60_79]]);
 
   uint8_t base_variant = variants("base");
-  uint8_t condition = Trait::Cond::nil;
+  Condition condition = Cond::Nil;
   uint8_t duration = 5;
 
   // Reset sim day to 1
@@ -333,7 +333,7 @@ void test_seedcase_multiple_infections() {
   RuntimeEnum& variants = test_model.mp.variants;
 
   uint8_t base_variant = variants("base");
-  uint8_t condition = Trait::Cond::nil;
+  Condition condition = Cond::Nil;
   uint8_t duration = 5;
 
   // Create SeedCases:
@@ -345,14 +345,14 @@ void test_seedcase_multiple_infections() {
   // Create 10 seed cases for age20_39 (one person each time)
   for (int i = 0; i < 10; ++i) {
     int trigger_day = 1 + (i * 20);
-    std::vector<SeedFilter> filters{{Trait::Age::age20_39, condition, 0, base_variant, 1}};
+    std::vector<SeedFilter> filters{{Age::Age20_39, condition, 0, base_variant, 1}};
     seed_cases.emplace_back(trigger_day, true, filters, pop);
   }
 
   // Create 17 seed cases for age60_79 (one person each time)
   for (int i = 0; i < 17; ++i) {
     int trigger_day = 1 + (i * 20);
-    std::vector<SeedFilter> filters{{Trait::Age::age60_79, condition, 0, base_variant, 1}};
+    std::vector<SeedFilter> filters{{Age::Age60_79, condition, 0, base_variant, 1}};
     seed_cases.emplace_back(trigger_day, true, filters, pop);
   }
 
@@ -377,11 +377,11 @@ void test_seedcase_multiple_infections() {
         // Track which persons were seeded
         if (!seeded.empty()) {
           size_t person = seeded[0];
-          if (pop.agegrp[person] == Trait::Age::age20_39) {
+          if (pop.agegrp[person] == Age::Age20_39) {
             person_age20_39 = person;
             fmt::println("  Day {}: Infected person {} (age20_39), variant_count now: {}",
                          day, person, static_cast<int>(pop.variant_count[person]));
-          } else if (pop.agegrp[person] == Trait::Age::age60_79) {
+          } else if (pop.agegrp[person] == Age::Age60_79) {
             person_age60_79 = person;
             fmt::println("  Day {}: Infected person {} (age60_79), variant_count now: {}",
                          day, person, static_cast<int>(pop.variant_count[person]));
@@ -602,10 +602,10 @@ void sim_test(size_t ndays=180) {
                                [](int x) { return x > 1; });
     fmt::println("Count of people who got sick 2 or more times: {}", count);
 
-    count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::recovered);
+    count = std::count(model.pop.status.begin(), model.pop.status.end(), Stat::Recovered);
     fmt::println("Count of everyone who recovered:              {}", count);
 
-    count = std::count(model.pop.status.begin(), model.pop.status.end(), Trait::Stat::dead);
+    count = std::count(model.pop.status.begin(), model.pop.status.end(), Stat::Dead);
     fmt::println("Count of everyone who died:                   {}", count);
 
 
@@ -620,15 +620,16 @@ int main() {
   // test_random_functions();
 
   // tests
-  // run_category_tests();
+  run_category_tests();
 
   // Test model params
   // Model model = setup_sim(180, 38015, "2020-02-01", true);
   // test_model_params(model.mp, model);
 
-
+  // test age distribution
+  // test_age_distribution(setup_sim(1000, 38015, "2020-01-01", false).pop);
 
   // Test spread function n days simulation
-  sim_test(180);
+  // sim_test(180);
 
 }

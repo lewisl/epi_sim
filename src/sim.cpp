@@ -37,8 +37,8 @@ void runsim(Model& model)
 
   // create SeedCases
   vector<SeedFilter> sf {
-    {Trait::Age::age20_39, Trait::Cond::nil, 1, model.mp.variants("base"), 3},
-    {Trait::Age::age40_59, Trait::Cond::nil, 1, model.mp.variants("base"), 3}};
+    {Age::Age20_39, Cond::Uninfected, 1, model.mp.variants("base"), 3},
+    {Age::Age40_59, Cond::Uninfected, 1, model.mp.variants("base"), 3}};
   SeedCase sc1(1, true, sf, pop);
 
   auto seeded = sc1();
@@ -74,7 +74,7 @@ void runsim(Model& model)
     // Loop through all people and process infectious ones (no vector allocation needed)
     int infectious_count = 0;
     for (size_t p = 1; p <= pop.popn; ++p) {
-      if (pop.status[p] != Trait::Stat::infectious) continue;
+      if (pop.status[p] != Stat::Infectious) continue;
 
       infectious_count++;
 

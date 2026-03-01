@@ -4,11 +4,14 @@
 
 #include "helpers.h"    // for shifter
 
-// using json = nlohmann::json;
+// using json = nlohmann::json; // for not ordered mapping
 using json = nlohmann::ordered_json;
 using std::array;
 using std::string;
 using std::vector;
+
+
+
 
 struct RuntimeEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
@@ -81,102 +84,90 @@ namespace Trait
 
   inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
 
-  inline RuntimeEnum Condition = {
-      {"uninfected", "nil", "mild", "sick", "severe"}, // names
-      {{"uninfected", 0},
-       {"nil", 1},
-       {"mild", 2},
-       {"sick", 3},
-       {"severe", 4}}, // lookup
-      {0, 1, 2, 3, 4}, // valid_nums
-      5};
+  // inline RuntimeEnum Condition = {
+  //     {"uninfected", "nil", "mild", "sick", "severe"}, // names
+  //     {{"uninfected", 0},
+  //      {"nil", 1},
+  //      {"mild", 2},
+  //      {"sick", 3},
+  //      {"severe", 4}}, // lookup
+  //     {0, 1, 2, 3, 4}, // valid_nums
+  //     5};
 
-  // onetime calculation to create inline constants that refer to the values by name
-    namespace Cond {
-    inline const uint8_t uninfected = Condition("uninfected");  // Computed once at startup
-    inline const uint8_t nil = Condition("nil");
-    inline const uint8_t mild = Condition("mild");
-    inline const uint8_t sick = Condition("sick");
-    inline const uint8_t severe = Condition("severe");
-  }
+  // // onetime calculation to create inline constants that refer to the values by name
+  //   namespace Cond {
+  //   inline const uint8_t uninfected = Condition("uninfected");  // Computed once at startup
+  //   inline const uint8_t nil = Condition("nil");
+  //   inline const uint8_t mild = Condition("mild");
+  //   inline const uint8_t sick = Condition("sick");
+  //   inline const uint8_t severe = Condition("severe");
+  // }
 
-  inline RuntimeEnum Status = {
-      {"none", "unexposed", "infectious", "recovered", "dead"}, // names
-      {{"none", 0},
-       {"unexposed", 1},
-       {"infectious", 2},
-       {"recovered", 3},
-       {"dead", 4}}, // lookup
-      {1, 2, 3, 4},  // valid_nums
-      5};
+  // inline RuntimeEnum Status = {
+  //     {"none", "unexposed", "infectious", "recovered", "dead"}, // names
+  //     {{"none", 0},
+  //      {"unexposed", 1},
+  //      {"infectious", 2},
+  //      {"recovered", 3},
+  //      {"dead", 4}}, // lookup
+  //     {1, 2, 3, 4},  // valid_nums
+  //     5};
 
-  // constants for Status
-    namespace Stat {
-    inline const uint8_t none = Status("none");
-    inline const uint8_t unexposed = Status("unexposed");
-    inline const uint8_t infectious = Status("infectious");
-    inline const uint8_t recovered = Status("recovered");
-    inline const uint8_t dead = Status("dead");
-  }
+  // // constants for Status
+  //   namespace Stat {
+  //   inline const uint8_t none = Status("none");
+  //   inline const uint8_t unexposed = Status("unexposed");
+  //   inline const uint8_t infectious = Status("infectious");
+  //   inline const uint8_t recovered = Status("recovered");
+  //   inline const uint8_t dead = Status("dead");
+  // }
 
   /*
   During progression, people progress to recover, any of the disease conditions, or dead. 
   This mixes states from 2 different enums in a different order. This special enum
   provides that mapping in the right order captures in the probvec in function progression.
   */
-  inline RuntimeEnum Progressionmap(
-      {{"recovered", 0},
-       {"nil",       1},
-       {"mild",      2},
-       {"sick",      3},
-       {"severe",    4},
-       {"dead",      5}}
-  );
+  // inline RuntimeEnum Progressionmap(
+  //     {{"recovered", 0},
+  //      {"nil",       1},
+  //      {"mild",      2},
+  //      {"sick",      3},
+  //      {"severe",    4},
+  //      {"dead",      5}}
+  // );
 
-      // = {
-      // // names
-      // {"recovered", "nil", "mild", "sick", "severe", "dead"},
-      // // lookup
-      // {{"recovered", 0},
-      //  {"nil", 1},
-      //  {"mild", 2},
-      //  {"sick", 3},
-      //  {"severe", 4},
-      //  {"dead", 5}},
-      // // valid_nums
-      // {0,1,2,3,4,5}, 6};
 
-  // constants for Progression
-  namespace Progressmap {
-  inline const uint8_t recovered = Progressionmap("recovered");
-  inline const uint8_t nil = Progressionmap("nil");
-  inline const uint8_t mild = Progressionmap("mild");
-  inline const uint8_t sick = Progressionmap("sick");
-  inline const uint8_t severe = Progressionmap("severe");
-  inline const uint8_t dead = Progressionmap("dead");
-  }
+  // // constants for Progression
+  // namespace Progressmap {
+  // inline const uint8_t recovered = Progressionmap("recovered");
+  // inline const uint8_t nil = Progressionmap("nil");
+  // inline const uint8_t mild = Progressionmap("mild");
+  // inline const uint8_t sick = Progressionmap("sick");
+  // inline const uint8_t severe = Progressionmap("severe");
+  // inline const uint8_t dead = Progressionmap("dead");
+  // }
 
-  inline RuntimeEnum Agegrp = {
-      {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
-        "age80_up"}, // names
-      {{"unknown", 0},
-          {"age0_19", 1},
-          {"age20_39", 2},
-          {"age40_59", 3},
-          {"age60_79", 4},
-          {"age80_up", 5}}, // lookup
-      {1,2,3,4,5},  // valid_nums
-      6};
+  // inline RuntimeEnum Agegrp = {
+  //     {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
+  //       "age80_up"}, // names
+  //     {{"unknown", 0},
+  //         {"age0_19", 1},
+  //         {"age20_39", 2},
+  //         {"age40_59", 3},
+  //         {"age60_79", 4},
+  //         {"age80_up", 5}}, // lookup
+  //     {1,2,3,4,5},  // valid_nums
+  //     6};
       
-  // constants for Agegrp
-    namespace Age {
-    inline const uint8_t unknown = Agegrp("unknown");
-    inline const uint8_t age0_19 = Agegrp("age0_19");
-    inline const uint8_t age20_39 = Agegrp("age20_39");
-    inline const uint8_t age40_59 = Agegrp("age40_59");
-    inline const uint8_t age60_79 = Agegrp("age60_79");
-    inline const uint8_t age80_up = Agegrp("age80_up");
-  }
+  // // constants for Agegrp
+  //   namespace Age {
+  //   inline const uint8_t unknown = Agegrp("unknown");
+  //   inline const uint8_t age0_19 = Agegrp("age0_19");
+  //   inline const uint8_t age20_39 = Agegrp("age20_39");
+  //   inline const uint8_t age40_59 = Agegrp("age40_59");
+  //   inline const uint8_t age60_79 = Agegrp("age60_79");
+  //   inline const uint8_t age80_up = Agegrp("age80_up");
+  // }
 
   inline RuntimeEnum Vaxstatus = {
       {"none", "first", "full", "booster"},
@@ -184,6 +175,128 @@ namespace Trait
       {0,1,2,3},  // valid_nums
       4};   // this should probably be moved into the vaxset struct?
 }  // end namespace Trait
+
+
+
+//
+// Compile time classes for traits with values that can't be changed
+//
+/*
+use as:
+
+Status person_status = Stat::Unexposed;
+person_status = Stat::Infectious;    // fine
+person_status = Stat::Recovered;   // fine
+
+*/
+
+// Agegrp
+struct Agegrp {
+  uint8_t v{};
+
+  static constexpr std::array<std::string_view, 6> names{
+      "Unknown", "Age0_19", "Age20_39", "Age40_59", "Age60_79", "Age80_Up"};
+
+  std::string_view name() const noexcept { return names[v]; }
+    
+  constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Agegrp &) const = default;
+};
+
+namespace Age {
+  inline const Agegrp Unknown{0};
+  inline const Agegrp Age0_19{1};
+  inline const Agegrp Age20_39{2};
+  inline const Agegrp Age40_59{3};
+  inline const Agegrp Age60_79{4};
+  inline const Agegrp Age80_up{5};
+}
+
+// Status
+struct Status {
+  uint8_t v{};
+
+  // takes up no space in an instance of Status
+  static constexpr std::array<std::string_view, 5> names{
+      "None", "Unexposed", "Infectious", "Recovered", "Dead"};
+
+  std::string_view name() const noexcept { return names[v]; }
+    
+  constexpr explicit Status(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Status &) const = default;
+};
+
+namespace Stat {
+  inline const Status None{0};
+  inline const Status Unexposed{1};
+  inline const Status Infectious{2};
+  inline const Status Recovered{3};
+  inline const Status Dead{4};
+  }
+
+// Condition
+struct Condition {
+  uint8_t v{};
+
+  static constexpr std::array<std::string_view, 5> names{
+      "Uninfected", "Nil", "Mild", "Sick", "Severe"};
+
+  std::string_view name() const noexcept { return names[v]; }
+
+  constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Condition &) const = default;
+};
+
+namespace Cond {
+  inline const Condition Uninfected{0};
+  inline const Condition Nil{1};
+  inline const Condition Mild{2};
+  inline const Condition Sick{3};
+  inline const Condition Severe{4};
+}
+
+// Progressionmap
+struct Progressionmap {
+  uint8_t v{};
+
+  static constexpr std::array<std::string_view, 6> names{
+    "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};
+
+  std::string_view name() const noexcept { return names[v]; }
+
+  
+  constexpr explicit Progressionmap(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Progressionmap &) const = default;
+};
+
+namespace Progressmap {
+  inline const Progressionmap ToRecover{0};
+  inline const Progressionmap ToNil{1};
+  inline const Progressionmap ToMild{2};
+  inline const Progressionmap ToSick{3};
+  inline const Progressionmap ToSevere{4};
+  inline const Progressionmap ToDead{5};
+}
+
+
+template<typename T>
+concept TraitType = std::same_as<T, Status> ||
+                   std::same_as<T, Agegrp>  ||
+                   std::same_as<T, Condition> ||
+                   std::same_as<T, Progressionmap>;
+
+template<TraitType T>
+struct fmt::formatter<T> : fmt::formatter<uint8_t> {
+    auto format(const T& val, fmt::format_context& ctx) const {
+        return fmt::formatter<uint8_t>::format(static_cast<uint8_t>(val), ctx);
+    }
+};
+
+
 
 
 struct GeoData {
@@ -312,7 +425,7 @@ struct Progression { // for one variant
 
     for (size_t age_idx = 0; age_idx < tree.size(); ++age_idx) {
       const auto& breakday_map = tree[age_idx];
-      string age_name = Trait::Agegrp.to_str(age_idx + 1);
+      std::string_view age_name = Agegrp::names[age_idx];
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {
@@ -332,8 +445,9 @@ struct Progression { // for one variant
         fmt::println("      Day {}: {} conditions", day, condition_vec.size());
 
         for (size_t cond_idx = 0; cond_idx < condition_vec.size(); ++cond_idx) {
-          const auto& outcome_probs = condition_vec[cond_idx];
-          string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
+          const auto &outcome_probs = condition_vec[cond_idx];
+          std::string_view cond_name = Condition::names[cond_idx + 1];
+          // string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
           for (size_t i = 0; i < outcome_probs.size(); ++i) {
