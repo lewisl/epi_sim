@@ -12,6 +12,172 @@ using std::vector;
 
 
 
+//
+// Compile time classes for traits with values that can't be changed
+//
+/*
+use as:
+
+Status person_status = Stat::Unexposed;
+person_status = Stat::Infectious;    // fine
+person_status = Stat::Recovered;   // fine
+
+*/
+
+// Agegrp
+struct Agegrp {
+  uint8_t v{};
+
+  static constexpr std::array<std::string, 6> names{
+      "Unknown", "Age0_19", "Age20_39", "Age40_59", "Age60_79", "Age80_Up"};
+
+  std::string name() const noexcept { return names[v]; }
+    
+  constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Agegrp &) const = default;
+};
+
+namespace Age {
+  inline const Agegrp Unknown{0};
+  inline const Agegrp Age0_19{1};
+  inline const Agegrp Age20_39{2};
+  inline const Agegrp Age40_59{3};
+  inline const Agegrp Age60_79{4};
+  inline const Agegrp Age80_up{5};
+}
+
+// Status
+struct Status {
+  uint8_t v{};
+
+  // takes up no space in an instance of Status
+  static constexpr std::array<std::string, 5> names{
+      "None", "Unexposed", "Infectious", "Recovered", "Dead"};
+
+  std::string name() const noexcept { return names[v]; }
+    
+  constexpr explicit Status(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Status &) const = default;
+};
+
+namespace Stat {
+  inline const Status None{0};
+  inline const Status Unexposed{1};
+  inline const Status Infectious{2};
+  inline const Status Recovered{3};
+  inline const Status Dead{4};
+  }
+
+// Condition
+struct Condition {
+  uint8_t v{};
+
+  static constexpr std::array<std::string, 5> names{
+      "Uninfected", "Nil", "Mild", "Sick", "Severe"};
+
+  std::string name() const noexcept { return names[v]; }
+
+  constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Condition &) const = default;
+};
+
+namespace Cond {
+  inline const Condition Uninfected{0};
+  inline const Condition Nil{1};
+  inline const Condition Mild{2};
+  inline const Condition Sick{3};
+  inline const Condition Severe{4};
+}
+
+// Progressionmap
+struct Progressionmap {
+  uint8_t v{};
+
+  static constexpr std::array<std::string, 6> names{
+    "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};
+
+  std::string name() const noexcept { return names[v]; }
+
+  
+  constexpr explicit Progressionmap(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Progressionmap &) const = default;
+};
+
+namespace Progressmap {
+  inline const Progressionmap ToRecover{0};
+  inline const Progressionmap ToNil{1};
+  inline const Progressionmap ToMild{2};
+  inline const Progressionmap ToSick{3};
+  inline const Progressionmap ToSevere{4};
+  inline const Progressionmap ToDead{5};
+}
+
+// Vaxstatus -- compile time
+struct Vaxstatus {
+    uint8_t v{};
+
+  static constexpr std::array<std::string, 4> names{
+      "none", "first", "full", "booster"};
+
+  std::string name() const noexcept { return names[v]; }
+    
+  constexpr explicit Vaxstatus(uint8_t v) noexcept : v(v) {}  // constructor
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Vaxstatus &) const = default;
+};
+
+// use as Vaxstat::none, etc.
+namespace Vaxstat {
+  inline const Vaxstatus none{0};
+  inline const Vaxstatus first{1};
+  inline const Vaxstatus full{2};
+  inline const Vaxstatus booster{3};
+} // namespace Vaxstat
+
+//
+// runtime building of trait classes
+//
+
+// Variant -- create instances at runtime
+  // call site creates the names for the instances and the container
+struct Variant {
+    uint8_t v{};
+
+  inline static std::vector<std::string> names;
+
+  std::string name() const noexcept { return names[v]; }
+
+  constexpr Variant() noexcept = default;  // required for array<Variant,16> initialization
+  constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Variant &) const = default;
+};
+
+// print any vector of trait class instances (types with .name() method)
+template<typename T>
+  requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
+void print_trait_vector(const vector<T>& vec) {
+  for (size_t i = 0; i < vec.size(); ++i) {
+    fmt::print("{:>2}: {}\n", i, vec[i].name());
+  }
+}
+
+// enable fmt to format trait classes
+template <typename T>
+concept TraitType = std::same_as<T, Status> || std::same_as<T, Agegrp> ||
+                    std::same_as<T, Condition> ||
+                    std::same_as<T, Progressionmap> ||
+                    std::same_as<T, Vaxstatus>;
+template<TraitType T>
+struct fmt::formatter<T> : fmt::formatter<uint8_t> {
+    auto format(const T& val, fmt::format_context& ctx) const {
+        return fmt::formatter<uint8_t>::format(static_cast<uint8_t>(val), ctx);
+    }
+};
 
 struct RuntimeEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
@@ -74,7 +240,7 @@ struct RuntimeEnum {
       fmt::print("{:>2}: {:<8}\n", i, names[i]);
     }
   }
-};
+};  // struct RuntimeEnum
 
 // "fake" enums created at runtime to hold characteristics of persons in the simulation
 //     in the PopData table
@@ -84,217 +250,17 @@ namespace Trait
 
   inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
 
-  // inline RuntimeEnum Condition = {
-  //     {"uninfected", "nil", "mild", "sick", "severe"}, // names
-  //     {{"uninfected", 0},
-  //      {"nil", 1},
-  //      {"mild", 2},
-  //      {"sick", 3},
-  //      {"severe", 4}}, // lookup
-  //     {0, 1, 2, 3, 4}, // valid_nums
-  //     5};
-
-  // // onetime calculation to create inline constants that refer to the values by name
-  //   namespace Cond {
-  //   inline const uint8_t uninfected = Condition("uninfected");  // Computed once at startup
-  //   inline const uint8_t nil = Condition("nil");
-  //   inline const uint8_t mild = Condition("mild");
-  //   inline const uint8_t sick = Condition("sick");
-  //   inline const uint8_t severe = Condition("severe");
-  // }
-
-  // inline RuntimeEnum Status = {
-  //     {"none", "unexposed", "infectious", "recovered", "dead"}, // names
-  //     {{"none", 0},
-  //      {"unexposed", 1},
-  //      {"infectious", 2},
-  //      {"recovered", 3},
-  //      {"dead", 4}}, // lookup
-  //     {1, 2, 3, 4},  // valid_nums
-  //     5};
-
-  // // constants for Status
-  //   namespace Stat {
-  //   inline const uint8_t none = Status("none");
-  //   inline const uint8_t unexposed = Status("unexposed");
-  //   inline const uint8_t infectious = Status("infectious");
-  //   inline const uint8_t recovered = Status("recovered");
-  //   inline const uint8_t dead = Status("dead");
-  // }
-
-  /*
-  During progression, people progress to recover, any of the disease conditions, or dead. 
-  This mixes states from 2 different enums in a different order. This special enum
-  provides that mapping in the right order captures in the probvec in function progression.
-  */
-  // inline RuntimeEnum Progressionmap(
-  //     {{"recovered", 0},
-  //      {"nil",       1},
-  //      {"mild",      2},
-  //      {"sick",      3},
-  //      {"severe",    4},
-  //      {"dead",      5}}
-  // );
-
-
-  // // constants for Progression
-  // namespace Progressmap {
-  // inline const uint8_t recovered = Progressionmap("recovered");
-  // inline const uint8_t nil = Progressionmap("nil");
-  // inline const uint8_t mild = Progressionmap("mild");
-  // inline const uint8_t sick = Progressionmap("sick");
-  // inline const uint8_t severe = Progressionmap("severe");
-  // inline const uint8_t dead = Progressionmap("dead");
-  // }
-
-  // inline RuntimeEnum Agegrp = {
-  //     {"unknown", "age0_19", "age20_39", "age40_59", "age60_79",
-  //       "age80_up"}, // names
-  //     {{"unknown", 0},
-  //         {"age0_19", 1},
-  //         {"age20_39", 2},
-  //         {"age40_59", 3},
-  //         {"age60_79", 4},
-  //         {"age80_up", 5}}, // lookup
-  //     {1,2,3,4,5},  // valid_nums
-  //     6};
-      
-  // // constants for Agegrp
-  //   namespace Age {
-  //   inline const uint8_t unknown = Agegrp("unknown");
-  //   inline const uint8_t age0_19 = Agegrp("age0_19");
-  //   inline const uint8_t age20_39 = Agegrp("age20_39");
-  //   inline const uint8_t age40_59 = Agegrp("age40_59");
-  //   inline const uint8_t age60_79 = Agegrp("age60_79");
-  //   inline const uint8_t age80_up = Agegrp("age80_up");
-  // }
-
-  inline RuntimeEnum Vaxstatus = {
-      {"none", "first", "full", "booster"},
-      {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
-      {0,1,2,3},  // valid_nums
-      4};   // this should probably be moved into the vaxset struct?
-}  // end namespace Trait
+//   inline RuntimeEnum Vaxstatus = {
+//       {"none", "first", "full", "booster"},
+//       {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
+//       {0,1,2,3},  // valid_nums
+//       4};   // this should probably be moved into the vaxset struct?
+// }  // end namespace Trait
 
 
 
-//
-// Compile time classes for traits with values that can't be changed
-//
-/*
-use as:
 
-Status person_status = Stat::Unexposed;
-person_status = Stat::Infectious;    // fine
-person_status = Stat::Recovered;   // fine
-
-*/
-
-// Agegrp
-struct Agegrp {
-  uint8_t v{};
-
-  static constexpr std::array<std::string_view, 6> names{
-      "Unknown", "Age0_19", "Age20_39", "Age40_59", "Age60_79", "Age80_Up"};
-
-  std::string_view name() const noexcept { return names[v]; }
-    
-  constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
-  constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Agegrp &) const = default;
-};
-
-namespace Age {
-  inline const Agegrp Unknown{0};
-  inline const Agegrp Age0_19{1};
-  inline const Agegrp Age20_39{2};
-  inline const Agegrp Age40_59{3};
-  inline const Agegrp Age60_79{4};
-  inline const Agegrp Age80_up{5};
 }
-
-// Status
-struct Status {
-  uint8_t v{};
-
-  // takes up no space in an instance of Status
-  static constexpr std::array<std::string_view, 5> names{
-      "None", "Unexposed", "Infectious", "Recovered", "Dead"};
-
-  std::string_view name() const noexcept { return names[v]; }
-    
-  constexpr explicit Status(uint8_t v) noexcept : v(v) {}
-  constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Status &) const = default;
-};
-
-namespace Stat {
-  inline const Status None{0};
-  inline const Status Unexposed{1};
-  inline const Status Infectious{2};
-  inline const Status Recovered{3};
-  inline const Status Dead{4};
-  }
-
-// Condition
-struct Condition {
-  uint8_t v{};
-
-  static constexpr std::array<std::string_view, 5> names{
-      "Uninfected", "Nil", "Mild", "Sick", "Severe"};
-
-  std::string_view name() const noexcept { return names[v]; }
-
-  constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
-  constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Condition &) const = default;
-};
-
-namespace Cond {
-  inline const Condition Uninfected{0};
-  inline const Condition Nil{1};
-  inline const Condition Mild{2};
-  inline const Condition Sick{3};
-  inline const Condition Severe{4};
-}
-
-// Progressionmap
-struct Progressionmap {
-  uint8_t v{};
-
-  static constexpr std::array<std::string_view, 6> names{
-    "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};
-
-  std::string_view name() const noexcept { return names[v]; }
-
-  
-  constexpr explicit Progressionmap(uint8_t v) noexcept : v(v) {}
-  constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Progressionmap &) const = default;
-};
-
-namespace Progressmap {
-  inline const Progressionmap ToRecover{0};
-  inline const Progressionmap ToNil{1};
-  inline const Progressionmap ToMild{2};
-  inline const Progressionmap ToSick{3};
-  inline const Progressionmap ToSevere{4};
-  inline const Progressionmap ToDead{5};
-}
-
-
-template<typename T>
-concept TraitType = std::same_as<T, Status> ||
-                   std::same_as<T, Agegrp>  ||
-                   std::same_as<T, Condition> ||
-                   std::same_as<T, Progressionmap>;
-
-template<TraitType T>
-struct fmt::formatter<T> : fmt::formatter<uint8_t> {
-    auto format(const T& val, fmt::format_context& ctx) const {
-        return fmt::formatter<uint8_t>::format(static_cast<uint8_t>(val), ctx);
-    }
-};
 
 
 
@@ -410,7 +376,7 @@ struct Progression { // for one variant
   // Agetree tree {};  // index by variant index, string = variant name
   ProgressionFactors factors {};
 
-  void print(const string& variant_name) const {
+  void print(std::string variant_name) const {
     fmt::println("\nVariant: {}", variant_name);
     factors.print();
     fmt::println("  Progression Tree:");
@@ -425,7 +391,7 @@ struct Progression { // for one variant
 
     for (size_t age_idx = 0; age_idx < tree.size(); ++age_idx) {
       const auto& breakday_map = tree[age_idx];
-      std::string_view age_name = Agegrp::names[age_idx];
+      std::string age_name = Agegrp::names[age_idx];
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {
@@ -446,7 +412,7 @@ struct Progression { // for one variant
 
         for (size_t cond_idx = 0; cond_idx < condition_vec.size(); ++cond_idx) {
           const auto &outcome_probs = condition_vec[cond_idx];
-          std::string_view cond_name = Condition::names[cond_idx + 1];
+          std::string cond_name = Condition::names[cond_idx + 1];
           // string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
 
           fmt::print("        {}: [", cond_name);
@@ -465,12 +431,12 @@ struct Progression { // for one variant
 struct ProgressionSet {  // collection of all variants
   vector<Progression> progression{}; // index by variant using values of type uint8_t
 
-  void print(const RuntimeEnum& variants) const {
+  void print(const vector<Variant>& variants) const {
     fmt::println("\n=== ProgressionSet ===");
     fmt::println("Total variants: {}", progression.size());
 
     for (size_t i = 0; i < progression.size(); ++i) {
-      string variant_name = (i < variants.names.size()) ? variants.names[i] : fmt::format("variant_{}", i);
+      std::string variant_name = variants[i].name();
       progression[i].print(variant_name);
     }
     fmt::println("\n=== End ProgressionSet ===\n");
@@ -539,6 +505,7 @@ struct VaxParams {
 
 struct VaxSet {
   vector<std::pair<string, VaxParams>> vaxset{};
+  // TODO might need to replace this with Vaxstatus values??
   RuntimeEnum shot_types = {{"first", "full", "booster"},           // names
                             {{"first", 0}, {"full", 1}, {"booster", 2}},  // lookup
                             {0,1,2},  // valid_nums
@@ -727,12 +694,9 @@ struct ModelParams {
   // Trait for each person in popdata
 
   GeoData geodata;
-  RuntimeEnum Condition;
-  RuntimeEnum Status;
-  RuntimeEnum Agegrp;
 
   //based on variants parameters json file
-  RuntimeEnum variants;
+  vector<Variant> variants;
   vector<InfectParams> infectparams;
   ProgressionSet progressionset;
   array<float, 6> trvec;
@@ -758,16 +722,16 @@ json load_json_params(string fpath);
 GeoData load_geodata_csv(const std::string& filename);
 
 
-std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata);
+std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata);
 
 
 std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
 
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, RuntimeEnum> load_infect_params(string fpath);
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath);
 
 
-std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants);
+std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, vector<Variant>);
 
 
 VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist);
@@ -776,4 +740,4 @@ VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist);
 SocialParams load_social_params(string social_path);
 
 // Helper function to print infectparams
-void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeEnum& variants);
+void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant>& variants);

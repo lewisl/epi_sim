@@ -27,7 +27,7 @@ struct SeedFilter {
   Agegrp agegrp;     //filter criterion
   Condition condition;  // update value
   uint8_t duration;   // update value
-  uint8_t variant;    // update value
+  Variant variant;    // update value
   int8_t count;       // number of people to update
 };
 

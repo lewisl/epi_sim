@@ -8,7 +8,7 @@
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::make_sick(size_t p, uint8_t var, Condition condition, uint8_t durationdays) {
+void PopData::make_sick(size_t p, Variant var, Condition condition, uint8_t durationdays) {
   cond[p] = condition;
   duration[p] = durationdays;
   status[p] = Stat::Infectious;

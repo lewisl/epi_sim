@@ -91,9 +91,9 @@ void run_category_tests() {
 
     // Test boundary conditions
     fmt::println("--- Testing Boundary Conditions ---");
-    fmt::println("  Status::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Status::names[99]);
-    fmt::println("  Condition::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Condition::names[99]);
-    fmt::println("  Agegrp::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Agegrp::names[99]);
+    // fmt::println("  Status::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Status::names[99]);
+    // fmt::println("  Condition::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Condition::names[99]);
+    // fmt::println("  Agegrp::to_str(99) = \"{}\" (expected \"INVALID\" - out of range)", Agegrp::names[99]);
     // fmt::println("  Vaccine::to_str(99) = \"{}\" (expected \"unknown\" - out of range)", Vaccine::to_str(99));
     fmt::print("\n");
 
@@ -198,7 +198,7 @@ void test_model_params(ModelParams mp, Model model) {
   fmt::println("==================== Model Parameters ==================");
   mp.geodata.print();
   fmt::print("\n");
-  mp.variants.print();
+  print_trait_vector(mp.variants);
   fmt::print("\n");
   print_infectparams(mp.infectparams, mp.variants);
   fmt::print("\n");
@@ -244,7 +244,7 @@ void test_multiple_infections() {
   fmt::println("Setting up independent test environment...");
   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
   PopData& pop = test_model.pop;
-  RuntimeEnum& variants = test_model.mp.variants;
+  vector<Variant>& variants = test_model.mp.variants;
 
   // Find one person in age20_39 and one in age60_79
   size_t person_age20_39 = 0;
@@ -273,7 +273,8 @@ void test_multiple_infections() {
   fmt::println("  Person {} (age group: {}) - will be infected 17 times\n",
                person_age60_79, Agegrp::names[pop.agegrp[person_age60_79]]);
 
-  uint8_t base_variant = variants("base");
+  // Use first real variant (index 1, since 0 is "none")
+  Variant base_variant = test_model.mp.variants[1];
   Condition condition = Cond::Nil;
   uint8_t duration = 5;
 
@@ -296,7 +297,7 @@ void test_multiple_infections() {
   int count1 = std::min(static_cast<int>(pop.variant_count[person_age20_39]), 16);
   for (int i = 0; i < count1; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, variants.to_str(pop.variant[person_age20_39][i]), pop.sickday[person_age20_39][i]);
+                 i, pop.variant[person_age20_39][i].name(), pop.sickday[person_age20_39][i]);
   }
 
   // Infect person 2 seventeen times (days 1, 21, 41, ..., 321)
@@ -317,7 +318,7 @@ void test_multiple_infections() {
   fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
   for (int i = 0; i < count2; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, variants.to_str(pop.variant[person_age60_79][i]), pop.sickday[person_age60_79][i]);
+                 i, pop.variant[person_age60_79][i].name(), pop.sickday[person_age60_79][i]);
   }
 
   fmt::println("\n=== Multiple Infections Test Completed ===");
@@ -330,9 +331,9 @@ void test_seedcase_multiple_infections() {
   fmt::println("Setting up independent test environment...");
   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
   PopData& pop = test_model.pop;
-  RuntimeEnum& variants = test_model.mp.variants;
 
-  uint8_t base_variant = variants("base");
+  // Use first real variant (index 1, since 0 is "none")
+  Variant base_variant = test_model.mp.variants[1];
   Condition condition = Cond::Nil;
   uint8_t duration = 5;
 
@@ -405,7 +406,7 @@ void test_seedcase_multiple_infections() {
   int count1 = std::min(static_cast<int>(pop.variant_count[person_age20_39]), 16);
   for (int i = 0; i < count1; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, variants.to_str(pop.variant[person_age20_39][i]), pop.sickday[person_age20_39][i]);
+                 i, pop.variant[person_age20_39][i].name(), pop.sickday[person_age20_39][i]);
   }
 
   fmt::println("\nPerson {} (age60_79) final state:", person_age60_79);
@@ -415,7 +416,7 @@ void test_seedcase_multiple_infections() {
   fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
   for (int i = 0; i < count2; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, variants.to_str(pop.variant[person_age60_79][i]), pop.sickday[person_age60_79][i]);
+                 i, pop.variant[person_age60_79][i].name(), pop.sickday[person_age60_79][i]);
   }
 
   fmt::println("\n=== SeedCase Multiple Infections Test Completed ===");
@@ -616,11 +617,14 @@ int main() {
   // Test seeding and spread contact generation
   // test_seeding_and_spread();
 
+  // Test popdata printing
+  // test_popdata_print_table(setup_sim(1000, 38015, "2020-01-01", false).pop);
+
   // Test random number generator functions
   // test_random_functions();
 
   // tests
-  run_category_tests();
+  // run_category_tests();
 
   // Test model params
   // Model model = setup_sim(180, 38015, "2020-02-01", true);
@@ -630,6 +634,6 @@ int main() {
   // test_age_distribution(setup_sim(1000, 38015, "2020-01-01", false).pop);
 
   // Test spread function n days simulation
-  // sim_test(180);
+  sim_test(180);
 
 }

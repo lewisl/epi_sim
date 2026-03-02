@@ -37,8 +37,8 @@ void runsim(Model& model)
 
   // create SeedCases
   vector<SeedFilter> sf {
-    {Age::Age20_39, Cond::Uninfected, 1, model.mp.variants("base"), 3},
-    {Age::Age40_59, Cond::Uninfected, 1, model.mp.variants("base"), 3}};
+    {Age::Age20_39, Cond::Uninfected, 1, model.mp.variants[1], 3},
+    {Age::Age40_59, Cond::Uninfected, 1, model.mp.variants[1], 3}};
   SeedCase sc1(1, true, sf, pop);
 
   auto seeded = sc1();

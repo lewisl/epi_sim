@@ -22,7 +22,7 @@
 #include <random> // for std::gamma_distribution
 #include <ranges>
 #include <string>
-#include <string_view>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <utility>

@@ -81,17 +81,22 @@ GeoData load_geodata_csv(const std::string& filename) {
 //
 
 
-std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata) {
-  // json jdata = load_json_params(fpath);
+std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata) {
 
-  RuntimeEnum variants{};
-  variants.add_item("none");  // default for variants name and index = 0
+  vector<Variant> variants;
+  variants.emplace_back(Variant{0});
+  Variant::names.push_back("none");
+
+  uint8_t vnum{1};
   for (auto variant : jdata.items()) {
-    variants.add_item(variant.key());
+    variants.emplace_back(Variant{vnum});
+    Variant::names.push_back(variant.key());
+    ++vnum;
+    // variants.add_item(variant.key());
   }
 
   vector<InfectParams> infectparams{};
-  // Add a dummy "none" entry at index 0 to align with variants RuntimeEnum
+  // Add a dummy "none" entry at index 0 to align with variants
   infectparams.emplace_back(InfectParams{});
 
   for (auto variant : jdata.items()) {
@@ -99,9 +104,9 @@ std::tuple<RuntimeEnum, vector<InfectParams>> load_variants_data(json jdata) {
     auto recovery_imm_obj = variant.value()["immunity"]["recovery_immunity"];
     
     // Build the recovery_immunity vector in the correct order
-    vector<float> recovery_immunity(variants.names.size(), 0.0f);  // default to 0
-    for (size_t i = 0; i < variants.names.size(); ++i) {
-        const auto& vname = variants.names[i];
+    vector<float> recovery_immunity(Variant::names.size(), 0.0f);  // default to 0
+    for (size_t i = 0; i < Variant::names.size(); ++i) {
+        const auto& vname = Variant::names[i];
         if (recovery_imm_obj.contains(vname)) {
             recovery_immunity[i] = recovery_imm_obj[vname].get<float>();
         }
@@ -186,7 +191,7 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
   return {progressionset, trvec};
 }
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, RuntimeEnum> load_infect_params(string fpath) {
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath) {
   // use one big json file for multiple output structs, etc.
   json jdata = load_json_params(fpath);
 
@@ -218,7 +223,7 @@ progression[0].tree[0][5][0][0]
 
 
 
-std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants) {
+std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, vector<Variant> variants) {
   VaxSet vaxset{};
   RuntimeEnum vaxlist = RuntimeEnum();
 
@@ -239,7 +244,7 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
     vx.day1_effect = body["day1_effect"];
 
     // infectfactor vector
-    for (const auto &variantname : variants.names) {
+    for (const auto &variantname : Variant::names) {
       if (body["infectfactor"].contains(variantname))
         vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
       else
@@ -250,7 +255,7 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, RuntimeEnum variants
     // effectiveness vector of vector
     for (const auto &shot : vaxset.shot_types.names) {
       vector<std::pair<string, float>> variant_effectiveness {};
-      for (const auto &variantname : variants.names) {
+      for (const auto &variantname : Variant::names) {
         if (body["effectiveness"][shot].contains(variantname))
           variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
         else 
@@ -328,10 +333,10 @@ SocialParams load_social_params(string social_path) {
 }
 
 // Helper function to print infectparams
-void print_infectparams(const vector<InfectParams>& infectparams, const RuntimeEnum& variants) {
+void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant> & variants) {
   fmt::println("========== InfectParams =============");
   for (size_t i = 0; i < infectparams.size(); ++i) {
-    fmt::println(" ==== infectparams of variant {} ====", variants.to_str(i));
+    fmt::println(" ==== infectparams of variant {} ====", variants[i].name());
     fmt::print("  sendrisk={},\n  recvrisk={},\n  base={:.2f},   halflife={}\n",
                infectparams[i].sendrisk,
                infectparams[i].recvrisk,

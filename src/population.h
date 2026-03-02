@@ -30,7 +30,7 @@ class PopData {
   vector<Agegrp> agegrp;
   vector<Condition> cond;
   vector<uint8_t> duration;
-  vector<array<uint8_t, 16>> variant; 
+  vector<array<Variant, 16>> variant; 
   vector<std::uint8_t> variant_count;
   vector<array<int16_t, 16>> sickday;
   vector<std::uint8_t> sickday_count;
@@ -44,16 +44,14 @@ class PopData {
   vector<array<int16_t, 16>> testday;
   vector<uint8_t> quar; // pseudo bool
   vector<int16_t> quarday;
-  vector<uint8_t> vaxstatus;    //  = fill(:none, pop), :none, :first, :full, :booster,  maybe others
+  vector<Vaxstatus> vaxstatus;    //  = fill(:none, pop), :none, :first, :full, :booster,  maybe others
   vector<array<uint8_t, 16>> vaxrcvd;  // :none,  vaccine symbols  :Pfizer, :Moderna, :JnJ _
   vector<std::uint8_t> vax_count;
   vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
 
   // domains of valid values for columns
       // what is the stub to use for int valued columns that print as ints?
-  RuntimeEnum variant_lbl;
   RuntimeEnum vax_lbl;
-  RuntimeEnum vaxstatus_lbl;
   RuntimeEnum Justint;
   RuntimeEnum true_false;
 
@@ -62,18 +60,17 @@ class PopData {
 
   // constructor
       // clang-format off
-  PopData(size_t n, RuntimeEnum variant_lbl, RuntimeEnum vax_lbl, RuntimeEnum vaxstatus_lbl,
+  PopData(size_t n, RuntimeEnum vax_lbl, 
           RuntimeEnum true_false, RuntimeEnum Justint,
-          const vector<double>& age_dist=AGE_DIST)
+          const vector<double>& age_dist=AGE_DIST)  
       : popn(n), popz(n+1),status(n+1, Stat::Unexposed),
         agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
         cond(n+1, Cond::Uninfected), duration(n+1, 0),
         variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
         recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
         sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
-        vaxstatus(n+1, 0), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
-        variant_lbl(variant_lbl),
-        vax_lbl(vax_lbl), vaxstatus_lbl(vaxstatus_lbl), true_false(true_false), Justint(Justint)
+        vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
+        vax_lbl(vax_lbl),  true_false(true_false), Justint(Justint) // vaxstatus_lbl(vaxstatus_lbl),
         // clang-format on
       {
           if (n <= 0) {
@@ -115,7 +112,7 @@ class PopData {
         case Column::agegrp:          action(agegrp);                    break;
         case Column::cond:            action(cond);                      break;
         case Column::duration:        action(duration, Justint);         break;
-        case Column::variant:         action(variant, variant_lbl);      break;
+        case Column::variant:         action(variant);                   break;
         case Column::variant_count:   action(variant_count, Justint);    break;
         case Column::sickday:         action(sickday, Justint);          break;
         case Column::sickday_count:   action(sickday_count, Justint);    break;
@@ -128,7 +125,7 @@ class PopData {
         case Column::tested_count:    action(tested_count, Justint);     break;
         case Column::quar:            action(quar, true_false);          break;
         case Column::quarday:         action(quarday, Justint);          break;
-        case Column::vaxstatus:       action(vaxstatus, true_false);     break;
+        case Column::vaxstatus:       action(vaxstatus);                 break;
         case Column::vaxrcvd:         action(vaxrcvd, vax_lbl);          break;
         case Column::vax_count:       action(vax_count, Justint);        break;
         case Column::vaxday:          action(vaxday, Justint);           break;
@@ -162,9 +159,16 @@ class PopData {
 
       // TraitType overload: uses built-in .name() — no RuntimeEnum label needed
       template<typename T>
-        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string_view>; }
+        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
       void operator()(const vector<T>& vec) const {
         fmt::print("   {}\t|", vec[current_row].name());
+      }
+
+      // TraitType array overload: for vector<array<T, 16>> where T has .name()
+      template<typename T>
+        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
+      void operator()(const std::vector<array<T, 16>> &vec) const {
+        fmt::print("   {}...    | ", vec[current_row][0].name());
       }
     };
 
@@ -241,7 +245,7 @@ class PopData {
 
     // some complex getters and setters that modify multiple vectors at the same index
     // make_sick definition is in disease_modeling.cpp
-    void make_sick(size_t p, uint8_t var, Condition condition = Cond::Nil,
+    void make_sick(size_t p, Variant var, Condition condition = Cond::Nil,
                    uint8_t durationdays = 0);
     
     // how to return if person p is not sick?  does it matter: we might want to know the last variant experienced if any
