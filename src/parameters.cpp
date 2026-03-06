@@ -83,17 +83,24 @@ GeoData load_geodata_csv(const std::string& filename) {
 
 std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata) {
 
+  uint8_t vnum{0};
   vector<Variant> variants;
-  variants.emplace_back(Variant{0});
+  variants.emplace_back(Variant{vnum});
   Variant::names.push_back("none");
 
-  uint8_t vnum{1};
   for (auto variant : jdata.items()) {
+    ++vnum;
     variants.emplace_back(Variant{vnum});
     Variant::names.push_back(variant.key());
-    ++vnum;
     // variants.add_item(variant.key());
   }
+
+  if (vnum < 1) {
+    throw std::runtime_error("No variants loaded from json file of variants. Can't run simulation.");
+  }
+
+  const Variant &primary = variants[1];
+
 
   vector<InfectParams> infectparams{};
   // Add a dummy "none" entry at index 0 to align with variants
@@ -168,8 +175,15 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
       absl::flat_hash_map<uint8_t, vector<vector<float>>> one_age_map {};
       for (const auto& [duration, body_duration] : body_age.items()) {
         vector<vector<float>> tmpvec{};
-        for (const auto &[cond, probvec] : body_duration.items()) {  // cond is a string won't be stored because it will be the vect idx
-          tmpvec.push_back(probvec);
+        // Explicitly load in Cond enum order: Nil(0), Mild(1), Sick(2), Severe(3)
+        // nlohmann::json iterates object keys alphabetically (mild < nil < severe < sick),
+        // so we MUST NOT rely on .items() iteration order here.
+        // Drive the order from Condition::names (skip index 0 = "Uninfected"),
+        // lowercasing to match JSON keys.
+        for (size_t ci = 1; ci < Condition::names.size(); ++ci) {
+          string key = Condition::names[ci];
+          std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+          tmpvec.push_back(body_duration[key].get<vector<float>>());
         }
         one_age_map[std::stoi(duration)] = tmpvec;
       };

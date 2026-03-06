@@ -4,6 +4,7 @@
 #include "sim.h"
 #include "random.h"
 #include "helpers.h"
+#include <stdexcept>
 #include "disease_modeling.h"
 
 // make_sick: make one person sick
@@ -52,9 +53,21 @@ Returns the number of contacts that someone spreading the disease will make on a
 method uses the spreadcase applicable to the current spreader but with contactfactors set by
 a spreadcase.
 */
-int how_many_contacts(float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
-                     uint8_t spr_cond, const array<array<float, 5>, 4>& contactfactors) {
-  auto scale = density_factor * indoor_factor * contactfactors[idx(spr_cond) - 1][idx(spr_agegrp) - 1];
+int how_many_contacts(float density_factor, float indoor_factor,
+                      float gammashape, uint8_t spr_agegrp, uint8_t spr_cond,
+                      const array<array<float, 5>, 4> &contactfactors) {
+
+  // temporary debugging fudge TODO
+  // indoor_factor = 1.0;
+  
+  auto scale = density_factor * indoor_factor *
+               contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
+  // if (sim::get_day() == 2) {
+  //   fmt::println("density {}, indoor {}, cf {}, scale {}, cond {}, agegrp {}", density_factor, indoor_factor,
+  //                contactfactors[zidx(spr_cond)][zidx(spr_agegrp)], scale, spr_cond, spr_agegrp);
+  // }
+
+  
   return xo::gamma_int(gammashape, scale, 12);
 }
 
@@ -62,19 +75,45 @@ int how_many_contacts(float density_factor, float indoor_factor, float gammashap
 void get_contacts(const PopData &pop, float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
                             uint8_t spr_cond, const array<array<float, 5>, 4> &contactfactors, vector<size_t> &contacts) {
   auto num_contacts = how_many_contacts(density_factor, indoor_factor, gammashape, spr_agegrp, spr_cond, contactfactors);
-  xo::get_n_draws<size_t>(1, pop.popz, num_contacts, contacts);
+  xo::get_n_draws<size_t>(1, pop.popn, num_contacts, contacts);
 }
 
+
+//clang-format off
+uint8_t touch_map(Status target_status, Condition target_cond) {
+  switch (target_status)
+  {
+  case Stat::Unexposed:     return uint8_t{0};
+  case Stat::Recovered:     return uint8_t{1};
+  case Stat::Infectious:
+    switch (target_cond)
+    {
+    case Cond::Nil:         return uint8_t{2};
+    case Cond::Mild:        return uint8_t{3};
+    case Cond::Sick:        return uint8_t{4};  
+    case Cond::Severe:      return uint8_t{5};
+    default:
+      throw std::runtime_error("Invalid condition input for touch_map");
+    }
+  default:
+    throw std::runtime_error("Invalid status input for touch_map");
+  }
+}
+//clang-format on
+
+
 bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
-  // logic copies Julia code but is wrong. only works because of touchfactors input values  TODO:  fix
-  uint8_t contact_status = pop.status[contact];
-  float touchprob{0.0};
-  if ((contact_status == Stat::Unexposed) || (contact_status == Stat::Recovered)) {
+  Status target_status = pop.status[contact];
+  Condition target_condition = pop.cond[contact];
+  if ((target_status == Stat::Unexposed) || (target_status == Stat::Recovered)) {
+    uint8_t target_touchmap = touch_map(target_status, target_condition);
+    float touchprob{0.0};
+
     if (indoor_factor == 1.0f) {
-      touchprob = touchfactors[idx(contact_status)][idx(pop.agegrp[contact]) - 1];
+      touchprob = touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])];
     } else {
       touchprob = std::clamp(
-          touchfactors[idx(contact_status)][idx(pop.agegrp[contact]) - 1] *
+          touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])] *
               indoor_factor,
           0.0f, 0.97f);
       }
@@ -89,12 +128,15 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
     auto sendrisk = infectparams[spr_variant].sendrisk[spr_duration];
 
     // contact person characteristics
-    auto recvrisk = infectparams[spr_variant].recvrisk[contact_agegrp - 1];
+    auto recvrisk = infectparams[spr_variant].recvrisk[zidx(contact_agegrp)];
 
     // vax_recov is meant to be a function for separation of concerns, but it is just minimum for now
     auto vax_recov = std::min(vaxfactor, recovfactor);
+
+    // fmt::println("================= vax_recov {}", vax_recov);
+
     auto combinedfactor = recvrisk * sendrisk * vax_recov;
-    auto risk = std::clamp(combinedfactor, 0.0f, 0.97f);    // required because combinedfactor could exceed 1.0
+    auto risk = std::clamp(combinedfactor, 0.0f, 1.0f);    // required because combinedfactor could exceed 1.0
 
   return risk;
 }
@@ -113,18 +155,23 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
     uint8_t spr_variant = pop.get_variant(spreader);
 
     // effect on transmission based on how long ago a previously infected contact got over the disease
-    float recovfactor = recoveffect(pop, thisday, contact, spr_variant, infectparams);
+    float recovfactor = 
+        recoveffect(pop, thisday, contact, spr_variant, infectparams);
+
 
     // effect on transmission based on whether, when, and which vaccine contact received
     // TODO vaxfactor = dovax ? vaxeffect(thisday, contact, vaxset, infectfactor, spr_variant) : 1.0;
 
     // binomial probability of the contact getting infected from the contact with this spreader
-    float risk =
-        infectrisk(infectparams, spr_variant, pop.duration[spreader],
-                   pop.agegrp[contact], recovfactor, 1.0);
+    float risk = infectrisk(infectparams, spr_variant, pop.duration[spreader],
+                            pop.agegrp[contact], recovfactor, 1.0);
+
+    // if (pop.recovday_count[contact] == 0)
+    //   fmt::println("*** ================= recovfactor {}, risk {}, bernoulli {}", recovfactor, risk, xo::bernoulli(risk));
+
 
     // multiplicative factor for debugging TODO: had used 0.84f before implementing density_factor
-    return xo::bernoulli(risk * 0.935f) == 1;  // return a bool, not 0 or 1
+    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
 }
 
 
@@ -140,7 +187,8 @@ float recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t sp
 
     float factor = 1.0f; // return value
 
-    if (pop.status[contact] == Stat::Recovered) {
+    if (pop.recovday_count[contact] > 0) {
+      
         size_t recovday = pop.get_recovday(contact);
         size_t days_post_recov = thisday - recovday;
 

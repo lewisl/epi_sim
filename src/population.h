@@ -255,17 +255,17 @@ class PopData {
     uint8_t get_variant(size_t p) const {
       if (variant_count[p] == 0) return 0; // maps to "none"
       else if (variant_count[p] >= 16) return variant[p].back();
-      else return variant[p][variant_count[p] - 1];
+      else return variant[p][zidx(variant_count[p])];
     }
     uint8_t get_variant(size_t p, size_t v_count) const {  // not sure this is needed--return a specific variant
       assert(v_count > 0 && v_count <= variant_count[p]);
-      return variant[p][v_count - 1];
+      return variant[p][zidx(v_count)];
     }
 
     size_t get_recovday(size_t p) const {    // don't need a setter because it happens in make_well()
       if (recovday_count[p] == 0) return 0; // maps to "none"
       else if (recovday_count[p] >= 16) return recovday[p].back();
-      else return recovday[p][recovday_count[p] - 1];    
+      else return recovday[p][zidx(recovday_count[p])];    
     }
 
     void incr_duration(size_t p) {

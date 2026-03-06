@@ -20,7 +20,28 @@ namespace sim {
 
     inline void incr_day() { ++current_day; }
 
-    inline void reset_day() {current_day=0;}
+    inline void reset_day() { current_day = 0; }
+
+    struct daystats {
+      int day{};
+      int starting_spreaders{};
+      int num_contacts{};
+      int num_touched{};
+      int num_new_infected{};
+      int num_died{};
+      int num_recovered{};
+
+      void reset() {
+        starting_spreaders = 0;
+        num_contacts = 0;
+        num_touched = 0;
+        num_new_infected = 0;
+        num_died = 0;
+        num_recovered = 0;
+      }
+    };
+
+    inline daystats ds{};
 }
 
 struct SeedFilter {

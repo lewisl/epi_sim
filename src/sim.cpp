@@ -9,6 +9,7 @@
 #include "disease_modeling.h"
 #include "spread.h"
 #include "progression.h"
+#include "timing.h"
 
 
 
@@ -21,7 +22,7 @@ void runsim(Model& model)
   PopData &pop = model.pop;    // all person data
 
   // seed the random number generator
-  xo::seed(12345);
+  xo::seed(12345);  // have used 12345
 
   // setup before day loop starts
   //    alias names for series columns
@@ -30,21 +31,23 @@ void runsim(Model& model)
   sim::reset_day();
 
   // setup timers for performance metering
-      // sprtime
-      // trtime
-      // histtime
+  // sprtime
+  Timing spread_timing;
+  // trtime
+  Timing progression_timing;
+  // histtime
   // totaltime
 
   // create SeedCases
   vector<SeedFilter> sf {
-    {Age::Age20_39, Cond::Uninfected, 1, model.mp.variants[1], 3},
-    {Age::Age40_59, Cond::Uninfected, 1, model.mp.variants[1], 3}};
+    {Age::Age20_39, Cond::Nil, 0, model.mp.variants[1], 3},
+    {Age::Age40_59, Cond::Nil, 0, model.mp.variants[1], 3}};
   SeedCase sc1(1, true, sf, pop);
 
   auto seeded = sc1();
 
   // create useful pre-allocated vectors
-  vector<size_t> contacts(250);
+  vector<size_t> contacts(250); // reserve and set size, cleared before later usage
 
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
@@ -63,49 +66,93 @@ void runsim(Model& model)
 
   // start totaltime
 
+  
+
   // day loop
   for (int d_i = 1; d_i <= model.ndays; ++d_i) {
+    // start a new day
     sim::incr_day();
+    sim::ds.day = sim::get_day();
 
     // run beginning of day cases--required SeedCases
 
     // do vaccination if using vaccination
 
     // Loop through all people and process infectious ones (no vector allocation needed)
-    int infectious_count = 0;
     for (size_t p = 1; p <= pop.popn; ++p) {
       if (pop.status[p] != Stat::Infectious) continue;
 
-      infectious_count++;
-
+      spread_timing.start();
       // spread kernel
       auto spr_duration = pop.duration[p];  // a uint8_t
       auto variant_count = pop.variant_count[p];
-      if (variant_count == 0) continue;  // Skip if no variant assigned
+      if (variant_count == 0) continue;  // Skip if no variant assigned:  TODO this is really an error that shouldn't happen
       auto spr_variant = pop.get_variant(p);    // variant_count is 1-based, array is 0-based
-      auto sendrisk = mp.infectparams[static_cast<size_t>(spr_variant)].sendrisk[spr_duration];
-      if (sendrisk > 0.0)
+      auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[idx(spr_duration)];
+      if (sendrisk > 0.0) {
+        sim::ds.starting_spreaders++;
         spread(pop, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
+      }
+      spread_timing.cum();
 
-      // progression kernel  before trvec mp.infectparams,
-      progression(pop, p, mp.progressionset, mp.infectparams,
-                  mp.trvec);
+      // progression kernel
+      progression_timing.start();
+      progression(pop, p, mp.progressionset, mp.infectparams, mp.trvec);
+      progression_timing.cum();
 
-    }  // end person loop
+      // cleanup before next person
+      // contacts.clear();  // get rid of all the contacts of the previous person!
+    }  // end infected persons loop
 
-    // Count recovered people (only for final report)
-    // int recovered_count = 0;
-    // for (size_t i = 1; i <= pop.popn; i++) {
-    //   if (pop.status[i] == Trait::Stat::recovered) recovered_count++;
-    // }
+  
 
-    // Print daily infection count
-    // fmt::println("Day {}: {} infectious, {} recovered", sim::get_day(), infectious_count, recovered_count);
+    // Print daily outcomes
+    // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
+    //              sim::ds.day, sim::ds.starting_spreaders, sim::ds.num_contacts, sim::ds.num_touched,
+    //              sim::ds.num_new_infected, sim::ds.num_recovered, sim::ds.num_died);
 
     // run end of day cases
 
     // update history series
 
+    // cleanup sim::ds
+    sim::ds.reset();
 
-    }  // end day loop
+
+  } // end day loop
+
+   // Breakdown by age group: infected, reinfected, dead
+  {
+    const auto& pop = model.pop;
+    const size_t n_ages = 5;  // Age0_19..Age80_up (indices 1..5)
+
+    array<int, 6> unexposed{}, infected{}, reinfected{}, recovered{}, dead{};  // index 1..5
+
+    for (size_t p = 1; p <= pop.popn; ++p) {
+      uint8_t ag = pop.agegrp[p];
+      if (pop.status[p] == Stat::Unexposed) unexposed[ag]++;
+      if (pop.variant_count[p] > 0)  infected[ag]++;
+      if (pop.variant_count[p] > 1)  reinfected[ag]++;
+      if (pop.status[p] == Stat::Dead) dead[ag]++;
+      if (pop.status[p] == Stat::Recovered) recovered[ag]++;
+    }
+    fmt::println("\n{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} {:>10}",
+                 "Age Group", "Unexposed","Infected", "Reinfected", "Recovered", "Dead", "Death %");
+    fmt::println("{:-<80}", "");
+    for (size_t ag = 1; ag <= n_ages; ++ag) {
+      double death_pct = infected[ag] > 0 ? 100.0 * dead[ag] / infected[ag] : 0.0;
+      fmt::println("{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} {:>9.2f}%",
+                   Agegrp::names[ag], unexposed[ag], infected[ag], reinfected[ag], recovered[ag], dead[ag], death_pct);
+    }
+
+    fmt::println("{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} ", "Total",
+                 sum(unexposed), sum(infected), sum(reinfected), sum(recovered),
+                 sum(dead)); // using sum template in helpers.h for reduce
+    fmt::println("(Note: Remaining still infected across all ages: {})",
+                 std::count_if(pop.status.begin(), pop.status.end(), [](auto s) { return s == Stat::Infectious; }));
+  }
+
+  fmt::println("Spread time: {} Transition time: {}", spread_timing.show(), progression_timing.show());
+
+  // fmt::println("\n=== Simulation Complete ===");
 }

@@ -39,12 +39,12 @@ struct Agegrp {
 };
 
 namespace Age {
-  inline const Agegrp Unknown{0};
-  inline const Agegrp Age0_19{1};
-  inline const Agegrp Age20_39{2};
-  inline const Agegrp Age40_59{3};
-  inline const Agegrp Age60_79{4};
-  inline const Agegrp Age80_up{5};
+  inline constexpr Agegrp Unknown{0};
+  inline constexpr Agegrp Age0_19{1};
+  inline constexpr Agegrp Age20_39{2};
+  inline constexpr Agegrp Age40_59{3};
+  inline constexpr Agegrp Age60_79{4};
+  inline constexpr Agegrp Age80_up{5};
 }
 
 // Status
@@ -63,11 +63,11 @@ struct Status {
 };
 
 namespace Stat {
-  inline const Status None{0};
-  inline const Status Unexposed{1};
-  inline const Status Infectious{2};
-  inline const Status Recovered{3};
-  inline const Status Dead{4};
+  inline constexpr Status None{0};
+  inline constexpr Status Unexposed{1};
+  inline constexpr Status Infectious{2};
+  inline constexpr Status Recovered{3};
+  inline constexpr Status Dead{4};
   }
 
 // Condition
@@ -85,11 +85,11 @@ struct Condition {
 };
 
 namespace Cond {
-  inline const Condition Uninfected{0};
-  inline const Condition Nil{1};
-  inline const Condition Mild{2};
-  inline const Condition Sick{3};
-  inline const Condition Severe{4};
+  inline constexpr Condition Uninfected{0};
+  inline constexpr Condition Nil{1};
+  inline constexpr Condition Mild{2};
+  inline constexpr Condition Sick{3};
+  inline constexpr Condition Severe{4};
 }
 
 // Progressionmap
@@ -108,12 +108,12 @@ struct Progressionmap {
 };
 
 namespace Progressmap {
-  inline const Progressionmap ToRecover{0};
-  inline const Progressionmap ToNil{1};
-  inline const Progressionmap ToMild{2};
-  inline const Progressionmap ToSick{3};
-  inline const Progressionmap ToSevere{4};
-  inline const Progressionmap ToDead{5};
+  inline constexpr Progressionmap ToRecover{0};
+  inline constexpr Progressionmap ToNil{1};
+  inline constexpr Progressionmap ToMild{2};
+  inline constexpr Progressionmap ToSick{3};
+  inline constexpr Progressionmap ToSevere{4};
+  inline constexpr Progressionmap ToDead{5};
 }
 
 // Vaxstatus -- compile time

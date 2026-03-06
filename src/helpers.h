@@ -41,4 +41,11 @@ inline size_t zidx(uint8_t i) {
     return static_cast<size_t>(i-1);
 }
 
+// simple way to replace this:  std::accumulate(unexposed.begin(), unexposed.end(), 0)
+template <std::ranges::input_range R>
+auto sum(R &&r) {
+  return std::reduce(std::ranges::begin(r), std::ranges::end(r));
+}
+
+
 #endif

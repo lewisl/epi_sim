@@ -11,6 +11,8 @@ void get_contacts(const PopData& pop, float density_factor, float indoor_factor,
                   const array<array<float, 5>, 4> &contactfactors,
                   vector<size_t> &contacts);
 
+uint8_t touch_map(Status target_status, Condition target_cond);
+
 bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor);
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,

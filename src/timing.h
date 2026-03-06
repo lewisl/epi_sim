@@ -14,8 +14,9 @@ cumulative duration of this_timer fmt::println("This code took {} seconds", this
       other methods:
       this_timer.stop();   // stops this_timer and saves the time: used by cum
       this_timer.ticks();  // returns the time between the previous start and
-stop: used by cum this_timer.reset();  // resets start, stop, and duration
-(duration is updated and returned by cum),
+                              stop: used by cum 
+      this_timer.reset();  // resets start, stop, and duration
+                              (duration is updated and returned by cum),
                            // so that you can re-use this_timer.  You could also
 re-initialize it: Timing this_timer;
 */

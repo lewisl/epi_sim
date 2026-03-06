@@ -76,7 +76,15 @@ Julia uses **Symbols** (`:unexposed`, `:infectious`, etc.):
 - Self-documenting (human-readable)
 
 ### C++ Solution
-Use `uint8_t` everywhere with companion namespaces for string conversion:
+Use `uint8_t` everywhere with companion namespaces for string conversion.
+Wrap the `uint8_t` in compile time single member structs for Status, Condition, Agegrp, Progressionmap, Vaxstatus. Create a namespace with inline constants to allow "friendly" value expressions: 
+
+```cpp
+Status person_status = Stat::Unexposed;
+person_status = Stat::Infectious;    // fine
+person_status = Stat::Recovered;   // fine
+```
+Note that the namespace name is a little shorter than the struct name.
 
 ```cpp
 // categories.h
@@ -88,10 +96,10 @@ namespace Status {
 }
 
 // Usage in PopData
-vector<uint8_t> status;  // Stores Status::Value as uint8_t
+vector<Status> status;  // Stores Status::Value as uint8_t
 
 // Printing
-cout << Status::to_str(popdata.status[i]);  // "infectious"
+cout << Stat::Infectious.name();  // "infectious"
 
 // Parsing
 popdata.status[i] = Status::from_str("recovered");  // 3

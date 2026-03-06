@@ -593,24 +593,7 @@ void sim_test(size_t ndays=180) {
   // fmt::println("Running simulation for {} days...\n", model.ndays);
 
   runsim(model);
-
-  // Count occurrences of infected and recovered --> gut check
-    auto count = std::count_if(model.pop.variant_count.begin(), model.pop.variant_count.end(),
-                               [](int x) { return x > 0; });
-    fmt::println("Count of everyone who ever got infected:      {}", count);
-
-    count = std::count_if(model.pop.variant_count.begin(), model.pop.variant_count.end(),
-                               [](int x) { return x > 1; });
-    fmt::println("Count of people who got sick 2 or more times: {}", count);
-
-    count = std::count(model.pop.status.begin(), model.pop.status.end(), Stat::Recovered);
-    fmt::println("Count of everyone who recovered:              {}", count);
-
-    count = std::count(model.pop.status.begin(), model.pop.status.end(), Stat::Dead);
-    fmt::println("Count of everyone who died:                   {}", count);
-
-
-  fmt::println("\n=== Simulation Complete ===");
+ 
 }
 
 int main() {

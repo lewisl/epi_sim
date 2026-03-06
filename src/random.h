@@ -111,9 +111,28 @@ inline int gamma_int(double shape, double scale, int max_value = 50) {
     return std::clamp(static_cast<int>(std::round(value)), 0, max_value);
 }
 
+// random.h
+
+// Pre-calculate the divisor once as a compile-time constant
+constexpr double XOSHIRO_MAX_DOUBLE = static_cast<double>(UINT64_MAX);
+
+// The insanely fast Bernoulli
 inline bool bernoulli(double p) {
-    return std::bernoulli_distribution{p}(get_gen());
+    // 1. Get the raw 64-bit random integer (extremely fast)
+    uint64_t raw_rand = get_gen()(); 
+    
+    // 2. Convert to a double between 0.0 and 1.0
+    double u = static_cast<double>(raw_rand) / XOSHIRO_MAX_DOUBLE;
+    
+    // 3. Compare
+    return u < p;
 }
+
+
+
+// inline bool bernoulli(double p) {
+//     return std::bernoulli_distribution{p}(get_gen());
+// }
 
 inline int categorical_uniform(int k) {
     return std::uniform_int_distribution{0, k - 1}(get_gen());

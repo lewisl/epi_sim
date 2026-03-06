@@ -17,15 +17,19 @@
   const auto& contactfactors = social.contactfactors;
   const auto& touchfactors = social.touchfactors;
   auto gammashape = social.gammashape;
-  auto indoor_factor = indoor_seq[thisday - 1];   // TODO
+  // auto indoor_factor = indoor_seq[zidx(thisday)];
+  auto indoor_factor = 1.0;  // TODO just for debugging logic, remove later
 
   // which contacts does the infected person have? use pre-allocated buffer contacts
   get_contacts(pop, density_factor, indoor_factor, gammashape, pop.agegrp[spreader], pop.cond[spreader], contactfactors, contacts);
+  sim::ds.num_contacts += contacts.size();
 
   for (auto c : contacts) {
     if (istouched(pop, c, touchfactors, indoor_factor)) {
+      sim::ds.num_touched++;
       if (isinfected(pop, c, spreader, infectparams, thisday)) {  // TODO need vaxset, dovax
-        pop.make_sick(c, pop.variant[spreader][pop.variant_count[spreader] - 1]);
+        sim::ds.num_new_infected++;
+        pop.make_sick(c, pop.variant[spreader][zidx(pop.variant_count[spreader])]);
       }
     }
   }
