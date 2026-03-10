@@ -9,23 +9,28 @@
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::make_sick(size_t p, Variant var, Condition condition, uint8_t durationdays) {
-  cond[p] = condition;
-  duration[p] = durationdays;
-  status[p] = Stat::Infectious;
-  if (variant_count[p] < 16) {
-    variant[p][variant_count[p]] = var;
-    sickday[p][variant_count[p]] = sim::get_day();
-    variant_count[p]++;
+void PopData::make_sick(PopData::AgentView contact, Variant var, Condition condition, uint8_t durationdays) {
+  contact.cond() = condition;
+  contact.duration() = durationdays;
+  contact.status() = Stat::Infectious;
+
+  auto &variant_vec = contact.all_variants();
+  auto &variant_count = contact.variant_count();
+  auto &sickday_vec = contact.all_sickdays();
+  
+  if (variant_count < 16) {
+    variant_vec[variant_count] = var;
+    sickday_vec[variant_count] = sim::get_day();
+    variant_count++;   // there is no sickday_count; it's the same as variant_count
   } else {
-      std::shift_left(variant[p].begin(), variant[p].end(), 1);
-      std::shift_left(sickday[p].begin(), sickday[p].end(), 1);
-      variant[p].back() = var;
-      sickday[p].back() = sim::get_day();
-      ++variant_count[p];
-      std::cerr << "Variant overflow for person " << p
+      std::shift_left(variant_vec.begin(), variant_vec.end(), 1);
+      std::shift_left(sickday_vec.begin(), sickday_vec.end(), 1);
+      variant_vec.back() = var;
+      sickday_vec.back() = sim::get_day();
+      ++variant_count;
+      std::cerr << "Variant overflow for person " << contact.id
               << ". Oldest variant lost.\n";
-      std::cerr << "variant_count increased to " << variant_count[p] << "\n";  
+      std::cerr << "variant_count increased to " << variant_count << "\n";  
   }
 }
 

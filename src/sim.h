@@ -70,7 +70,7 @@ struct SeedCase {
       count_of_seeds = 0;
       for (int i = 1; count_of_seeds < filt.count && i <= pop.popn; ++i) {
         if (pop.agegrp[i] == filt.agegrp) {
-          pop.make_sick(i, filt.variant, filt.condition, filt.duration );
+          pop.make_sick(pop.agent(i), filt.variant, filt.condition, filt.duration );
           seeded_persons.push_back(i);
           ++count_of_seeds;
           // pop.cond[i] = filt.condition;

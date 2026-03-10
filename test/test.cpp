@@ -5,14 +5,90 @@
 #include "../src/setup.h"
 #include "../src/sim.h"
 #include "../src/population.h"
+#include "../src/population_print.h"
 #include "../src/helpers.h"
 #include "../src/random.h"
 #include "../src/timing.h"
 #include "../src/spread.h"
 #include "../src/progression.h"
 
+#include <sstream>
+#include <string_view>
+
 using std::string;
 using std::vector;
+using std::string_view;
+
+namespace poptable_test {
+
+string rtrim_copy(string value) {
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+        value.pop_back();
+    }
+    return value;
+}
+
+vector<string> split_trimmed_lines(const string& text) {
+    std::istringstream input(text);
+    vector<string> lines;
+    string line;
+    while (std::getline(input, line)) {
+        lines.push_back(rtrim_copy(line));
+    }
+    return lines;
+}
+
+PopData make_popdata_print_fixture() {
+    RuntimeEnum vax_lbl{{{"none", 0}, {"pfizer", 1}, {"moderna", 2}}};
+    RuntimeEnum true_false{{{"false", 0}, {"true", 1}}};
+    RuntimeEnum justint{};
+
+    Variant::names = {"none", "alpha", "delta"};
+
+    PopData pop(3, vax_lbl, true_false, justint);
+
+    pop.agegrp[1] = Age::Age20_39;
+    pop.agegrp[2] = Age::Age40_59;
+    pop.agegrp[3] = Age::Age80_up;
+
+    pop.status[1] = Stat::Recovered;
+    pop.cond[1] = Cond::Uninfected;
+    pop.variant[1][0] = Variant{1};
+    pop.variant_count[1] = 1;
+    pop.sickday[1][0] = 2;
+    pop.recovday[1][0] = 9;
+    pop.recovday_count[1] = 1;
+
+    pop.status[2] = Stat::Infectious;
+    pop.cond[2] = Cond::Mild;
+    pop.duration[2] = 5;
+    pop.ring[2] = 3;
+    pop.quar[2] = 1;
+    pop.quarday[2] = 8;
+    pop.variant[2][0] = Variant{1};
+    pop.variant[2][1] = Variant{2};
+    pop.variant_count[2] = 2;
+    pop.sickday[2][0] = 4;
+    pop.sickday[2][1] = 11;
+    pop.tested[2][0] = 0;
+    pop.tested[2][1] = 1;
+    pop.tested_count[2] = 2;
+    pop.testday[2][0] = 6;
+    pop.testday[2][1] = 12;
+    pop.vaxstatus[2] = Vaxstat::booster;
+    pop.vaxrcvd[2][0] = 1;
+    pop.vaxrcvd[2][1] = 2;
+    pop.vax_count[2] = 2;
+    pop.vaxday[2][0] = 5;
+    pop.vaxday[2][1] = 14;
+
+    pop.status[3] = Stat::Unexposed;
+    pop.cond[3] = Cond::Uninfected;
+
+    return pop;
+}
+
+} // namespace poptable_test
 
 
 void run_category_tests() {
@@ -100,58 +176,127 @@ void run_category_tests() {
     fmt::println("=== All namespace tests completed ===");
 }
 
-// Create a short alias for PopData::Column to use throughout this file
-using PC = PopData::Column;
-
-void test_popdata_print_table(PopData pop, vector<size_t> rows = {1, 25, 50, 75}) {
-    rows.push_back(pop.popn);
-
+void test_popdata_print_table() {
     fmt::print("\n=== Testing PopData Print Table ===\n\n");
-    fmt::println("Population size (popn): {}", pop.popn);
-    fmt::println("Vector size (popz = popn+1): {}", pop.popz);
-    fmt::println("Using 1-indexed rows (1 to popn), skipping row 0\n");
 
-    // Test 1: First 5 columns (simple uint8_t vectors)
-    fmt::println("--- Test 1: Simple columns (status, agegrp, cond, duration, ring) ---");
-    vector<PopData::Column> cols1 = {
+    vector<string> saved_variant_names = Variant::names;
+    PopData pop = poptable_test::make_popdata_print_fixture();
+    vector<size_t> rows = {1, 2, 3};
+
+    using PC = PopColumn;
+    vector<PC> scalar_cols = {
         PC::status,
         PC::agegrp,
         PC::cond,
         PC::duration,
         PC::ring
     };
-    fmt::println("Row:\tstatus | agegrp | cond | duration | ring |");
-    fmt::println("------------------------------------------------------------");
-    pop.print_table(rows, cols1);
+
+    std::ostringstream scalar_out;
+    print_pop_table(pop, rows, scalar_cols, scalar_out);
+    const auto scalar_lines = poptable_test::split_trimmed_lines(scalar_out.str());
+    for (const auto& line : scalar_lines) {
+        fmt::println("{}", line);
+    }
     fmt::print("\n");
 
-    // Test 2: Mix of simple and array columns
-    fmt::println("--- Test 2: Mixed columns (variant, variant_count, sickday, sickday_count, deadday) ---");
-    vector<PopData::Column> cols2 = {
+    const vector<string> expected_scalar = {
+        "row  status      agegrp    cond        duration  ring",
+        "------------------------------------------------------",
+        "  1  Recovered   Age20_39  Uninfected  0         0",
+        "  2  Infectious  Age40_59  Mild        5         3",
+        "  3  Unexposed   Age80_Up  Uninfected  0         0",
+    };
+    assert(scalar_lines == expected_scalar);
+
+    vector<PC> mixed_cols = {
         PC::variant,
         PC::variant_count,
         PC::sickday,
-        PC::sickday_count,
-        PC::deadday
+        PC::recovday,
+        PC::tested,
+        PC::testday
     };
-    fmt::println("Row:\tvariant | variant_count | sickday | sickday_count | deadday |");
-    fmt::println("--------------------------------------------------------------------");
-    pop.print_table(rows, cols2);
+
+    std::ostringstream mixed_out;
+    print_pop_table(pop, rows, mixed_cols, mixed_out);
+    const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
+    for (const auto& line : mixed_lines) {
+        fmt::println("{}", line);
+    }
     fmt::print("\n");
 
-    // Test 3: Vaccine-related columns
-    fmt::println("--- Test 3: Vaccine columns (vaxstatus, vaxrcvd, vax_count, quar, quarday) ---");
-    vector<PopData::Column> cols3 = {
-        PC::vaxstatus,
-        PC::vaxrcvd,
-        PC::vax_count,
-        PC::quar,
-        PC::quarday
+    const vector<string> expected_mixed = {
+        "row  variant  variant_count  sickday  recovday  tested  testday",
+        "----------------------------------------------------------------",
+        "  1  alpha    1              2        9         -       -",
+        "  2  delta    2              11       -         true    12",
+        "  3  none     0              -        -         -       -",
     };
-    fmt::println("Row:\tvaxstatus | vaxrcvd | vax_count | quar | quarday |");
-    fmt::println("------------------------------------------------------------");
-    pop.print_table(rows, cols3);
+    assert(mixed_lines == expected_mixed);
+
+    vector<string_view> runtime_cols = {
+        "vaxstatus",
+        "vaxrcvd",
+        "vax_count",
+        "quar",
+        "quarday"
+    };
+
+    std::ostringstream runtime_out;
+    print_pop_table(pop, rows, runtime_cols, runtime_out);
+    const auto runtime_lines = poptable_test::split_trimmed_lines(runtime_out.str());
+    for (const auto& line : runtime_lines) {
+        fmt::println("{}", line);
+    }
     fmt::print("\n");
+
+    const vector<string> expected_runtime = {
+        "row  vaxstatus  vaxrcvd  vax_count  quar   quarday",
+        "---------------------------------------------------",
+        "  1  none       -        0          false  0",
+        "  2  booster    moderna  2          true   8",
+        "  3  none       -        0          false  0",
+    };
+    assert(runtime_lines == expected_runtime);
+
+    std::ostringstream multi_out;
+    print_pop_table(pop, rows, mixed_cols, multi_out, true);
+    const auto multi_lines = poptable_test::split_trimmed_lines(multi_out.str());
+    for (const auto& line : multi_lines) {
+        fmt::println("{}", line);
+    }
+    fmt::print("\n");
+
+    const vector<string> expected_multi = {
+        "row  variant  variant_count  sickday  recovday  tested  testday",
+        "----------------------------------------------------------------",
+        "  1  alpha    1              2        9         -       -",
+        "  2  alpha    2              4                  false   6",
+        "  *  delta                   11                 true    12",
+        "  3  none     0              -        -         -       -",
+    };
+    assert(multi_lines == expected_multi);
+
+    bool bad_row_threw = false;
+    try {
+        const vector<size_t> bad_rows = {0, 1};
+        print_pop_table(pop, bad_rows, scalar_cols);
+    } catch (const std::invalid_argument&) {
+        bad_row_threw = true;
+    }
+    assert(bad_row_threw);
+
+    bool bad_column_threw = false;
+    try {
+        const vector<string_view> bad_cols = {"status", "does_not_exist"};
+        print_pop_table(pop, rows, bad_cols);
+    } catch (const std::invalid_argument&) {
+        bad_column_threw = true;
+    }
+    assert(bad_column_threw);
+
+    Variant::names = saved_variant_names;
 
     fmt::println("=== PopData Print Table Test Completed ===");
 }
@@ -247,31 +392,35 @@ void test_multiple_infections() {
   vector<Variant>& variants = test_model.mp.variants;
 
   // Find one person in age20_39 and one in age60_79
-  size_t person_age20_39 = 0;
-  size_t person_age60_79 = 0;
+  size_t idx_age20_39 = 0;
+  size_t idx_age60_79 = 0;
 
   for (size_t i = 1; i <= pop.popn; ++i) {
-    if (person_age20_39 == 0 && pop.agegrp[i] == Age::Age20_39) {
-      person_age20_39 = i;
+    if (idx_age20_39 == 0 && pop.agegrp[i] == Age::Age20_39) {
+      idx_age20_39 = i;
     }
-    if (person_age60_79 == 0 && pop.agegrp[i] == Age::Age60_79) {
-      person_age60_79 = i;
+    if (idx_age60_79 == 0 && pop.agegrp[i] == Age::Age60_79) {
+      idx_age60_79 = i;
     }
-    if (person_age20_39 != 0 && person_age60_79 != 0) {
+    if (idx_age20_39 != 0 && idx_age60_79 != 0) {
       break;
     }
   }
 
-  if (person_age20_39 == 0 || person_age60_79 == 0) {
+  if (idx_age20_39 == 0 || idx_age60_79 == 0) {
     fmt::println("ERROR: Could not find required age groups in population");
     return;
   }
 
+  // resolve idx for person to the person's row of traits:
+  auto person_age20_39 = pop.agent(idx_age20_39);
+  auto person_age60_79 = pop.agent(idx_age60_79);
+
   fmt::println("Testing with:");
   fmt::println("  Person {} (age group: {}) - will be infected 10 times",
-               person_age20_39, Agegrp::names[pop.agegrp[person_age20_39]]);
+               person_age20_39.id, Agegrp::names[person_age20_39.agegrp()]);
   fmt::println("  Person {} (age group: {}) - will be infected 17 times\n",
-               person_age60_79, Agegrp::names[pop.agegrp[person_age60_79]]);
+               person_age60_79.id, Agegrp::names[person_age60_79.agegrp()]);
 
   // Use first real variant (index 1, since 0 is "none")
   Variant base_variant = test_model.mp.variants[1];
@@ -282,43 +431,43 @@ void test_multiple_infections() {
   sim::current_day = 1;
 
   // Infect person 1 ten times (days 1, 21, 41, 61, 81, 101, 121, 141, 161, 181)
-  fmt::println("Infecting person {} 10 times:", person_age20_39);
+  fmt::println("Infecting person {} 10 times:", person_age20_39.id);
   for (int infection = 0; infection < 10; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
     pop.make_sick(person_age20_39, base_variant, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
-                 infection + 1, day, static_cast<int>(pop.variant_count[person_age20_39]));
+                 infection + 1, day, static_cast<int>(person_age20_39.variant_count()));
   }
 
-  fmt::println("\nPerson {} final state:", person_age20_39);
-  fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age20_39]));
+  fmt::println("\nPerson {} final state:", person_age20_39.id);
+  fmt::println("  variant_count: {}", static_cast<int>(person_age20_39.variant_count()));
   fmt::println("  Infection history (variant, sickday):");
-  int count1 = std::min(static_cast<int>(pop.variant_count[person_age20_39]), 16);
+  int count1 = std::min(static_cast<int>(person_age20_39.variant_count()), 16);
   for (int i = 0; i < count1; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, pop.variant[person_age20_39][i].name(), pop.sickday[person_age20_39][i]);
+                 i, person_age20_39.get_variant().name(), person_age20_39.get_sickday());
   }
 
   // Infect person 2 seventeen times (days 1, 21, 41, ..., 321)
   fmt::print("\n\n");
-  fmt::println("Infecting person {} 17 times:", person_age60_79);
+  fmt::println("Infecting person {} 17 times:", person_age60_79.id);
   for (int infection = 0; infection < 17; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
     pop.make_sick(person_age60_79, base_variant, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
-                 infection + 1, day, static_cast<int>(pop.variant_count[person_age60_79]));
+                 infection + 1, day, static_cast<int>(person_age60_79.variant_count()));
   }
 
-  fmt::println("\nPerson {} final state:", person_age60_79);
-  fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age60_79]));
+  fmt::println("\nPerson {} final state:", person_age60_79.id);
+  fmt::println("  variant_count: {}", static_cast<int>(person_age60_79.variant_count()));
   fmt::println("  Infection history (variant, sickday):");
-  int count2 = std::min(static_cast<int>(pop.variant_count[person_age60_79]), 16);
+  int count2 = std::min(static_cast<int>(person_age60_79.variant_count()), 16);
   fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
   for (int i = 0; i < count2; ++i) {
     fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, pop.variant[person_age60_79][i].name(), pop.sickday[person_age60_79][i]);
+                 i, person_age60_79.get_variant().name(), person_age60_79.get_sickday());
   }
 
   fmt::println("\n=== Multiple Infections Test Completed ===");
@@ -600,8 +749,8 @@ int main() {
   // Test seeding and spread contact generation
   // test_seeding_and_spread();
 
-  // Test popdata printing
-  // test_popdata_print_table(setup_sim(1000, 38015, "2020-01-01", false).pop);
+  // Unit test: PopData table printer
+  // test_popdata_print_table();
 
   // Test random number generator functions
   // test_random_functions();

@@ -24,41 +24,7 @@ class PopData {
     std::size_t popn; // actual population size
     std::size_t popz; // popn+1: array sizing for 1 indexing all vectors
 
-  // vectors of pseudo enums as uint8_t or
-  // vectors of vector for repeating count happening to a person
-  vector<Status> status; // default unexposed = 1
-  vector<Agegrp> agegrp;
-  vector<Condition> cond;
-  vector<uint8_t> duration;
-  vector<array<Variant, 16>> variant; 
-  vector<std::uint8_t> variant_count;
-  vector<array<int16_t, 16>> sickday;
-  vector<std::uint8_t> sickday_count;
-  vector<array<int16_t, 16>> recovday;
-  vector<std::uint8_t> recovday_count;
-  vector<int16_t> deadday;
-  vector<uint8_t> ring;
-  vector<uint8_t> sdcase;
-  vector<array<uint8_t, 16>> tested; // pseudo bool 0 = false, 1 = true
-  vector<std::uint8_t> tested_count;
-  vector<array<int16_t, 16>> testday;
-  vector<uint8_t> quar; // pseudo bool
-  vector<int16_t> quarday;
-  vector<Vaxstatus> vaxstatus;    //  = fill(:none, pop), :none, :first, :full, :booster,  maybe others
-  vector<array<uint8_t, 16>> vaxrcvd;  // :none,  vaccine symbols  :Pfizer, :Moderna, :JnJ _
-  vector<std::uint8_t> vax_count;
-  vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
-
-  // domains of valid values for columns
-      // what is the stub to use for int valued columns that print as ints?
-  RuntimeEnum vax_lbl;
-  RuntimeEnum Justint;
-  RuntimeEnum true_false;
-
-  // helper function for creating age group distribution defined below
-      // vector<int> apportion(int n, vector<float> splits);
-
-  // constructor
+      // constructor
       // clang-format off
   PopData(size_t n, RuntimeEnum vax_lbl, 
           RuntimeEnum true_false, RuntimeEnum Justint,
@@ -78,108 +44,114 @@ class PopData {
                   "Bad size input. Must be a positive integer.");
           }
       }
-  
-    enum class Column : uint8_t {
-      status,
-      agegrp,
-      cond,
-      duration,
-      variant,
-      variant_count,
-      sickday,
-      sickday_count,
-      recovday,
-      recovday_count,
-      deadday,
-      ring,
-      sdcase,
-      tested,
-      tested_count,
-      quar,
-      quarday,
-      vaxstatus,
-      vaxrcvd,
-      vax_count,
-      vaxday,
-    };
-
-    // methods for processing selections of rows and columns
-    template <typename Action>
-    void apply_to_columns(const vector<Column> &cols, Action &&action) {
-      for (auto col : cols) {
-        switch (col) {
-        case Column::status:          action(status);                    break;
-        case Column::agegrp:          action(agegrp);                    break;
-        case Column::cond:            action(cond);                      break;
-        case Column::duration:        action(duration, Justint);         break;
-        case Column::variant:         action(variant);                   break;
-        case Column::variant_count:   action(variant_count, Justint);    break;
-        case Column::sickday:         action(sickday, Justint);          break;
-        case Column::sickday_count:   action(sickday_count, Justint);    break;
-        case Column::recovday:        action(recovday, Justint);         break;
-        case Column::recovday_count:  action(recovday_count, Justint);   break;
-        case Column::deadday:         action(deadday, Justint);          break;
-        case Column::ring:            action(ring, Justint);             break;
-        case Column::sdcase:          action(sdcase, Justint);           break;
-        case Column::tested:          action(tested, true_false);        break;
-        case Column::tested_count:    action(tested_count, Justint);     break;
-        case Column::quar:            action(quar, true_false);          break;
-        case Column::quarday:         action(quarday, Justint);          break;
-        case Column::vaxstatus:       action(vaxstatus);                 break;
-        case Column::vaxrcvd:         action(vaxrcvd, vax_lbl);          break;
-        case Column::vax_count:       action(vax_count, Justint);        break;
-        case Column::vaxday:          action(vaxday, Justint);           break;
-        }  // switch
-      }  // for
-    } // function
 
 
-    // 2 action functions for printing the PopData by selected rows and columns
-     // functor to print a cell from a vector<uint8_t> or a
-    // vector<array<uint8_t,16>\
+  // vectors of pseudo enums as uint8_t or trait classes or
+  // vectors of vector for repeating count happening to a person
+  vector<Status> status; // default unexposed = 1
+  vector<Agegrp> agegrp;
+  vector<Condition> cond;
+  vector<uint8_t> duration;
+  vector<array<Variant, 16>> variant; 
+  vector<std::uint8_t> variant_count;
+  vector<array<int16_t, 16>> sickday;
+  vector<std::uint8_t> sickday_count;
+  vector<array<int16_t, 16>> recovday;
+  vector<std::uint8_t> recovday_count;
+  vector<int16_t> deadday;
+  vector<uint8_t> ring;
+  vector<uint8_t> sdcase;
+  vector<array<uint8_t, 16>> tested; // pseudo bool 0 = false, 1 = true
+  vector<std::uint8_t> tested_count;
+  vector<array<int16_t, 16>> testday;
+  vector<uint8_t> quar; // pseudo bool
+  vector<int16_t> quarday;
+  vector<Vaxstatus> vaxstatus;  
+  vector<array<uint8_t, 16>> vaxrcvd;  // :none,  vaccine symbols  :Pfizer, :Moderna, :JnJ _
+  vector<std::uint8_t> vax_count;
+  vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
 
-    struct CellPrinter {
-      int current_row;
+/* 
+lazy access to "rows" across the vectors.  AgentView is a reference to vector/columns
+at one index value.  No row is materialized. We only pay when we access something:
+  create: auto a = pop.agent(i)
+  use:   if (a.status() == Stat::Unexposed) ...
 
-      void operator()(const vector<uint8_t> &vec, RuntimeEnum label) const {
-        fmt::print("   {}\t|", label.to_str(vec[current_row]));
+  to define a function that takes a "row" as its argument: 
+        `float risk(PopData::AgentView agent) {
+            if (agent.agegrp() == Agegrp::Age80_up) ...;
+          }`
+  to call this function:
+    auto a = pop.agent(i);
+    float risk_factor = risk(a); 
+
+  A nested struct definition is implicitly a friend class.
+*/
+  struct AgentView {
+    private:
+      PopData& pop;
+      std::size_t i;
+      friend class PopData;
+      // Private constructor
+      AgentView(PopData& p, std::size_t index) : pop(p), i(index) {}
+
+    public:  //must have a function for every vector in PopData
+      // reference return value means these are Lvalues: read and write to the source vectors in PopData
+      const size_t id = i; 
+      Status & status() { return pop.status[i]; }
+      Agegrp &agegrp() { return pop.agegrp[i]; }
+      Condition &cond() { return pop.cond[i]; }
+      std::uint8_t &duration() { return pop.duration[i]; }
+      array<Variant, 16> &all_variants() { return pop.variant[i]; }
+      Variant get_variant() {
+        const auto variant_count = pop.variant_count[i];
+          const auto &all_variants = pop.variant[i];
+        if (variant_count == 0)
+          return Variant{};
+        else if (variant_count >= 16)
+          return all_variants.back();
+        else return all_variants[zidx(variant_count)];
       }
-
-      void operator()(const vector<int16_t> &vec, RuntimeEnum label) const {
-        fmt::print("   {}\t|", label.to_str(vec[current_row]));
+      std::uint8_t &variant_count() { return pop.variant_count[i]; }
+      array<int16_t, 16> &all_sickdays() { return pop.sickday[i]; }
+      int16_t get_sickday() {
+        const auto variant_count = pop.variant_count[i];
+        const auto &all_sickdays = pop.sickday[i];
+        if (variant_count == 0)
+          return 0;
+        else if (variant_count >= 16)
+          return all_sickdays.back();
+        else return all_sickdays[zidx(variant_count)];
       }
+      array<int16_t, 16> &recovday() { return pop.recovday[i]; }
+      std::uint8_t &recovday_count() { return pop.recovday_count[i]; }
+      std::int16_t &deadday() { return pop.deadday[i]; }
+      std::uint8_t &ring() { return pop.ring[i]; }
+      std::uint8_t &sdcase() { return pop.sdcase[i]; }
+      array<uint8_t, 16> &tested() { return pop.tested[i]; }
+      uint8_t & tested_count() { return pop.tested_count[i];}
+      array<int16_t, 16> &testday() { return pop.testday[i]; }
+      uint8_t &quar() { return pop.quar[i]; }  // pseudo bool
+      int16_t &quarday() { return pop.quarday[i]; }
+      Vaxstatus &vaxstatus() { return pop.vaxstatus[i]; }
+      array<uint8_t, 16> &vaxrcvd() { return pop.vaxrcvd[i]; }
+      uint8_t &vax_count() { return pop.vax_count[i]; }
+      
+  };  // end of struct AgentView
 
-      void operator()(const std::vector<array<uint8_t, 16>> &vec, RuntimeEnum label) {
-        fmt::print("   {}...    | ", label.to_str(vec[current_row][0]));
-      }
+  //
+  // enables easy use of AgentView with any instance variable of class PopData
+  //
+  AgentView agent(std::size_t i) { return AgentView{*this, i}; }
 
-      void operator()(const std::vector<array<int16_t, 16>> &vec, RuntimeEnum label) {
-        fmt::print("   {}...    | ", label.to_str(vec[current_row][0]));
-      }
 
-      // TraitType overload: uses built-in .name() — no RuntimeEnum label needed
-      template<typename T>
-        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
-      void operator()(const vector<T>& vec) const {
-        fmt::print("   {}\t|", vec[current_row].name());
-      }
+  // domains of valid values for columns
+      // what is the stub to use for int valued columns that print as ints?
+  RuntimeEnum vax_lbl;
+  RuntimeEnum Justint;
+  RuntimeEnum true_false;
 
-      // TraitType array overload: for vector<array<T, 16>> where T has .name()
-      template<typename T>
-        requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
-      void operator()(const std::vector<array<T, 16>> &vec) const {
-        fmt::print("   {}...    | ", vec[current_row][0].name());
-      }
-    };
 
-    void print_table(const vector<size_t> &rows, const vector<Column> &cols) {
-      for (int r : rows) {
-        fmt::print("{}:\t", r);
-        CellPrinter printer{r};
-        apply_to_columns(cols, printer);
-        fmt::print("\n");
-      }
-    }
 
     vector<Agegrp> age_distribution(int popn, const auto &age_parts) {
       assert(age_parts.size() == 5);
@@ -231,22 +203,11 @@ class PopData {
         parts.back() -= diff;
       }
 
-      // // Calculate total after adjustment
-      // int total_after = std::accumulate(parts.begin(), parts.end(), 0);
-      // std::cout << "Total after adjustment: " << total_after << "\n";
-      // std::cout << "Expected (n): " << n << "\n";
-      // std::cout << "Match: " << (total_after == n ? "YES" : "NO") << "\n";
-      // std::cout << "=== END APPORTION DEBUG ===\n\n";
-
       assert(parts.back() > 0);  // should always be true for large n and reasonable splits
 
       return parts;
     }
 
-    // some complex getters and setters that modify multiple vectors at the same index
-    // make_sick definition is in disease_modeling.cpp
-    void make_sick(size_t p, Variant var, Condition condition = Cond::Nil,
-                   uint8_t durationdays = 0);
     
     // how to return if person p is not sick?  does it matter: we might want to know the last variant experienced if any
     // return the most recent (or last) variant of virus infection
@@ -257,10 +218,7 @@ class PopData {
       else if (variant_count[p] >= 16) return variant[p].back();
       else return variant[p][zidx(variant_count[p])];
     }
-    uint8_t get_variant(size_t p, size_t v_count) const {  // not sure this is needed--return a specific variant
-      assert(v_count > 0 && v_count <= variant_count[p]);
-      return variant[p][zidx(v_count)];
-    }
+
 
     size_t get_recovday(size_t p) const {    // don't need a setter because it happens in make_well()
       if (recovday_count[p] == 0) return 0; // maps to "none"
@@ -272,6 +230,14 @@ class PopData {
       if (duration[p] < DURATIONLIM) ++duration[p];
     }
 
+    //
+    // class member functions defined in disease_modeling.cpp
+    // some complex getters and setters that modify multiple vectors at the same index
+    //
+
+    void make_sick(PopData::AgentView person, Variant var, Condition condition = Cond::Nil,
+                   uint8_t durationdays = 0);
+    
     void make_well(size_t p);
 };
 

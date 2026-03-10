@@ -15,9 +15,9 @@ nil (asymptomatic) to mild to sick to severe, depending on their
 agegroup, days of being exposed, and some probability. Finally,  
 they move to recovered or dead. Note: p is the contacted person.
 */      // before probvec InfectParams &infpar, 
-void progression(PopData &pop, size_t p, ProgressionSet &progset, vector<InfectParams> infectparams,
+void progression(PopData &pop, size_t p, ProgressionSet &progset, vector<InfectParams> &infectparams,
                  array<float, 6> &probvec,
-                 bool dovax, VaxSet vaxset) {
+                 bool dovax, VaxSet &vaxset) {
   auto today = sim::get_day();
 
   // extract traits for current person

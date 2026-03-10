@@ -10,7 +10,7 @@
               float density_factor,
               vector<float> &indoor_seq) {
 
-  auto spreader = p;
+  auto spreader = pop.agent(p);
   auto thisday = sim::get_day();
 
   // retrieve needed parameters (use const references to avoid copying)
@@ -21,15 +21,16 @@
   auto indoor_factor = 1.0;  // TODO just for debugging logic, remove later
 
   // which contacts does the infected person have? use pre-allocated buffer contacts
-  get_contacts(pop, density_factor, indoor_factor, gammashape, pop.agegrp[spreader], pop.cond[spreader], contactfactors, contacts);
+  get_contacts(pop, density_factor, indoor_factor, gammashape, spreader.agegrp(), spreader.cond(), contactfactors, contacts);
   sim::ds.num_contacts += contacts.size();
 
   for (auto c : contacts) {
     if (istouched(pop, c, touchfactors, indoor_factor)) {
       sim::ds.num_touched++;
-      if (isinfected(pop, c, spreader, infectparams, thisday)) {  // TODO need vaxset, dovax
+      if (isinfected(pop, c, spreader.id, infectparams, thisday)) {  // TODO need vaxset, dovax
         sim::ds.num_new_infected++;
-        pop.make_sick(c, pop.variant[spreader][zidx(pop.variant_count[spreader])]);
+        auto this_contact = pop.agent(c);
+        pop.make_sick(this_contact, spreader.get_variant());
       }
     }
   }

@@ -80,14 +80,17 @@ void runsim(Model& model)
 
     // Loop through all people and process infectious ones (no vector allocation needed)
     for (size_t p = 1; p <= pop.popn; ++p) {
-      if (pop.status[p] != Stat::Infectious) continue;
+
+      // get an agent at index p
+      auto person = pop.agent(p);
+      if (person.status() != Stat::Infectious) continue;
 
       spread_timing.start();
       // spread kernel
-      auto spr_duration = pop.duration[p];  // a uint8_t
-      auto variant_count = pop.variant_count[p];
+      auto spr_duration = person.duration();       //pop.duration[p];  // a uint8_t
+      auto variant_count = person.variant_count();
       if (variant_count == 0) continue;  // Skip if no variant assigned:  TODO this is really an error that shouldn't happen
-      auto spr_variant = pop.get_variant(p);    // variant_count is 1-based, array is 0-based
+      auto spr_variant = person.get_variant();    // variant_count is 1-based, array is 0-based
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[idx(spr_duration)];
       if (sendrisk > 0.0) {
         sim::ds.starting_spreaders++;
@@ -97,7 +100,7 @@ void runsim(Model& model)
 
       // progression kernel
       progression_timing.start();
-      progression(pop, p, mp.progressionset, mp.infectparams, mp.trvec);
+      progression(pop, p, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
       progression_timing.cum();
 
       // cleanup before next person
@@ -123,7 +126,7 @@ void runsim(Model& model)
 
    // Breakdown by age group: infected, reinfected, dead
   {
-    const auto& pop = model.pop;
+    // const auto& pop = model.pop;
     const size_t n_ages = 5;  // Age0_19..Age80_up (indices 1..5)
 
     array<int, 6> unexposed{}, infected{}, reinfected{}, recovered{}, dead{};  // index 1..5
