@@ -17,6 +17,7 @@
   const auto& contactfactors = social.contactfactors;
   const auto& touchfactors = social.touchfactors;
   auto gammashape = social.gammashape;
+  auto spr_variant = spreader.get_variant();
   // auto indoor_factor = indoor_seq[zidx(thisday)];
   auto indoor_factor = 1.0;  // TODO just for debugging logic, remove later
 
@@ -30,7 +31,7 @@
       if (isinfected(pop, c, spreader.id, infectparams, thisday)) {  // TODO need vaxset, dovax
         sim::ds.num_new_infected++;
         auto this_contact = pop.agent(c);
-        pop.make_sick(this_contact, spreader.get_variant());
+        pop.make_sick(this_contact, spr_variant);
       }
     }
   }

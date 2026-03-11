@@ -6,6 +6,7 @@
 #include "../src/sim.h"
 #include "../src/population.h"
 #include "../src/population_print.h"
+#include "../src/simple_print.h"
 #include "../src/helpers.h"
 #include "../src/random.h"
 #include "../src/timing.h"
@@ -299,6 +300,118 @@ void test_popdata_print_table() {
     Variant::names = saved_variant_names;
 
     fmt::println("=== PopData Print Table Test Completed ===");
+}
+
+void test_simple_pop_print() {
+    fmt::print("\n=== Testing Simple Pop Printer ===\n\n");
+
+    vector<string> saved_variant_names = Variant::names;
+    PopData pop = poptable_test::make_popdata_print_fixture();
+    vector<size_t> rows = {1, 2, 3};
+
+    vector<string_view> scalar_cols = {
+        "status",
+        "agegrp",
+        "cond",
+        "duration",
+        "ring"
+    };
+
+    std::ostringstream scalar_out;
+    print_simple_pop(pop, rows, scalar_cols, scalar_out);
+    const auto scalar_lines = poptable_test::split_trimmed_lines(scalar_out.str());
+    for (const auto& line : scalar_lines) {
+        fmt::println("{}", line);
+    }
+    fmt::print("\n");
+    const vector<string> expected_scalar = {
+        "row  status      agegrp    cond        duration  ring",
+        "------------------------------------------------------",
+        "  1  Recovered   Age20_39  Uninfected  0         0",
+        "  2  Infectious  Age40_59  Mild        5         3",
+        "  3  Unexposed   Age80_Up  Uninfected  0         0",
+    };
+    assert(scalar_lines == expected_scalar);
+
+    vector<string_view> mixed_cols = {
+        "variant",
+        "variant_count",
+        "sickday",
+        "recovday",
+        "tested",
+        "testday"
+    };
+
+    std::ostringstream mixed_out;
+    print_simple_pop(pop, rows, mixed_cols, mixed_out);
+    const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
+    for (const auto& line : mixed_lines) {
+        fmt::println("{}", line);
+    }
+    fmt::print("\n");
+    const vector<string> expected_mixed = {
+        "row  variant  variant_count  sickday  recovday  tested  testday",
+        "----------------------------------------------------------------",
+        "  1  alpha    1              2        9         -       -",
+        "  2  delta    2              11       -         true    12",
+        "  3  none     0              -        -         -       -",
+    };
+    assert(mixed_lines == expected_mixed);
+
+    vector<string_view> runtime_cols = {
+        "vaxstatus",
+        "vaxrcvd",
+        "vax_count",
+        "quar",
+        "quarday"
+    };
+
+    std::ostringstream runtime_out;
+    print_simple_pop(pop, rows, runtime_cols, runtime_out);
+    const auto runtime_lines = poptable_test::split_trimmed_lines(runtime_out.str());
+    for (const auto& line : runtime_lines) {
+        fmt::println("{}", line);
+    }
+    fmt::print("\n");
+    const vector<string> expected_runtime = {
+        "row  vaxstatus  vaxrcvd  vax_count  quar   quarday",
+        "---------------------------------------------------",
+        "  1  none       -        0          false  0",
+        "  2  booster    moderna  2          true   8",
+        "  3  none       -        0          false  0",
+    };
+    assert(runtime_lines == expected_runtime);
+
+    bool bad_row_threw = false;
+    try {
+        const vector<size_t> bad_rows = {0, 1};
+        print_simple_pop(pop, bad_rows, scalar_cols);
+    } catch (const std::invalid_argument&) {
+        bad_row_threw = true;
+    }
+    assert(bad_row_threw);
+
+    bool big_row_threw = false;
+    try {
+        const vector<size_t> bad_rows = {1, 4};
+        print_simple_pop(pop, bad_rows, scalar_cols);
+    } catch (const std::invalid_argument&) {
+        big_row_threw = true;
+    }
+    assert(big_row_threw);
+
+    bool bad_column_threw = false;
+    try {
+        const vector<string_view> bad_cols = {"status", "does_not_exist"};
+        print_simple_pop(pop, rows, bad_cols);
+    } catch (const std::invalid_argument&) {
+        bad_column_threw = true;
+    }
+    assert(bad_column_threw);
+
+    Variant::names = saved_variant_names;
+
+    fmt::println("=== Simple Pop Printer Test Completed ===");
 }
 
 void test_age_distribution(const PopData& pop) {
@@ -735,9 +848,9 @@ void apportion_debug(int n, vector<float> splits) {
       fmt::println("=== END APPORTION DEBUG ===\n");
 }
 
-void sim_test(size_t ndays=180) {
+void sim_test(size_t ndays=180, int locale=38015) {
   // fmt::print("\n=== Testing Spread Function (180-day simulation) ===\n\n");
-  Model model = setup_sim(ndays, 38015, "2020-01-01", false);
+  Model model = setup_sim(ndays, locale, "2020-01-01", false);
   // fmt::println("Population: {}", model.pop.popn);
   // fmt::println("Running simulation for {} days...\n", model.ndays);
 
@@ -751,6 +864,7 @@ int main() {
 
   // Unit test: PopData table printer
   // test_popdata_print_table();
+  // test_simple_pop_print();
 
   // Test random number generator functions
   // test_random_functions();
@@ -766,6 +880,6 @@ int main() {
   // test_age_distribution(setup_sim(1000, 38015, "2020-01-01", false).pop);
 
   // Test spread function n days simulation
-  sim_test(180);
+  sim_test(180, 38015);
 
 }

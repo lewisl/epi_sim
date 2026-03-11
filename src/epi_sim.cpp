@@ -1,14 +1,13 @@
 #include "epi_sim.h"
-#include "setup.cpp"
-#include "parameters.h"
-#include "population.h"
+#include "setup.h"
+#include "sim.h"
 
 
 int main() {
   fmt::println("Deeply Under Construction.");
 
-  setup_sim();
-  run_sim();
+  Model model = setup_sim(180, 38015, "2020-01-01", false);
+  runsim(model);
   
   return 0;
 }

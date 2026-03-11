@@ -10,6 +10,7 @@
 #include "spread.h"
 #include "progression.h"
 #include "timing.h"
+#include "series.h"
 
 
 
@@ -36,6 +37,7 @@ void runsim(Model& model)
   // trtime
   Timing progression_timing;
   // histtime
+  Timing history_timing;
   // totaltime
 
   // create SeedCases
@@ -47,7 +49,11 @@ void runsim(Model& model)
   auto seeded = sc1();
 
   // create useful pre-allocated vectors
-  vector<size_t> contacts(250); // reserve and set size, cleared before later usage
+  vector<size_t> contacts(
+      250); // reserve and set size, cleared before later usage
+
+  // create vector set for series statistics
+  DayData series(model.ndays);
 
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
@@ -105,9 +111,12 @@ void runsim(Model& model)
 
       // cleanup before next person
       // contacts.clear();  // get rid of all the contacts of the previous person!
-    }  // end infected persons loop
+    } // end persons loop
 
-  
+    // update history series
+    history_timing.start();
+    update_series(pop, series);
+    history_timing.cum();
 
     // Print daily outcomes
     // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
@@ -116,15 +125,18 @@ void runsim(Model& model)
 
     // run end of day cases
 
-    // update history series
-
     // cleanup sim::ds
     sim::ds.reset();
 
+  } // day loop
 
-  } // end day loop
+ 
+  //
+  // at end of simulation
+  // 
+  print_total_status_series(series);
 
-   // Breakdown by age group: infected, reinfected, dead
+  // Breakdown by age group: infected, reinfected, dead
   {
     // const auto& pop = model.pop;
     const size_t n_ages = 5;  // Age0_19..Age80_up (indices 1..5)
@@ -155,7 +167,7 @@ void runsim(Model& model)
                  std::count_if(pop.status.begin(), pop.status.end(), [](auto s) { return s == Stat::Infectious; }));
   }
 
-  fmt::println("Spread time: {} Transition time: {}", spread_timing.show(), progression_timing.show());
+  fmt::println("Spread time: {} Transition time: {} History time: {}", spread_timing.show(), progression_timing.show(), history_timing.show());
 
   // fmt::println("\n=== Simulation Complete ===");
-}
+} // end runsim function

@@ -5,6 +5,7 @@
 #include <fmt/ostream.h>
 #include <stdexcept>
 
+// anonymous namespace to make all the contents only accessible within this source file...
 namespace {
 
 using CellFormatter = std::string (*)(const PopData &, size_t);
@@ -38,7 +39,7 @@ const T *latest_value(const std::vector<std::array<T, N>> &values,
 
   const size_t value_idx = count >= N ? N - 1 : zidx(count);
   return &values[row][value_idx];
-}
+  }
 
 template <typename T, size_t N>
 const T *stored_value(const std::vector<std::array<T, N>> &values,

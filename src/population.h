@@ -29,7 +29,7 @@ class PopData {
   PopData(size_t n, RuntimeEnum vax_lbl, 
           RuntimeEnum true_false, RuntimeEnum Justint,
           const vector<double>& age_dist=AGE_DIST)  
-      : popn(n), popz(n+1),status(n+1, Stat::Unexposed),
+      : popn(n), popz(n+1), status(n+1, Stat::Unexposed),
         agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
         cond(n+1, Cond::Uninfected), duration(n+1, 0),
         variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
@@ -85,7 +85,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
     auto a = pop.agent(i);
     float risk_factor = risk(a); 
 
-  A nested struct definition is implicitly a friend class.
+  A nested struct definition is implicitly a friend class:  needs to be passed pop in the constructor.
 */
   struct AgentView {
     private:
@@ -93,16 +93,18 @@ at one index value.  No row is materialized. We only pay when we access somethin
       std::size_t i;
       friend class PopData;
       // Private constructor
-      AgentView(PopData& p, std::size_t index) : pop(p), i(index) {}
+      AgentView(PopData &p, std::size_t index) : pop(p), i(index) {
+        if (i < 1 && i > pop.popn) throw std::runtime_error("Input i must be > 1 and less than number of people.");
+        }
 
     public:  //must have a function for every vector in PopData
       // reference return value means these are Lvalues: read and write to the source vectors in PopData
       const size_t id = i; 
       Status & status() { return pop.status[i]; }
-      Agegrp &agegrp() { return pop.agegrp[i]; }
-      Condition &cond() { return pop.cond[i]; }
-      std::uint8_t &duration() { return pop.duration[i]; }
-      array<Variant, 16> &all_variants() { return pop.variant[i]; }
+      Agegrp & agegrp() { return pop.agegrp[i]; }
+      Condition & cond() { return pop.cond[i]; }
+      std::uint8_t & duration() { return pop.duration[i]; }
+      array<Variant, 16> & all_variants() { return pop.variant[i]; }
       Variant get_variant() {
         const auto variant_count = pop.variant_count[i];
           const auto &all_variants = pop.variant[i];
@@ -111,7 +113,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
         else if (variant_count >= 16)
           return all_variants.back();
         else return all_variants[zidx(variant_count)];
-      }
+        }
       std::uint8_t &variant_count() { return pop.variant_count[i]; }
       array<int16_t, 16> &all_sickdays() { return pop.sickday[i]; }
       int16_t get_sickday() {
@@ -122,7 +124,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
         else if (variant_count >= 16)
           return all_sickdays.back();
         else return all_sickdays[zidx(variant_count)];
-      }
+        }
       array<int16_t, 16> &recovday() { return pop.recovday[i]; }
       std::uint8_t &recovday_count() { return pop.recovday_count[i]; }
       std::int16_t &deadday() { return pop.deadday[i]; }
@@ -141,7 +143,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
 
   //
   // enables easy use of AgentView with any instance variable of class PopData
-  //
+  //     called with an instance of PopData because it's a PopData method:   auto a = pop.agent(i)
   AgentView agent(std::size_t i) { return AgentView{*this, i}; }
 
 
@@ -150,8 +152,6 @@ at one index value.  No row is materialized. We only pay when we access somethin
   RuntimeEnum vax_lbl;
   RuntimeEnum Justint;
   RuntimeEnum true_false;
-
-
 
     vector<Agegrp> age_distribution(int popn, const auto &age_parts) {
       assert(age_parts.size() == 5);
@@ -213,6 +213,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
     // return the most recent (or last) variant of virus infection
     // note we don't allow a set_variant because it should only happen if all the invariants for getting sick are met,
     // which happens in the make_sick method.
+    // get_variant as PopData method: can access columns without pop.
     uint8_t get_variant(size_t p) const {
       if (variant_count[p] == 0) return 0; // maps to "none"
       else if (variant_count[p] >= 16) return variant[p].back();

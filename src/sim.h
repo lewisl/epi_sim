@@ -5,6 +5,7 @@
 #include "population.h"
 #include "parameters.h"
 #include "random.h"
+#include "series.h"
 
 // Forward declaration
 struct Model;
