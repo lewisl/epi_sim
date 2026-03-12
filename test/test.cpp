@@ -40,9 +40,9 @@ vector<string> split_trimmed_lines(const string& text) {
 }
 
 PopData make_popdata_print_fixture() {
-    RuntimeEnum vax_lbl{{{"none", 0}, {"pfizer", 1}, {"moderna", 2}}};
-    RuntimeEnum true_false{{{"false", 0}, {"true", 1}}};
-    RuntimeEnum justint{};
+    MapEnum<uint8_t> vax_lbl{{{"none", 0}, {"pfizer", 1}, {"moderna", 2}}};
+    MapEnum<uint8_t> true_false{{{"false", 0}, {"true", 1}}};
+    MapEnum<int> justint{};
 
     Variant::names = {"none", "alpha", "delta"};
 
@@ -879,7 +879,7 @@ int main() {
   // test age distribution
   // test_age_distribution(setup_sim(1000, 38015, "2020-01-01", false).pop);
 
-  // Test spread function n days simulation
+  // Test full simulation
   sim_test(180, 38015);
 
 }

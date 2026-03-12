@@ -3,6 +3,7 @@
 
 #include "parameters.h"
 #include "helpers.h"    // for shifter range compressor
+#include <cstdint>
 
 // using json = nlohmann::json;
 using json = nlohmann::ordered_json;
@@ -237,9 +238,9 @@ progression[0].tree[0][5][0][0]
 
 
 
-std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, vector<Variant> variants) {
+std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Variant> variants) {
   VaxSet vaxset{};
-  RuntimeEnum vaxlist = RuntimeEnum();
+  MapEnum<uint8_t> vaxlist = MapEnum<uint8_t>();
 
   json vaxdata = load_json_params(fpath); // read data from json file input
 
@@ -287,7 +288,7 @@ std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, vector<Variant> vari
 
 
 
-VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist) {
+VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
   json jdata = load_json_params(fname);
   VaxSched sched{};
 

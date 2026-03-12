@@ -1,11 +1,11 @@
 ### one-based indexed arrays and index values
-- RuntimeEnum Condition
+- MapEnum Condition
   - 0 is "uninfected" and not used to access parameter arrays
-- RuntimeEnum Status
+- MapEnum Status
   - 0 is "none"; not used as an index
-- RuntimeEnum Agegrp
+- MapEnum Agegrp
   - 0 is "unknown"; should not be used as an index
-- RuntimeEnum Vaxstatus
+- MapEnum Vaxstatus
   - 0 is "none", which is a valid status
   - Need to check on use as an index
 - Runtime Enum Progressionmap

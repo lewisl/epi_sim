@@ -26,8 +26,8 @@ class PopData {
 
       // constructor
       // clang-format off
-  PopData(size_t n, RuntimeEnum vax_lbl, 
-          RuntimeEnum true_false, RuntimeEnum Justint,
+  PopData(size_t n, MapEnum<uint8_t> vax_lbl, 
+          MapEnum<uint8_t> true_false, MapEnum<int> Justint,
           const vector<double>& age_dist=AGE_DIST)  
       : popn(n), popz(n+1), status(n+1, Stat::Unexposed),
         agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
@@ -149,9 +149,9 @@ at one index value.  No row is materialized. We only pay when we access somethin
 
   // domains of valid values for columns
       // what is the stub to use for int valued columns that print as ints?
-  RuntimeEnum vax_lbl;
-  RuntimeEnum Justint;
-  RuntimeEnum true_false;
+  MapEnum<uint8_t> vax_lbl;
+  MapEnum<int> Justint;
+  MapEnum<uint8_t> true_false;
 
     vector<Agegrp> age_distribution(int popn, const auto &age_parts) {
       assert(age_parts.size() == 5);

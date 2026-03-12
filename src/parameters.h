@@ -179,30 +179,36 @@ struct fmt::formatter<T> : fmt::formatter<uint8_t> {
     }
 };
 
-struct RuntimeEnum {
+template<typename T>    // T is the type of numeric to use for the number behind the enum
+struct MapEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
-  absl::flat_hash_map<std::string, int>
-      lookup; // Name-to-Index (String -> Number)
-  std::vector<uint8_t> valid_nums{};
-  std::uint8_t nextnum{0};
+  absl::flat_hash_map<std::string, T> lookup; // Name-to-Index (String -> Number)
+  std::vector<T> valid_nums{};
+  T nextnum{0};
 
   // contructors
-  RuntimeEnum() = default;
+  MapEnum() = default;
   // restore aggregate initializer style constructor
-  RuntimeEnum(vector<string> names_,
-            absl::flat_hash_map<string, int> lookup_,
-            vector<uint8_t> valid_nums_,
-            uint8_t nextnum_)
+  MapEnum(vector<string> names_,
+            absl::flat_hash_map<string, T> lookup_,
+            vector<T> valid_nums_,
+            T nextnum_)
     : names(std::move(names_)),
       lookup(std::move(lookup_)),
       valid_nums(std::move(valid_nums_)),
       nextnum(nextnum_) {}
   // constructor for map literal--maintains invariants, always consistent, shortest
-  RuntimeEnum(vector<std::pair<string, uint8_t>> mapliteral) {
+  MapEnum(vector<std::pair<string, T>> mapliteral) {
     for (auto pr : mapliteral) {
       names.push_back(pr.first);
       valid_nums.push_back(pr.second);
       lookup[pr.first] = pr.second;
+      if constexpr (std::is_enum_v<T>) {
+        using U = std::underlying_type_t<T>;
+        nextnum = static_cast<T>(std::to_underlying(pr.second) + 1);
+      } else {
+        nextnum = pr.second + 1;
+      }
     }
   }
 
@@ -210,27 +216,33 @@ struct RuntimeEnum {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
           names.push_back(newname);
           lookup[newname] = nextnum;
-          ++nextnum;
+          if constexpr (std::is_enum_v<T>) {
+            using U = std::underlying_type_t<T>;
+            nextnum = static_cast<T>(std::to_underlying(nextnum) + 1);
+          } else {
+            ++nextnum;
+          }
       }
   }
 
-  // String → Index (linear search - fast for small N)
-  //    example: Status("none")->returns 0   Status("unexposed")->returns 1
-  uint8_t operator()(const string& name) const {
-      auto it = std::find(names.begin(), names.end(), name);
-      return (it != names.end()) ? std::distance(names.begin(), it) : 99;
-  }
-
-  // String → Index (hash map - for large N or explicit use)
-  uint8_t to_int(const std::string& name) const {
+  // String -> stored numeric value (hash lookup)
+  //    returns std::nullopt if the name is not present
+  std::optional<T> to_int(const std::string& name) const {
       auto it = lookup.find(name);
-      return (it != lookup.end()) ? it->second : 99;
+      return (it != lookup.end()) ? std::optional<T>{it->second} : std::nullopt;
   }
 
-  // Num -> String (Instant)
-  std::string to_str(uint8_t i) const {
-    if (names.empty()) return std::to_string(i);
-    return (i >= 0 && i < names.size()) ? names[i] : "INVALID";
+  // Stored numeric value -> string label
+  std::string to_str(T i) const {
+    const auto it = std::find(valid_nums.begin(), valid_nums.end(), i);
+    if (it == valid_nums.end()) {
+      if constexpr (std::is_enum_v<T>) {
+        return "INVALID";
+      } else {
+        return std::to_string(i);
+      }
+    }
+    return names[static_cast<size_t>(std::distance(valid_nums.begin(), it))];
   }
 
   size_t size() const { return names.size(); }
@@ -240,26 +252,15 @@ struct RuntimeEnum {
       fmt::print("{:>2}: {:<8}\n", i, names[i]);
     }
   }
-};  // struct RuntimeEnum
+};  // struct MapEnum
 
 // "fake" enums created at runtime to hold characteristics of persons in the simulation
 //     in the PopData table
 namespace Trait
 {
-  inline RuntimeEnum Justint{};
+  inline MapEnum<int> Justint{};
 
-  inline RuntimeEnum true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
-
-//   inline RuntimeEnum Vaxstatus = {
-//       {"none", "first", "full", "booster"},
-//       {{"none", 0}, {"first", 1}, {"full", 2}, {"booster", 3}},
-//       {0,1,2,3},  // valid_nums
-//       4};   // this should probably be moved into the vaxset struct?
-// }  // end namespace Trait
-
-
-
-
+  inline MapEnum<uint8_t> true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
 }
 
 
@@ -335,7 +336,7 @@ struct InfectParams {
 struct ProgressionFactors {  // for one variant
   vector<float> riskadjust {};  // 0 elements, will be 6 elements if used
   absl::flat_hash_map<string, float>  // vaccine to single float value
-      vaxhalflifeadjust {}; // might do uint8_t keys or RuntimeEnum keys or vector of whatever
+      vaxhalflifeadjust {}; // might do uint8_t keys or MapEnum keys or vector of whatever
 
   void print() const {
     fmt::println("  Progression Factors:");
@@ -506,7 +507,7 @@ struct VaxParams {
 struct VaxSet {
   vector<std::pair<string, VaxParams>> vaxset{};
   // TODO might need to replace this with Vaxstatus values??
-  RuntimeEnum shot_types = {{"first", "full", "booster"},           // names
+  MapEnum<uint8_t> shot_types = {{"first", "full", "booster"},           // names
                             {{"first", 0}, {"full", 1}, {"booster", 2}},  // lookup
                             {0,1,2},  // valid_nums
                             3}; // nextnum --  I guess this will be hard-coded
@@ -703,7 +704,7 @@ struct ModelParams {
 
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
-  RuntimeEnum vaxlist;
+  MapEnum<uint8_t> vaxlist;
   VaxSched vaxsched;  // Changed from json to VaxSched
 };
 
@@ -731,10 +732,10 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
 std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath);
 
 
-std::tuple<VaxSet, RuntimeEnum> load_vax_data(string fpath, vector<Variant>);
+std::tuple<VaxSet, MapEnum<uint8_t>> load_vax_data(string fpath, vector<Variant>);
 
 
-VaxSched load_vax_sched(const string &fname, RuntimeEnum vaxlist);
+VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist);
 
 
 SocialParams load_social_params(string social_path);

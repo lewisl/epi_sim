@@ -25,7 +25,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       load_infect_params(variants_path);
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
-    RuntimeEnum vaxlist;
+    MapEnum<uint8_t> vaxlist;
     VaxSched vaxsched;
     if (dovax) {
       fmt::println("we got here to load valid vax parameters...");

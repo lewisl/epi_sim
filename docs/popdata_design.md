@@ -312,6 +312,6 @@ You have columns that are physically vector<uint8_t> but semantically different 
  status → Status::Value enum
  agegrp → Agegrp::Value enum
  cond → Condition::Value enum
- variant → RuntimeEnum (variants)
- vaxrcvd → RuntimeEnum (vaccines)
+ variant → MapEnum (variants)
+ vaxrcvd → MapEnum (vaccines)
  duration,  ring,  quar, etc. → just plain integers

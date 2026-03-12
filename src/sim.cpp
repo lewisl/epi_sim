@@ -134,7 +134,9 @@ void runsim(Model& model)
   //
   // at end of simulation
   // 
-  print_total_status_series(series);
+  // print_total_status_series(series);
+  print_selected_series({"now_dead", "now_dead_0_19", 
+    "now_dead_20_39", "now_dead_40_59", "now_dead_60_79", "now_dead_80_up"}, series);
 
   // Breakdown by age group: infected, reinfected, dead
   {

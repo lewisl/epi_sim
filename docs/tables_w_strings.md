@@ -14,7 +14,7 @@ Add ability to print PopData tables with string representations of enum values i
 ## Design Principles
 1. **No redundant switches** - Use the existing switch in `apply_to_columns`
 2. **Uniform action interface** - Action receives function pointer + vector
-3. **Handle both static enums and RuntimeEnums** - Use lambdas to unify interface
+3. **Handle both static enums and MapEnums** - Use lambdas to unify interface
 
 ---
 
@@ -22,14 +22,14 @@ Add ability to print PopData tables with string representations of enum values i
 
 ### 1. Modify `apply_to_columns` signature
 
-Add optional RuntimeEnum parameters for `variant` and `vaxrcvd` columns:
+Add optional MapEnum parameters for `variant` and `vaxrcvd` columns:
 
 ```cpp
 template <typename Action>
 void apply_to_columns(const vector<Column> &cols, 
                      Action &&action,
-                     const RuntimeEnum* variants = nullptr,
-                     const RuntimeEnum* vaxlist = nullptr) {
+                     const MapEnum* variants = nullptr,
+                     const MapEnum* vaxlist = nullptr) {
     for (auto col : cols) {
         switch (col) {
             case Column::status: {
@@ -183,8 +183,8 @@ struct CellPrinterString {
 ```cpp
 void print_table_strings(const vector<int> &rows,
                         const vector<Column> &cols,
-                        const RuntimeEnum* variants = nullptr,
-                        const RuntimeEnum* vaxlist = nullptr) {
+                        const MapEnum* variants = nullptr,
+                        const MapEnum* vaxlist = nullptr) {
     for (int r : rows) {
         std::cout << r << ":\t";
         CellPrinterString printer{r};
@@ -211,8 +211,8 @@ pop.print_table({0, 1, 2}, {PC::status, PC::agegrp, PC::variant});
 // Print with strings (new behavior)
 pop.print_table_strings({0, 1, 2},
                        {PC::status, PC::agegrp, PC::variant},
-                       &mp.variants,  // RuntimeEnum for variants
-                       &mp.vaxlist);  // RuntimeEnum for vaccines
+                       &mp.variants,  // MapEnum for variants
+                       &mp.vaxlist);  // MapEnum for vaccines
 // Output: 0:   unexposed  |   age20_39  |   base...  |
 ```
 
@@ -221,7 +221,7 @@ pop.print_table_strings({0, 1, 2},
 ## Notes
 
 ### Lambda Lifetime Issue
-The lambdas for RuntimeEnum columns use `static std::string temp` to ensure the returned `c_str()` pointer remains valid. This is **not thread-safe** but works for single-threaded printing.
+The lambdas for MapEnum columns use `static std::string temp` to ensure the returned `c_str()` pointer remains valid. This is **not thread-safe** but works for single-threaded printing.
 
 **Alternative**: Return `std::string` instead of `const char*` and modify the action to handle both:
 
@@ -259,4 +259,4 @@ The existing `print_table()` and `CellPrinter` remain unchanged. The new functio
 - One switch (in `apply_to_columns`)
 - Zero switches in the action
 - Uniform interface for all column types
-- Both static enums and RuntimeEnums handled seamlessly
+- Both static enums and MapEnums handled seamlessly

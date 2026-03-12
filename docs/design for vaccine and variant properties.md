@@ -17,7 +17,7 @@ InfectParams params = ???[variant_idx];
 You need guaranteed alignment between:
 
 1. The indices stored in PopData (uint8_t values)
-2. The indices in RuntimeEnum.names vector
+2. The indices in MapEnum.names vector
 3. The indices in your properties data structures
 
 ##### This is why `vector<pair<string, InfectParams>>` is perfect:
@@ -30,7 +30,7 @@ struct InfectSet {
 
 ```cpp
 // Setup: Load variants in order
-RuntimeEnum variants;
+MapEnum variants;
 InfectSet infectset;
 
 for (auto& [variant_name, variant_data] : json_data.items()) {
@@ -70,7 +70,7 @@ int variant_idx = pd.variant[person][0];  // 2
 
 ✅ Fast hot loop access - infectparams[variant_idx].second is O(1)
 
-✅ Setup time ordering - load in same order as RuntimeEnum
+✅ Setup time ordering - load in same order as MapEnum
 
 The string in the pair is just for debugging/output:
 ```cpp
@@ -83,15 +83,15 @@ fmt::print("Variant: {}\n", infectparams[variant_idx].first);
 
 #### The Critical Setup Pattern
 ```cpp
-std::tuple<RuntimeEnum, InfectSet> load_variants_data(string fpath) {
+std::tuple<MapEnum, InfectSet> load_variants_data(string fpath) {
     json vdata = load_json_params(fpath);
     
-    RuntimeEnum variants{};
+    MapEnum variants{};
     InfectSet infectset{};
     
     // CRITICAL: Iterate in consistent order!
     for (auto& [variant_name, variant_json] : vdata.items()) {
-        // Add to RuntimeEnum - gets index i
+        // Add to MapEnum - gets index i
         variants.add_item(variant_name);
         
         // Add to InfectSet at SAME index i
@@ -137,10 +137,10 @@ Your instinct is correct:
 
 ✅ Use `vector<pair<string, Properties>> not unordered_map<string, Properties>`
 
-✅ Maintain index alignment between RuntimeEnum and property vectors
+✅ Maintain index alignment between MapEnum and property vectors
 
 ✅ Load in consistent order during setup
 
 ✅ Hot loop uses integer indices for O(1) vector access
 
-The "tricky setup time thing" is just making sure you add items to RuntimeEnum.names and your property vectors **in the same order**. Once that's done, the hot loop is blazing fast! 🎯
+The "tricky setup time thing" is just making sure you add items to MapEnum.names and your property vectors **in the same order**. Once that's done, the hot loop is blazing fast! 🎯
