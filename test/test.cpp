@@ -419,39 +419,39 @@ void test_finalize_series() {
     fmt::print("\n=== Testing Finalize Series ===\n\n");
 
     DayData series(4);
-    series[now_dead][0] = 99;
-    series[new_dead][0] = 77;
-    series[now_dead][1] = 3;
-    series[now_dead][2] = 5;
-    series[now_dead][3] = 5;
-    series[now_dead][4] = 9;
+    series[now_infected][0] = 99;
+    series[net_infected][0] = 77;
+    series[now_infected][1] = 3;
+    series[now_infected][2] = 5;
+    series[now_infected][3] = 5;
+    series[now_infected][4] = 9;
 
-    series[now_dead_40_59][0] = 42;
-    series[new_dead_40_59][0] = 24;
-    series[now_dead_40_59][1] = 1;
-    series[now_dead_40_59][2] = 1;
-    series[now_dead_40_59][3] = 4;
-    series[now_dead_40_59][4] = 4;
+    series[now_infected_40_59][0] = 42;
+    series[net_infected_40_59][0] = 24;
+    series[now_infected_40_59][1] = 1;
+    series[now_infected_40_59][2] = 1;
+    series[now_infected_40_59][3] = 4;
+    series[now_infected_40_59][4] = 4;
 
     finalize_series(series);
 
     const vector<size_t> expected_total = {77, 3, 2, 0, 4};
     const vector<size_t> expected_age = {24, 1, 0, 3, 0};
 
-    assert(series[new_dead] == expected_total);
-    assert(series[new_dead_40_59] == expected_age);
-    assert(series[now_dead][0] == 99);
-    assert(series[now_dead_40_59][0] == 42);
+    assert(series[net_infected] == expected_total);
+    assert(series[net_infected_40_59] == expected_age);
+    assert(series[now_infected][0] == 99);
+    assert(series[now_infected_40_59][0] == 42);
 
     DayData single_day_series(1);
-    single_day_series[now_dead][0] = 11;
-    single_day_series[new_dead][0] = 22;
-    single_day_series[now_dead][1] = 6;
+    single_day_series[now_infected][0] = 11;
+    single_day_series[net_infected][0] = 22;
+    single_day_series[now_infected][1] = 6;
 
     finalize_series(single_day_series);
 
-    assert(single_day_series[new_dead][0] == 22);
-    assert(single_day_series[new_dead][1] == 6);
+    assert(single_day_series[net_infected][0] == 22);
+    assert(single_day_series[net_infected][1] == 6);
 
     fmt::println("=== Finalize Series Test Completed ===");
 }

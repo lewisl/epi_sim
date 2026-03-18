@@ -47,8 +47,6 @@ void runsim(Model& model)
     {Age::Age40_59, Cond::Nil, 0, model.mp.variants[1], 3}};
   SeedCase sc1(1, true, sf, pop);
 
-  auto seeded = sc1(series);
-
   // create useful pre-allocated vectors
   vector<size_t> contacts(
       250); // reserve and set size, cleared before later usage
@@ -64,10 +62,6 @@ void runsim(Model& model)
 
   float density_factor = mp.geodata.density[locale_idx];
 
-  // std::cout << "Seeded " << seeded.size() << " people: ";
-  // for (auto p : seeded) {
-  //   std::cout << p << " ";
-  // }
   fmt::print("\n");
 
   // start totaltime
@@ -81,6 +75,9 @@ void runsim(Model& model)
     sim::ds.day = sim::get_day();
 
     // run beginning of day cases--required SeedCases
+    if (sc1.startofday && sc1.triggerday == sim::ds.day) {
+      sc1(series);
+    }
 
     // do vaccination if using vaccination
 
@@ -137,7 +134,7 @@ void runsim(Model& model)
   // at end of simulation
   // 
   // print_total_status_series(series);
-  print_selected_series({"now_infected", "now_dead"}, series);
+  print_selected_series({"now_infected", "new_infected", "new_recovered", "new_dead"}, series);
 
   // Breakdown by age group: infected, reinfected, dead
   {
