@@ -9,6 +9,7 @@
 #include "../src/simple_print.h"
 #include "../src/helpers.h"
 #include "../src/random.h"
+#include "../src/series.h"
 #include "../src/timing.h"
 #include "../src/spread.h"
 #include "../src/progression.h"
@@ -414,6 +415,47 @@ void test_simple_pop_print() {
     fmt::println("=== Simple Pop Printer Test Completed ===");
 }
 
+void test_finalize_series() {
+    fmt::print("\n=== Testing Finalize Series ===\n\n");
+
+    DayData series(4);
+    series[now_dead][0] = 99;
+    series[new_dead][0] = 77;
+    series[now_dead][1] = 3;
+    series[now_dead][2] = 5;
+    series[now_dead][3] = 5;
+    series[now_dead][4] = 9;
+
+    series[now_dead_40_59][0] = 42;
+    series[new_dead_40_59][0] = 24;
+    series[now_dead_40_59][1] = 1;
+    series[now_dead_40_59][2] = 1;
+    series[now_dead_40_59][3] = 4;
+    series[now_dead_40_59][4] = 4;
+
+    finalize_series(series);
+
+    const vector<size_t> expected_total = {77, 3, 2, 0, 4};
+    const vector<size_t> expected_age = {24, 1, 0, 3, 0};
+
+    assert(series[new_dead] == expected_total);
+    assert(series[new_dead_40_59] == expected_age);
+    assert(series[now_dead][0] == 99);
+    assert(series[now_dead_40_59][0] == 42);
+
+    DayData single_day_series(1);
+    single_day_series[now_dead][0] = 11;
+    single_day_series[new_dead][0] = 22;
+    single_day_series[now_dead][1] = 6;
+
+    finalize_series(single_day_series);
+
+    assert(single_day_series[new_dead][0] == 22);
+    assert(single_day_series[new_dead][1] == 6);
+
+    fmt::println("=== Finalize Series Test Completed ===");
+}
+
 void test_age_distribution(const PopData& pop) {
     fmt::print("\n=== Testing Age Distribution ===\n\n");
 
@@ -542,13 +584,14 @@ void test_multiple_infections() {
 
   // Reset sim day to 1
   sim::current_day = 1;
+  DayData series(400);
 
   // Infect person 1 ten times (days 1, 21, 41, 61, 81, 101, 121, 141, 161, 181)
   fmt::println("Infecting person {} 10 times:", person_age20_39.id);
   for (int infection = 0; infection < 10; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
-    pop.make_sick(person_age20_39, base_variant, condition, duration);
+    pop.make_sick(person_age20_39, base_variant, series, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
                  infection + 1, day, static_cast<int>(person_age20_39.variant_count()));
   }
@@ -568,7 +611,7 @@ void test_multiple_infections() {
   for (int infection = 0; infection < 17; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
-    pop.make_sick(person_age60_79, base_variant, condition, duration);
+    pop.make_sick(person_age60_79, base_variant, series, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
                  infection + 1, day, static_cast<int>(person_age60_79.variant_count()));
   }
@@ -593,6 +636,7 @@ void test_seedcase_multiple_infections() {
   fmt::println("Setting up independent test environment...");
   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
   PopData& pop = test_model.pop;
+  DayData series(321);
 
   // Use first real variant (index 1, since 0 is "none")
   Variant base_variant = test_model.mp.variants[1];
@@ -635,7 +679,7 @@ void test_seedcase_multiple_infections() {
     // Check each seed case to see if it should trigger today
     for (auto& seed_case : seed_cases) {
       if (seed_case.triggerday == day) {
-        auto seeded = seed_case();
+        auto seeded = seed_case(series);
 
         // Track which persons were seeded
         if (!seeded.empty()) {
@@ -865,6 +909,7 @@ int main() {
   // Unit test: PopData table printer
   // test_popdata_print_table();
   // test_simple_pop_print();
+  test_finalize_series();
 
   // Test random number generator functions
   // test_random_functions();

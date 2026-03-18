@@ -13,14 +13,21 @@ enum class SeriesColumns : uint8_t {now_infected, now_unexposed, now_recovered, 
     now_infected_40_59, now_unexposed_40_59, now_recovered_40_59, now_dead_40_59,
     now_infected_60_79, now_unexposed_60_79, now_recovered_60_79, now_dead_60_79,
     now_infected_80_up, now_unexposed_80_up, now_recovered_80_up, now_dead_80_up, 
+    new_infected, new_infected_0_19, new_infected_20_39, new_infected_40_59, new_infected_60_79,
+    new_infected_80_up,
+    new_recovered, new_recovered_0_19, new_recovered_20_39, new_recovered_40_59, new_recovered_60_79,
+    new_recovered_80_up,
+    net_infected, net_infected_0_19, net_infected_20_39, net_infected_40_59, net_infected_60_79,
+    net_infected_80_up,
+    new_dead, new_dead_0_19, new_dead_20_39, new_dead_40_59, new_dead_60_79, new_dead_80_up,
 COUNT };  // count, because it's last is the number of enum values
 // clang-format on
 
 using enum SeriesColumns; //sc = SeriesColumns; // shortcut
 
 //clang-format off
-// TODO this is very error prone to setup!
-static inline MapEnum<SeriesColumns> series_map = {  // map literal: order doesn't matter
+// TODO this is very error prone to setup! except order doesn't matter in a map literal
+static inline MapEnum<SeriesColumns> series_map = {  
   {
     {"now_infected", now_infected}, {"now_unexposed", now_unexposed},
     {"now_recovered", now_recovered}, {"now_dead", now_dead},
@@ -34,6 +41,18 @@ static inline MapEnum<SeriesColumns> series_map = {  // map literal: order doesn
     {"now_recovered_60_79",now_recovered_60_79}, {"now_dead_60_79",now_dead_60_79},
     {"now_infected_80_up",now_infected_80_up}, {"now_unexposed_80_up",now_unexposed_80_up}, 
     {"now_recovered_80_up",now_recovered_80_up}, {"now_dead_80_up",now_dead_80_up}, 
+    {"new_infected", new_infected}, {"new_infected_0_19", new_infected_0_19}, 
+    {"new_infected_20_39", new_infected_20_39}, {"new_infected_40_59", new_infected_40_59}, 
+    {"new_infected_60_79", new_infected_60_79}, {"new_infected_80_up", new_infected_80_up}, 
+    {"new_recovered", new_recovered}, {"new_recovered_0_19", new_recovered_0_19},
+    {"new_recovered_20_39", new_recovered_20_39}, {"new_recovered_40_59", new_recovered_40_59},
+    {"new_recovered_60_79", new_recovered_60_79}, {"new_recovered_80_up", new_recovered_80_up},
+    {"net_infected", net_infected}, {"net_infected_0_19", net_infected_0_19}, 
+    {"net_infected_20_39", net_infected_20_39}, {"net_infected_40_59", net_infected_40_59}, 
+    {"net_infected_60_79", net_infected_60_79}, {"net_infected_80_up", net_infected_80_up}, 
+    {"new_dead", new_dead}, {"new_dead_0_19", new_dead_0_19}, {"new_dead_20_39", new_dead_20_39}, 
+    {"new_dead_40_59", new_dead_40_59}, {"new_dead_60_79", new_dead_60_79}, 
+    {"new_dead_80_up", new_dead_80_up}
   }
 };
 //clang-format on
@@ -61,5 +80,6 @@ struct DayData {
 };
 
 void update_series(const PopData & pop, DayData & series);
+void finalize_series(DayData& series);
 void print_total_status_series(const DayData& series, size_t days_per_block = 15);
 void print_selected_series(std::vector<string> col_names, const DayData& series, size_t days_per_block=15); 

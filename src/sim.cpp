@@ -25,8 +25,8 @@ void runsim(Model& model)
   // seed the random number generator
   xo::seed(12345);  // have used 12345
 
-  // setup before day loop starts
-  //    alias names for series columns
+  // create vector set for series statistics
+  DayData series(model.ndays);
 
   // reset day counter to zero
   sim::reset_day();
@@ -42,18 +42,18 @@ void runsim(Model& model)
 
   // create SeedCases
   vector<SeedFilter> sf {
+    // agegrp, cond, duration, variant, count
     {Age::Age20_39, Cond::Nil, 0, model.mp.variants[1], 3},
     {Age::Age40_59, Cond::Nil, 0, model.mp.variants[1], 3}};
   SeedCase sc1(1, true, sf, pop);
 
-  auto seeded = sc1();
+  auto seeded = sc1(series);
 
   // create useful pre-allocated vectors
   vector<size_t> contacts(
       250); // reserve and set size, cleared before later usage
 
-  // create vector set for series statistics
-  DayData series(model.ndays);
+
 
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
@@ -100,13 +100,13 @@ void runsim(Model& model)
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[idx(spr_duration)];
       if (sendrisk > 0.0) {
         sim::ds.starting_spreaders++;
-        spread(pop, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
+        spread(pop, series, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
       }
       spread_timing.cum();
 
       // progression kernel
       progression_timing.start();
-      progression(pop, p, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
+      progression(pop, p, series, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
       progression_timing.cum();
 
       // cleanup before next person
@@ -130,13 +130,14 @@ void runsim(Model& model)
 
   } // day loop
 
+  finalize_series(series);
+
  
   //
   // at end of simulation
   // 
   // print_total_status_series(series);
-  print_selected_series({"now_dead", "now_dead_0_19", 
-    "now_dead_20_39", "now_dead_40_59", "now_dead_60_79", "now_dead_80_up"}, series);
+  print_selected_series({"now_infected", "now_dead"}, series);
 
   // Breakdown by age group: infected, reinfected, dead
   {

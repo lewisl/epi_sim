@@ -9,6 +9,7 @@
 
 // Forward declaration
 struct Model;
+struct DayData;
 
 // parameters used throughout the simulation that are better global
 //    than passed into every function
@@ -64,14 +65,14 @@ struct SeedCase {
       : triggerday(triggerday), startofday(startofday), filtervec(filt), pop(pop) {}
   SeedCase() = delete; // default constructor not allowed
 
-  vector<size_t> operator()() {
+  vector<size_t> operator()(DayData & series) {
     vector<size_t> seeded_persons;
     size_t count_of_seeds = 0;
     for (auto filt : filtervec) {
       count_of_seeds = 0;
       for (int i = 1; count_of_seeds < filt.count && i <= pop.popn; ++i) {
         if (pop.agegrp[i] == filt.agegrp) {
-          pop.make_sick(pop.agent(i), filt.variant, filt.condition, filt.duration );
+          pop.make_sick(pop.agent(i), filt.variant, series, filt.condition, filt.duration );
           seeded_persons.push_back(i);
           ++count_of_seeds;
           // pop.cond[i] = filt.condition;

@@ -22,6 +22,7 @@
 #include <optional>
 #include <random> // for std::gamma_distribution
 #include <ranges>
+#include <span>
 #include <string>
 #include <tuple>
 #include <type_traits>

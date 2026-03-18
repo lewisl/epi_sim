@@ -15,21 +15,20 @@ nil (asymptomatic) to mild to sick to severe, depending on their
 agegroup, days of being exposed, and some probability. Finally,  
 they move to recovered or dead. Note: p is the contacted person.
 */      // before probvec InfectParams &infpar, 
-void progression(PopData &pop, size_t p, ProgressionSet &progset, vector<InfectParams> &infectparams,
-                 array<float, 6> &probvec,
-                 bool dovax, VaxSet &vaxset) {
+void progression(PopData &pop, size_t p, DayData & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
+                 array<float, 6> &probvec, bool dovax, VaxSet &vaxset) {
   auto today = sim::get_day();
-
+  auto person = pop.agent(p);
   // extract traits for current person
   // won't update these
-  const auto p_agegrp = pop.agegrp[p]; 
-  const auto p_variant = pop.get_variant(p);
-  const auto p_vaxstatus = pop.vaxstatus[p]; // won't update this
-  // progression will update these
-  auto & p_cond = pop.cond[p];          
-  auto & p_status = pop.status[p];   
-  auto  p_recovday = pop.get_recovday(p);      
-  auto & p_duration = pop.duration[p];  
+  const auto p_agegrp =  person.agegrp(); // pop.agegrp[p]; //
+  const auto p_variant = person.get_variant();  // pop.get_variant(p); // 
+  const auto p_vaxstatus = person.vaxstatus();  // pop.vaxstatus[p]; //
+  // progression may update these--only duration is modified in this function!
+  auto & p_cond = person.cond();  // pop.cond[p];          
+  auto & p_status = person.status(); // pop.status[p];   
+  auto  p_recovday = person.get_recovday(); // pop.get_recovday(p);      
+  auto & p_duration = person.duration(); // pop.duration[p];  
 
   // set scope to function level
   float risk{};
@@ -51,7 +50,7 @@ void progression(PopData &pop, size_t p, ProgressionSet &progset, vector<InfectP
 
     risk = riskfactor(recoveff, vaxeff);
     redistribute_probability(probvec, risk, p_duration+1);
-    do_progression(pop, p, probvec);
+    do_progression(person, series, probvec);
 
     // print diagnostics for progression to dead
     // if (p_agegrp == Age::Age80_up && p_cond == Cond::Severe && (p_duration == 18 || p_duration == 24)) {
@@ -101,20 +100,21 @@ Progress an infected person to a new condition or status if called
 with a progression array (trvec) or increment
 the number of days the person has been sick.
 */
-void do_progression(PopData &pop, size_t p, const array<float,6> &probvec) {
+void do_progression(PopData::AgentView person, DayData & series, const array<float,6> &probvec) {  // PopData &pop, size_t p
 
   uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
 
   if (outcome == Progressmap::ToDead) {  // for outcome == 5
-    pop.deadday[p] = sim::get_day();
-    pop.status[p] = Stat::Dead; // todo will we need to set cond to uninfected for any other logic?
-    sim::ds.num_died++;
+    person.make_dead(series);
+    // person.deadday() = sim::get_day(); //pop.deadday[p] = sim::get_day();
+    //   person.status() = Stat::Dead; // pop.status[p] = Stat::Dead; // todo will we need to set cond to uninfected for any other logic?
+    //   sim::ds.num_died++;
   } else if (outcome == Progressmap::ToRecover) {     // for outcome == 0
-    pop.make_well(p);
-    sim::ds.num_recovered++;
+      person.make_well(series);
+      sim::ds.num_recovered++;
   } else {
-    pop.cond[p] = static_cast<Condition>(outcome);  // turns out this works because conds are 1..4 in Progressmap
-    ++pop.duration[p];
+      person.cond() = static_cast<Condition>(outcome); // pop.cond[p] = static_cast<Condition>(outcome);  // this ONLY works because conds are 1..4 in Progressmap
+      ++person.duration(); // ++pop.duration[p];
   }
 }
 

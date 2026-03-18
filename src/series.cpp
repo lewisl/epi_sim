@@ -6,8 +6,6 @@
 
 using enum SeriesColumns;
 
-
-
 namespace {
 auto total_status_labels = std::array{"infected", "unexposed", "recovered", "dead"};
 auto ages = std::array{Age::Age0_19, Age::Age20_39, Age::Age40_59, Age::Age60_79,
@@ -20,12 +18,35 @@ auto recovered_byage =
 auto infected_byage =
     std::array{now_infected_0_19, now_infected_20_39, now_infected_40_59,
                now_infected_60_79, now_infected_80_up};
+auto newinfected_byage =
+    std::array{new_infected_0_19, new_infected_20_39, new_infected_40_59, new_infected_60_79,
+              new_infected_80_up };
+auto newrecovered_byage =
+    std::array{new_recovered_0_19, new_recovered_20_39, new_recovered_40_59,
+               new_recovered_60_79, new_recovered_80_up};
+auto netinfected_byage =
+    std::array{net_infected_0_19, net_infected_20_39, net_infected_40_59, net_infected_60_79,
+              net_infected_80_up };
 auto dead_byage =
     std::array{now_dead_0_19, now_dead_20_39, now_dead_40_59,
                now_dead_60_79, now_dead_80_up};
+auto newdead_byage =
+    std::array{new_dead_0_19, new_dead_20_39, new_dead_40_59,
+               new_dead_60_79, new_dead_80_up};
 auto unexposed_byage =
     std::array{now_unexposed_0_19, now_unexposed_20_39, now_unexposed_40_59,
                now_unexposed_60_79, now_unexposed_80_up};
+
+void diff_from_cumulative(std::span<const size_t> src, std::span<size_t> dest) {
+  assert(src.size() == dest.size());
+  if (src.size() <= 1) return;  // only the unused 0 slot exists
+
+  // Day series are 1-indexed: day 1 copies through, later days subtract previous from current.
+  dest[1] = src[1];
+  for (size_t day = 2; day < src.size(); ++day) {
+    dest[day] = src[day] - src[day - 1];
+  }
+}
 }
 
 template <size_t N>
@@ -67,7 +88,9 @@ void update_series(const PopData & pop, DayData & series) {
     switch (status.v) {
       case Stat::Infectious.v:
         series[now_infected][d]++;
+        if (pop.duration[i] == 0) series[new_infected][d]++;
         update_age_column(series, d, agegrp, infected_byage);  // last arg is the array of series columns
+        update_age_column(series, d, agegrp, newinfected_byage);
         break;
       case Stat::Unexposed.v:
         series[now_unexposed][d]++;
@@ -84,6 +107,14 @@ void update_series(const PopData & pop, DayData & series) {
       default:
         break;
     }
+  }
+}
+
+void finalize_series(DayData& series) {
+  diff_from_cumulative(series[now_dead], series[new_dead]);
+
+  for (size_t i = 0; i < dead_byage.size(); ++i) {
+    diff_from_cumulative(series[dead_byage[i]], series[newdead_byage[i]]);
   }
 }
 

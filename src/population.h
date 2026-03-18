@@ -9,6 +9,9 @@
 #include "helpers.h"
 #include "parameters.h"
 
+// forward declarations
+struct DayData;
+
 using std::array;
 using std::string;
 using std::vector;
@@ -125,7 +128,14 @@ at one index value.  No row is materialized. We only pay when we access somethin
           return all_sickdays.back();
         else return all_sickdays[zidx(variant_count)];
         }
-      array<int16_t, 16> &recovday() { return pop.recovday[i]; }
+      array<int16_t, 16> & all_recovdays() { return pop.recovday[i]; }
+      int16_t get_recovday() {
+        const auto recovday_count = pop.recovday_count[i];
+        const auto & all_recovdays = pop.recovday[i];
+        if (recovday_count == 0) return 0;
+        else if (recovday_count >= 16) return all_recovdays.back();
+        else return all_recovdays[zidx(recovday_count)];
+      }
       std::uint8_t &recovday_count() { return pop.recovday_count[i]; }
       std::int16_t &deadday() { return pop.deadday[i]; }
       std::uint8_t &ring() { return pop.ring[i]; }
@@ -138,6 +148,10 @@ at one index value.  No row is materialized. We only pay when we access somethin
       Vaxstatus &vaxstatus() { return pop.vaxstatus[i]; }
       array<uint8_t, 16> &vaxrcvd() { return pop.vaxrcvd[i]; }
       uint8_t &vax_count() { return pop.vax_count[i]; }
+
+      // alternative methods defined in disease_modeling.cpp as PopData::AgentView::make_well
+      void make_well(DayData & series);
+      void make_dead(DayData & series);  // Note: no method for using PopDate and an index to do this...
       
   };  // end of struct AgentView
 
@@ -236,10 +250,11 @@ at one index value.  No row is materialized. We only pay when we access somethin
     // some complex getters and setters that modify multiple vectors at the same index
     //
 
-    void make_sick(PopData::AgentView person, Variant var, Condition condition = Cond::Nil,
+    void make_sick(PopData::AgentView person, Variant var, DayData & series, Condition condition = Cond::Nil,
                    uint8_t durationdays = 0);
     
-    void make_well(size_t p);
+    void make_well(size_t p);  // TODO not sure we are still using this method
+
 };
 
 

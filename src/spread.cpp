@@ -2,10 +2,11 @@
 
 #include "population.h"
 #include "disease_modeling.h"
+#include "series.h"
 #include "sim.h"
 
   // simplified early version of spread  TODO need vaxset, dovax sdcases
-  void spread(PopData &pop, size_t p, SocialParams &social,
+  void spread(PopData &pop, DayData & series, size_t p, SocialParams &social,
               vector<InfectParams> &infectparams, vector<size_t> &contacts,
               float density_factor,
               vector<float> &indoor_seq) {
@@ -31,7 +32,7 @@
       if (isinfected(pop, c, spreader.id, infectparams, thisday)) {  // TODO need vaxset, dovax
         sim::ds.num_new_infected++;
         auto this_contact = pop.agent(c);
-        pop.make_sick(this_contact, spr_variant);
+        pop.make_sick(this_contact, spr_variant, series);
       }
     }
   }

@@ -1,18 +1,22 @@
 #include "lib_includes.h"
 
 #include "population.h"
+#include "series.h"
 #include "sim.h"
 #include "random.h"
 #include "helpers.h"
 #include <stdexcept>
 #include "disease_modeling.h"
 
+using enum SeriesColumns;
+
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::make_sick(PopData::AgentView contact, Variant var, Condition condition, uint8_t durationdays) {
+void PopData::make_sick(PopData::AgentView contact, Variant var, DayData & series, Condition condition, uint8_t durationdays) {
   contact.cond() = condition;
   contact.duration() = durationdays;
   contact.status() = Stat::Infectious;
+  series[new_infected][sim::get_day()]++;
 
   auto &variant_vec = contact.all_variants();
   auto &variant_count = contact.variant_count();
@@ -51,6 +55,37 @@ void PopData::make_well(size_t p) {
               << ". Oldest recovday lost.\n";
       std::cerr << "recovday_count increased to " << recovday_count[p] << "\n";  
   }
+}
+
+/* 
+  make_well: make one person better->recovered and uninfected
+declaration is in population.h PopData::AgentView
+method applied to an AgentView instance:  person.make_well()
+as a method of AgentView, the instance variable is not used to apply methods or access members 
+*/
+void PopData::AgentView::make_well(DayData & series) {    // the object is person--the implied argument
+  cond() = Cond::Uninfected; // equivalent to person.cond() in other functions where person defined
+  status() = Stat::Recovered; 
+  series[new_recovered][sim::get_day()]++;
+  duration() = 0; 
+  // update recovday
+  if (recovday_count() < 16) {
+    all_recovdays()[recovday_count()] = sim::get_day();
+  } else {
+      std::shift_left(all_recovdays().begin(), all_recovdays().end(), 1);
+      all_recovdays().back() = sim::get_day();
+      std::cerr << "Recovday overflow for person " << i
+              << ". Oldest recovday lost.\n";
+      std::cerr << "  Recovday_count increased to " << recovday_count() << "\n";  
+  }
+  ++recovday_count();
+}
+
+void PopData::AgentView::make_dead(DayData & series) {
+      deadday() = sim::get_day(); 
+      status() = Stat::Dead; // TODO will we need to set cond to uninfected for any other logic?
+      sim::ds.num_died++;
+      series[new_dead][deadday()]++;
 }
 
 /*
