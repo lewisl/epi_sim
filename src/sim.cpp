@@ -134,7 +134,11 @@ void runsim(Model& model)
   // at end of simulation
   // 
   // print_total_status_series(series);
-  print_selected_series({"now_infected", "new_infected", "new_recovered", "new_dead"}, series);
+  print_selected_series({{"now_infected", "total"},
+                         {"new_infected", "total"},
+                         {"new_recovered", "total"},
+                         {"new_dead", "total"}},
+                        series);
 
   // Breakdown by age group: infected, reinfected, dead
   {
