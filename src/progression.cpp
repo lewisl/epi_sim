@@ -106,15 +106,12 @@ void do_progression(PopData::AgentView person, DayData & series, const array<flo
 
   if (outcome == Progressmap::ToDead) {  // for outcome == 5
     person.make_dead(series);
-    // person.deadday() = sim::get_day(); //pop.deadday[p] = sim::get_day();
-    //   person.status() = Stat::Dead; // pop.status[p] = Stat::Dead; // todo will we need to set cond to uninfected for any other logic?
-    //   sim::ds.num_died++;
   } else if (outcome == Progressmap::ToRecover) {     // for outcome == 0
       person.make_well(series);
       sim::ds.num_recovered++;
   } else {
       person.cond() = static_cast<Condition>(outcome); // pop.cond[p] = static_cast<Condition>(outcome);  // this ONLY works because conds are 1..4 in Progressmap
-      ++person.duration(); // ++pop.duration[p];
+      ++person.duration(); 
   }
 }
 

@@ -91,4 +91,5 @@ struct SeedCase {
 };
 
 // Simulation runner function
-void runsim(Model& model);
+void runsim(Model& model, const std::filesystem::path& trace_path = {},
+            const std::filesystem::path& spread_debug_prefix = {});

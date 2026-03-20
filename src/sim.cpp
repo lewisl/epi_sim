@@ -12,11 +12,13 @@
 #include "timing.h"
 #include "series.h"
 
-
+// forward declarations
+void print_summary(PopData & pop);
 
 
 // TODO later add parameters for runcases, showr0, silent, dovax?, vaxscheds?
-void runsim(Model& model)
+void runsim(Model& model, const std::filesystem::path& trace_path,
+            const std::filesystem::path& spread_debug_prefix)
     // other arguments to add: runcases, showr0, silent, dovax, vaxscheds?
 {
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
@@ -27,6 +29,9 @@ void runsim(Model& model)
 
   // create vector set for series statistics
   DayData series(model.ndays);
+  RuntimeTrace runtime_trace(model.ndays);
+  SpreadDebugTrace spread_debug_trace(SpreadDebugConfig{});
+  SpreadDebugTrace* spread_debug_ptr = spread_debug_prefix.empty() ? nullptr : &spread_debug_trace;
 
   // reset day counter to zero
   sim::reset_day();
@@ -97,7 +102,8 @@ void runsim(Model& model)
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[idx(spr_duration)];
       if (sendrisk > 0.0) {
         sim::ds.starting_spreaders++;
-        spread(pop, series, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
+        spread(pop, series, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq,
+               spread_debug_ptr);
       }
       spread_timing.cum();
 
@@ -115,6 +121,10 @@ void runsim(Model& model)
     update_series(pop, series);
     history_timing.cum();
 
+    runtime_trace.contacts[sim::ds.day] = sim::ds.num_contacts;
+    runtime_trace.touched[sim::ds.day] = sim::ds.num_touched;
+    runtime_trace.spread_new_infected[sim::ds.day] = sim::ds.num_new_infected;
+
     // Print daily outcomes
     // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
     //              sim::ds.day, sim::ds.starting_spreaders, sim::ds.num_contacts, sim::ds.num_touched,
@@ -129,24 +139,40 @@ void runsim(Model& model)
 
   finalize_series(series);
 
+  if (!trace_path.empty()) {
+    write_daily_trace_csv(trace_path, model.caldays, series, runtime_trace);
+  }
+  if (!spread_debug_prefix.empty()) {
+    write_spread_debug_csvs(spread_debug_prefix, spread_debug_trace);
+  }
+
  
   //
   // at end of simulation
   // 
   // print_total_status_series(series);
-  print_selected_series({{"now_infected", "total"},
-                         {"new_infected", "total"},
-                         {"new_recovered", "total"},
-                         {"new_dead", "total"}},
+  print_selected_series({ {"now_infected", "total"},
+                          {"new_infected", "total"},
+                          {"new_recovered", "total"},
+                          {"new_dead", "total"} },
                         series);
 
-  // Breakdown by age group: infected, reinfected, dead
-  {
-    // const auto& pop = model.pop;
+  print_summary(pop);
+
+  fmt::println("Spread time: {} Progression time: {} History time: {}", 
+        spread_timing.show(), progression_timing.show(), history_timing.show());
+
+} // end runsim function
+
+
+// Breakdown by age group: unexposed, infected, reinfected, dead, recovered
+void print_summary(PopData & pop)
+{
     const size_t n_ages = 5;  // Age0_19..Age80_up (indices 1..5)
 
-    array<int, 6> unexposed{}, infected{}, reinfected{}, recovered{}, dead{};  // index 1..5
+    array<int, 6> unexposed{}, infected{}, reinfected{}, recovered{}, dead{};  // index 1..5, ignore 0
 
+    // no sorting or filtering needed
     for (size_t p = 1; p <= pop.popn; ++p) {
       uint8_t ag = pop.agegrp[p];
       if (pop.status[p] == Stat::Unexposed) unexposed[ag]++;
@@ -161,17 +187,13 @@ void runsim(Model& model)
     for (size_t ag = 1; ag <= n_ages; ++ag) {
       double death_pct = infected[ag] > 0 ? 100.0 * dead[ag] / infected[ag] : 0.0;
       fmt::println("{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} {:>9.2f}%",
-                   Agegrp::names[ag], unexposed[ag], infected[ag], reinfected[ag], recovered[ag], dead[ag], death_pct);
+                  Agegrp::names[ag], unexposed[ag], infected[ag], reinfected[ag], recovered[ag], dead[ag], death_pct);
     }
 
     fmt::println("{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} ", "Total",
                  sum(unexposed), sum(infected), sum(reinfected), sum(recovered),
                  sum(dead)); // using sum template in helpers.h for reduce
     fmt::println("(Note: Remaining still infected across all ages: {})",
-                 std::count_if(pop.status.begin(), pop.status.end(), [](auto s) { return s == Stat::Infectious; }));
+                 std::count_if(pop.status.begin(), pop.status.end(), 
+                              [](auto s) { return s == Stat::Infectious; }));
   }
-
-  fmt::println("Spread time: {} Transition time: {} History time: {}", spread_timing.show(), progression_timing.show(), history_timing.show());
-
-  // fmt::println("\n=== Simulation Complete ===");
-} // end runsim function

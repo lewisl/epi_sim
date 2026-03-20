@@ -241,10 +241,6 @@ at one index value.  No row is materialized. We only pay when we access somethin
       else return recovday[p][zidx(recovday_count[p])];    
     }
 
-    void incr_duration(size_t p) {
-      if (duration[p] < DURATIONLIM) ++duration[p];
-    }
-
     //
     // class member functions defined in disease_modeling.cpp
     // some complex getters and setters that modify multiple vectors at the same index

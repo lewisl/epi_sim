@@ -13,6 +13,7 @@
 #include "../src/timing.h"
 #include "../src/spread.h"
 #include "../src/progression.h"
+#include "../src/plot.h"
 
 #include <sstream>
 #include <string_view>
@@ -461,6 +462,66 @@ void test_finalize_series() {
     assert(single_net_infected_total[1] == 6);
 
     fmt::println("=== Finalize Series Test Completed ===");
+}
+
+void test_simple_plot_render() {
+    fmt::print("\n=== Testing Plot HTML Render ===\n\n");
+
+    const std::string title = "Unit Test Plot 2026";
+    const std::string heading = "Simple plot render test";
+    const std::vector<double> x = {0.0, 1.0, 2.5, 3.5};
+    const std::vector<double> y = {0.0, 1.0, 6.25, 12.25};
+    const auto output_path = write_plot(title, heading, x, y, "test_series");
+
+    assert(std::filesystem::exists(output_path));
+    assert(output_path.parent_path().filename() == "plot_output");
+    const std::string filename = output_path.filename().string();
+    assert(filename.starts_with("unit_test_plot_2026_"));
+    assert(filename.ends_with(".html"));
+
+    std::ifstream in(output_path);
+    assert(in);
+
+    const std::string html{
+        std::istreambuf_iterator<char>(in),
+        std::istreambuf_iterator<char>()};
+
+    fmt::println("Rendered plot file: {}", output_path.string());
+    fmt::println("Rendered HTML:");
+    fmt::println("{}", html);
+
+    assert(html.find("<title>Unit Test Plot 2026</title>") != std::string::npos);
+    assert(html.find("<h2>Simple plot render test</h2>") != std::string::npos);
+    assert(html.find("\"x\":[0.0,1.0,2.5,3.5]") != std::string::npos);
+    assert(html.find("\"y\":[0.0,1.0,6.25,12.25]") != std::string::npos);
+    assert(html.find("\"name\":\"test_series\"") != std::string::npos);
+    assert(html.find("\"title\":\"Unit Test Plot 2026\"") != std::string::npos);
+    assert(html.find("script id=\"plot-payload\" type=\"application/json\"") != std::string::npos);
+    assert(html.find("JSON.parse(document.getElementById(\"plot-payload\").textContent)") != std::string::npos);
+    assert(html.find("Plotly.newPlot(\"plot\", payload.data, payload.layout);") != std::string::npos);
+    assert(html.find("{{TITLE}}") == std::string::npos);
+    assert(html.find("{{HEADING}}") == std::string::npos);
+    assert(html.find("{{PAYLOAD_JSON}}") == std::string::npos);
+
+    std::filesystem::remove(output_path);
+
+    fmt::println("=== Plot HTML Render Test Completed ===");
+}
+
+void test_plotly() {
+    fmt::print("\n=== Testing Plotly Browser Launch ===\n\n");
+
+    const std::string title = "Plotly Browser Test";
+    const std::string heading =
+        "If Plotly loaded correctly, this plot should open in your browser";
+    const std::vector<double> x = {0.0, 1.0, 2.0, 3.0, 4.0};
+    const std::vector<double> y = {0.0, 1.0, 4.0, 9.0, 16.0};
+
+    const auto output_path = do_plot(title, heading, x, y, "quadratic");
+
+    fmt::println("Opened plot file: {}", output_path.string());
+    fmt::println("Verify in the browser that a line plot appears.");
+    fmt::println("=== Plotly Browser Launch Test Completed ===");
 }
 
 void test_age_distribution(const PopData& pop) {
@@ -916,7 +977,9 @@ int main() {
   // Unit test: PopData table printer
   // test_popdata_print_table();
   // test_simple_pop_print();
-  test_finalize_series();
+  // test_simple_plot_render();
+  // test_plotly();
+  // test_finalize_series();
 
   // Test random number generator functions
   // test_random_functions();

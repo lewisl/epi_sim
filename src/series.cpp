@@ -20,6 +20,17 @@ void diff_from_cumulative(std::span<const size_t> src, std::span<size_t> dest) {
     dest[day] = src[day] - src[day - 1];
   }
 }
+
+std::string format_civil_day(absl::CivilDay day) {
+  return fmt::format("{:04d}-{:02d}-{:02d}", day.year(), unsigned(day.month()), day.day());
+}
+
+void ensure_parent_dir(const std::filesystem::path& output_path) {
+  auto parent = output_path.parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent);
+  }
+}
 }
 
 AgeBucket bucket_from_age(Agegrp agegrp) {
@@ -77,6 +88,110 @@ void finalize_series(DayData& series) {
   for (auto bucket : all_age_buckets) {
     diff_from_cumulative(std::span<const size_t>(series.at(SeriesName::now_infected, bucket)),
                          std::span<size_t>(series.at(SeriesName::net_infected, bucket)));
+  }
+}
+
+void write_daily_trace_csv(const std::filesystem::path& output_path,
+                           const std::vector<absl::CivilDay>& caldays,
+                           const DayData& series,
+                           const RuntimeTrace& runtime_trace) {
+  if (caldays.size() != series.day_cnt) {
+    throw std::runtime_error("caldays length did not match series.day_cnt");
+  }
+  if (runtime_trace.contacts.size() != series.day_cnt + 1 ||
+      runtime_trace.touched.size() != series.day_cnt + 1) {
+    throw std::runtime_error("runtime trace length did not match series.day_cnt");
+  }
+
+  ensure_parent_dir(output_path);
+  std::ofstream out(output_path);
+  if (!out) {
+    throw std::runtime_error(fmt::format("Could not open daily trace file '{}'", output_path.string()));
+  }
+
+  out << "day,calday,contacts,touched,new_infected,spread_new_infected,recovered,dead,"
+         "new_infected_age60_79,recovered_age60_79,dead_age60_79,"
+         "new_infected_age80_up,recovered_age80_up,dead_age80_up\n";
+
+  for (size_t day = 1; day <= series.day_cnt; ++day) {
+    out << day << ','
+        << format_civil_day(caldays[day - 1]) << ','
+        << runtime_trace.contacts[day] << ','
+        << runtime_trace.touched[day] << ','
+        << series.at(SeriesName::new_infected, AgeBucket::total)[day] << ','
+        << runtime_trace.spread_new_infected[day] << ','
+        << series.at(SeriesName::new_recovered, AgeBucket::total)[day] << ','
+        << series.at(SeriesName::new_dead, AgeBucket::total)[day] << ','
+        << series.at(SeriesName::new_infected, AgeBucket::age60_79)[day] << ','
+        << series.at(SeriesName::new_recovered, AgeBucket::age60_79)[day] << ','
+        << series.at(SeriesName::new_dead, AgeBucket::age60_79)[day] << ','
+        << series.at(SeriesName::new_infected, AgeBucket::age80_up)[day] << ','
+        << series.at(SeriesName::new_recovered, AgeBucket::age80_up)[day] << ','
+        << series.at(SeriesName::new_dead, AgeBucket::age80_up)[day] << '\n';
+  }
+}
+
+void write_spread_debug_csvs(const std::filesystem::path& output_prefix,
+                             const SpreadDebugTrace& spread_debug_trace) {
+  auto spreaders_path = std::filesystem::path(output_prefix.string() + "_spreaders.csv");
+  auto contacts_path = std::filesystem::path(output_prefix.string() + "_contacts.csv");
+
+  ensure_parent_dir(spreaders_path);
+  ensure_parent_dir(contacts_path);
+
+  {
+    std::ofstream out(spreaders_path);
+    if (!out) {
+      throw std::runtime_error(fmt::format("Could not open spread-debug file '{}'", spreaders_path.string()));
+    }
+
+    out << "day,spreader_id,spr_agegrp,spr_cond,spr_duration,spr_variant,indoor_factor,"
+           "density_factor,contact_factor,contact_scale,num_contacts,sendrisk\n";
+
+    for (const auto& row : spread_debug_trace.spreaders) {
+      out << row.day << ','
+          << row.spreader_id << ','
+          << row.spr_agegrp << ','
+          << row.spr_cond << ','
+          << unsigned(row.spr_duration) << ','
+          << row.spr_variant << ','
+          << row.indoor_factor << ','
+          << row.density_factor << ','
+          << row.contact_factor << ','
+          << row.contact_scale << ','
+          << row.num_contacts << ','
+          << row.sendrisk << '\n';
+    }
+  }
+
+  {
+    std::ofstream out(contacts_path);
+    if (!out) {
+      throw std::runtime_error(fmt::format("Could not open spread-debug file '{}'", contacts_path.string()));
+    }
+
+    out << "day,spreader_id,contact_order,contact_id,targ_agegrp,targ_status,targ_cond,indoor_factor,"
+           "touch_factor,touch_prob,touched,sendrisk,recvrisk,recovfactor,vaxfactor,infect_risk,infected\n";
+
+    for (const auto& row : spread_debug_trace.contacts) {
+      out << row.day << ','
+          << row.spreader_id << ','
+          << row.contact_order << ','
+          << row.contact_id << ','
+          << row.targ_agegrp << ','
+          << row.targ_status << ','
+          << row.targ_cond << ','
+          << row.indoor_factor << ','
+          << row.touch_factor << ','
+          << row.touch_prob << ','
+          << int(row.touched) << ','
+          << row.sendrisk << ','
+          << row.recvrisk << ','
+          << row.recovfactor << ','
+          << row.vaxfactor << ','
+          << row.infect_risk << ','
+          << int(row.infected) << '\n';
+    }
   }
 }
 

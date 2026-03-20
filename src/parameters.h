@@ -392,7 +392,7 @@ struct Progression { // for one variant
 
     for (size_t age_idx = 0; age_idx < tree.size(); ++age_idx) {
       const auto& breakday_map = tree[age_idx];
-      std::string age_name = Agegrp::names[age_idx];
+      std::string age_name = Agegrp::names[age_idx+1UZ];
       fmt::println("    Age group: {}", age_name);
 
       if (breakday_map.empty()) {

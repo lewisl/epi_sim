@@ -4,6 +4,7 @@ build/
 compile_commands.json
 outtakes
 scratch
+plot_output
 
 # MacOS Cache
 .DS_Store

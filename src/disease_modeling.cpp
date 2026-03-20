@@ -73,6 +73,17 @@ Returns the number of contacts that someone spreading the disease will make on a
 method uses the spreadcase applicable to the current spreader but with contactfactors set by
 a spreadcase.
 */
+float contact_factor(const array<array<float, 5>, 4> &contactfactors,
+                     uint8_t spr_agegrp, uint8_t spr_cond) {
+  return contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
+}
+
+float contact_scale(float density_factor, float indoor_factor,
+                    uint8_t spr_agegrp, uint8_t spr_cond,
+                    const array<array<float, 5>, 4> &contactfactors) {
+  return density_factor * indoor_factor * contact_factor(contactfactors, spr_agegrp, spr_cond);
+}
+
 int how_many_contacts(float density_factor, float indoor_factor,
                       float gammashape, uint8_t spr_agegrp, uint8_t spr_cond,
                       const array<array<float, 5>, 4> &contactfactors) {
@@ -80,12 +91,7 @@ int how_many_contacts(float density_factor, float indoor_factor,
   // temporary debugging fudge TODO
   // indoor_factor = 1.0;
   
-  auto scale = density_factor * indoor_factor *
-               contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
-  // if (sim::get_day() == 2) {
-  //   fmt::println("density {}, indoor {}, cf {}, scale {}, cond {}, agegrp {}", density_factor, indoor_factor,
-  //                contactfactors[zidx(spr_cond)][zidx(spr_agegrp)], scale, spr_cond, spr_agegrp);
-  // }
+  auto scale = contact_scale(density_factor, indoor_factor, spr_agegrp, spr_cond, contactfactors);
 
   
   return xo::gamma_int(gammashape, scale, 12);
@@ -123,23 +129,21 @@ uint8_t touch_map(Status target_status, Condition target_cond) {
 
 
 bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
+  return xo::bernoulli(touch_probability(pop, contact, touchfactors, indoor_factor)) == 1;
+}
+
+float touch_probability(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
   Status target_status = pop.status[contact];
   Condition target_condition = pop.cond[contact];
   if ((target_status == Stat::Unexposed) || (target_status == Stat::Recovered)) {
     uint8_t target_touchmap = touch_map(target_status, target_condition);
-    float touchprob{0.0};
-
+    auto baseprob = touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])];
     if (indoor_factor == 1.0f) {
-      touchprob = touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])];
-    } else {
-      touchprob = std::clamp(
-          touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])] *
-              indoor_factor,
-          0.0f, 0.97f);
-      }
-    return xo::bernoulli(touchprob) == 1;
+      return baseprob;
+    }
+    return std::clamp(baseprob * indoor_factor, 0.0f, 0.97f);
   }
-  return false;
+  return 0.0f;
 }
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
@@ -170,28 +174,28 @@ Considers partial immunity if contact has recovered from previous infection.
 Considers vaccination status of the contact.
 Considers the variant of the disease the spreader is carrying.
 */
-bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<InfectParams> &infectparams, int thisday) {
-
+InfectRiskComponents infectrisk_components(const PopData &pop, size_t contact, size_t spreader,
+                                           vector<InfectParams> &infectparams, int thisday) {
     uint8_t spr_variant = pop.get_variant(spreader);
-
-    // effect on transmission based on how long ago a previously infected contact got over the disease
-    float recovfactor = 
-        recoveffect(pop, thisday, contact, spr_variant, infectparams);
-
-
-    // effect on transmission based on whether, when, and which vaccine contact received
-    // TODO vaxfactor = dovax ? vaxeffect(thisday, contact, vaxset, infectfactor, spr_variant) : 1.0;
-
-    // binomial probability of the contact getting infected from the contact with this spreader
+    float recovfactor = recoveffect(pop, thisday, contact, spr_variant, infectparams);
+    float vaxfactor = 1.0f;
+    float sendrisk = infectparams[spr_variant].sendrisk[pop.duration[spreader]];
+    float recvrisk = infectparams[spr_variant].recvrisk[zidx(pop.agegrp[contact])];
     float risk = infectrisk(infectparams, spr_variant, pop.duration[spreader],
-                            pop.agegrp[contact], recovfactor, 1.0);
+                            pop.agegrp[contact], recovfactor, vaxfactor);
+    return {
+        .spr_variant = spr_variant,
+        .sendrisk = sendrisk,
+        .recvrisk = recvrisk,
+        .recovfactor = recovfactor,
+        .vaxfactor = vaxfactor,
+        .risk = risk,
+    };
+}
 
-    // if (pop.recovday_count[contact] == 0)
-    //   fmt::println("*** ================= recovfactor {}, risk {}, bernoulli {}", recovfactor, risk, xo::bernoulli(risk));
-
-
-    // multiplicative factor for debugging TODO: had used 0.84f before implementing density_factor
-    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
+bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<InfectParams> &infectparams, int thisday) {
+    auto comps = infectrisk_components(pop, contact, spreader, infectparams, thisday);
+    return xo::bernoulli(comps.risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
 }
 
 

@@ -3,34 +3,34 @@
     "indoor_uplift": 1.1,
     "contactfactors": {
         "age0_19": {
-            "nil": 1.045,
-            "mild": 1.045,
-            "sick": 0.665,
-            "severe": 0.475
+            "nil": 1.1,
+            "mild": 1.1,
+            "sick": 0.7,
+            "severe": 0.5
         },
         "age20_39": {
-            "nil": 1.995,
-            "mild": 1.9,
-            "sick": 0.95,
-            "severe": 0.57
+            "nil": 2.1,
+            "mild": 2,
+            "sick": 1,
+            "severe": 0.6
         },
         "age40_59": {
-            "nil": 1.995,
-            "mild": 1.9,
-            "sick": 0.95,
-            "severe": 0.57
+            "nil": 2.1,
+            "mild": 2,
+            "sick": 1,
+            "severe": 0.6
         },
         "age60_79": {
-            "nil": 1.615,
-            "mild": 1.52,
-            "sick": 0.665,
-            "severe": 0.475
+            "nil": 1.7,
+            "mild": 1.6,
+            "sick": 0.7,
+            "severe": 0.5
         },
         "age80_up": {
-            "nil": 0.95,
-            "mild": 0.855,
-            "sick": 0.57,
-            "severe": 0.475
+            "nil": 1,
+            "mild": 0.9,
+            "sick": 0.6,
+            "severe": 0.5
         }
     },
     "touchfactors": {

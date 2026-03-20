@@ -47,5 +47,6 @@ auto sum(R &&r) {
   return std::reduce(std::ranges::begin(r), std::ranges::end(r));
 }
 
+void replace_all(std::string& s, const std::string& from, const std::string& to);
 
 #endif

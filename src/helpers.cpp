@@ -52,3 +52,14 @@ double stddev(const std::vector<double>& values) {
         });
     return std::sqrt(sq_sum / values.size());
 }
+
+// text helpers
+
+void replace_all(std::string& s, const std::string& from, const std::string& to) {
+    if (from.empty()) return;
+    std::size_t pos = 0;
+    while ((pos = s.find(from, pos)) != std::string::npos) {
+        s.replace(pos, from.size(), to);
+        pos += to.size();
+    }
+}
