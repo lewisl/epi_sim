@@ -120,8 +120,12 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
         }
     }
 
+    const auto raw_sendrisk = variant.value()["spread"]["sendrisk"].get<vector<float>>();
+    vector<float> sendrisk(raw_sendrisk.size() + 1, 0.0f);
+    std::copy(raw_sendrisk.begin(), raw_sendrisk.end(), sendrisk.begin() + 1);
+
     infectparams.emplace_back(InfectParams{
-        .sendrisk = variant.value()["spread"]["sendrisk"],
+        .sendrisk = std::move(sendrisk),
         .recvrisk = variant.value()["spread"]["recvrisk"],
         .recovery_immunity = std::move(recovery_immunity),
         .immunehalflife = variant.value()["immunity"]["immunehalflife"]});

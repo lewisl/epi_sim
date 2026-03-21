@@ -3,15 +3,6 @@
 #include "lib_includes.h"
 #include "population.h"
 
-struct InfectRiskComponents {
-  uint8_t spr_variant{};
-  float sendrisk{};
-  float recvrisk{};
-  float recovfactor{};
-  float vaxfactor{};
-  float risk{};
-};
-
 float contact_factor(const array<array<float, 5>, 4>& contactfactors,
                      uint8_t spr_agegrp, uint8_t spr_cond);
 float contact_scale(float density_factor, float indoor_factor,
@@ -27,21 +18,17 @@ void get_contacts(const PopData& pop, float density_factor, float indoor_factor,
 
 uint8_t touch_map(Status target_status, Condition target_cond);
 
-float touch_probability(const PopData &pop, size_t contact,
+float touch_probability(PopData::AgentView contact,
                         const array<array<float, 5>, 6> &touchfactors,
                         float indoor_factor);
-bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor);
+bool istouched(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor);
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
                  uint8_t spr_duration, uint8_t contact_agegrp, float recovfactor= 1.0, float vaxfactor= 1.0);
 
-InfectRiskComponents infectrisk_components(const PopData &pop, size_t contact, size_t spreader,
-                                           vector<InfectParams> &infectparams, int thisday);
-// need to add vaxset, dovax after spreader VaxSet &vaxset, bool dovax,
-bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<InfectParams> &infectparams, int thisday);
+bool isinfected(PopData::AgentView contact, PopData::AgentView spreader, vector<InfectParams> &infectparams, int thisday);
 
-float recoveffect(const PopData &pop, size_t thisday, size_t contact,
-                  uint8_t spr_variant, vector<InfectParams> &infectparams,
+float recoveffect(PopData::AgentView person, size_t thisday, uint8_t spr_variant, vector<InfectParams> &infectparams,
                   float csig = 6.0, float decay_lower = 0.15);
 
 // decay and rise functions for vaccination effectiveness and partial immunity after recovery

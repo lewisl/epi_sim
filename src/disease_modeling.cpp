@@ -61,11 +61,14 @@ void PopData::AgentView::make_well(DayData & series) {    // the object is perso
   ++recovday_count();
 }
 
+// this is an AgentView method:  where is the person?  called as person.make_dead
 void PopData::AgentView::make_dead(DayData & series) {
-      deadday() = sim::get_day(); 
-      status() = Stat::Dead; // TODO will we need to set cond to uninfected for any other logic?
-      sim::ds.num_died++;
-      increment_series(series, SeriesName::new_dead, agegrp(), sim::get_day());
+  // update the person: update deadday and status for the person
+  deadday() = sim::get_day();   
+  status() = Stat::Dead; // TODO will we need to set cond to uninfected for any other logic?
+  // update the history of the simulation
+  sim::ds.num_died++;
+  increment_series(series, SeriesName::new_dead, agegrp(), deadday());
 }
 
 /*
@@ -84,24 +87,19 @@ float contact_scale(float density_factor, float indoor_factor,
   return density_factor * indoor_factor * contact_factor(contactfactors, spr_agegrp, spr_cond);
 }
 
-int how_many_contacts(float density_factor, float indoor_factor,
-                      float gammashape, uint8_t spr_agegrp, uint8_t spr_cond,
-                      const array<array<float, 5>, 4> &contactfactors) {
-
-  // temporary debugging fudge TODO
-  // indoor_factor = 1.0;
-  
+int how_many_contacts(float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp, uint8_t spr_cond,
+                      const array<array<float, 5>, 4> &contactfactors) 
+{
   auto scale = contact_scale(density_factor, indoor_factor, spr_agegrp, spr_cond, contactfactors);
-
-  
   return xo::gamma_int(gammashape, scale, 12);
 }
 
 // Update passed in vector of contacts, which are indices to the population table
 void get_contacts(const PopData &pop, float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
-                            uint8_t spr_cond, const array<array<float, 5>, 4> &contactfactors, vector<size_t> &contacts) {
+                uint8_t spr_cond, const array<array<float, 5>, 4> &contactfactors, vector<size_t> &contacts) 
+{
   auto num_contacts = how_many_contacts(density_factor, indoor_factor, gammashape, spr_agegrp, spr_cond, contactfactors);
-  xo::get_n_draws<size_t>(1, pop.popn, num_contacts, contacts);
+  xo::get_n_draws<size_t>(1, pop.popn, num_contacts, contacts); // this function clears contacts before refilling it
 }
 
 
@@ -128,16 +126,16 @@ uint8_t touch_map(Status target_status, Condition target_cond) {
 //clang-format on
 
 
-bool istouched(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
-  return xo::bernoulli(touch_probability(pop, contact, touchfactors, indoor_factor)) == 1;
+bool istouched(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
+  return xo::bernoulli(touch_probability(contact, touchfactors, indoor_factor)) == 1;
 }
 
-float touch_probability(const PopData &pop, size_t contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
-  Status target_status = pop.status[contact];
-  Condition target_condition = pop.cond[contact];
+float touch_probability(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
+  Status target_status = contact.status();
+  Condition target_condition = contact.cond();
   if ((target_status == Stat::Unexposed) || (target_status == Stat::Recovered)) {
     uint8_t target_touchmap = touch_map(target_status, target_condition);
-    auto baseprob = touchfactors[idx(target_touchmap)][zidx(pop.agegrp[contact])];
+    auto baseprob = touchfactors[idx(target_touchmap)][zidx(contact.agegrp())];
     if (indoor_factor == 1.0f) {
       return baseprob;
     }
@@ -166,36 +164,12 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
 }
                   
 
-/*
-    isinfected(contact, spreader, vaxset, dovax, infectset, thisday)::Bool
-
-Returns true if the spreader infected the contact or false if not. 
-Considers partial immunity if contact has recovered from previous infection.
-Considers vaccination status of the contact.
-Considers the variant of the disease the spreader is carrying.
-*/
-InfectRiskComponents infectrisk_components(const PopData &pop, size_t contact, size_t spreader,
-                                           vector<InfectParams> &infectparams, int thisday) {
-    uint8_t spr_variant = pop.get_variant(spreader);
-    float recovfactor = recoveffect(pop, thisday, contact, spr_variant, infectparams);
-    float vaxfactor = 1.0f;
-    float sendrisk = infectparams[spr_variant].sendrisk[pop.duration[spreader]];
-    float recvrisk = infectparams[spr_variant].recvrisk[zidx(pop.agegrp[contact])];
-    float risk = infectrisk(infectparams, spr_variant, pop.duration[spreader],
-                            pop.agegrp[contact], recovfactor, vaxfactor);
-    return {
-        .spr_variant = spr_variant,
-        .sendrisk = sendrisk,
-        .recvrisk = recvrisk,
-        .recovfactor = recovfactor,
-        .vaxfactor = vaxfactor,
-        .risk = risk,
-    };
-}
-
-bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<InfectParams> &infectparams, int thisday) {
-    auto comps = infectrisk_components(pop, contact, spreader, infectparams, thisday);
-    return xo::bernoulli(comps.risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
+bool isinfected(PopData::AgentView contact, PopData::AgentView spreader, vector<InfectParams> &infectparams, int thisday) {
+    uint8_t spr_variant = spreader.get_variant();
+    float recovfactor = recoveffect(contact, thisday, spr_variant, infectparams);
+    float risk = infectrisk(infectparams, spr_variant, spreader.duration(),
+                            contact.agegrp(), recovfactor);
+    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
 }
 
 
@@ -206,18 +180,18 @@ bool isinfected(const PopData &pop, size_t contact, size_t spreader, vector<Infe
 Immunity from recovery for a single person.
 defaults: csig = 6.0, decay_lower = 0.15
 */
-float recoveffect(const PopData &pop, size_t thisday, size_t contact, uint8_t spr_variant,
+float recoveffect(PopData::AgentView contact, size_t thisday,  uint8_t spr_variant,
                   vector<InfectParams> &infectparams, float csig, float decay_lower) {
 
     float factor = 1.0f; // return value
 
-    if (pop.recovday_count[contact] > 0) {
+    if (contact.recovday_count() > 0) {
       
-        size_t recovday = pop.get_recovday(contact);
+        size_t recovday = contact.get_recovday();
         size_t days_post_recov = thisday - recovday;
 
         if (days_post_recov >= 0) {
-            uint8_t contact_variant = pop.get_variant(contact);
+            uint8_t contact_variant = contact.get_variant();
 
             // get the max immunity for the variant that target recovered from against the variant of the spreader
             float immstrength = infectparams[contact_variant].recovery_immunity[spr_variant];

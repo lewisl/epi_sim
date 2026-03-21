@@ -91,69 +91,7 @@ struct DayData {
     auto const& group(SeriesName name) const { return cols[size_t(name)]; }
 };
 
-struct RuntimeTrace {
-    std::vector<size_t> contacts;
-    std::vector<size_t> touched;
-    std::vector<size_t> spread_new_infected;
 
-    RuntimeTrace() = default;
-    explicit RuntimeTrace(size_t day_cnt)
-        : contacts(day_cnt + 1, 0UZ), touched(day_cnt + 1, 0UZ),
-          spread_new_infected(day_cnt + 1, 0UZ) {}
-};
-
-struct SpreadDebugConfig {
-    size_t max_days{3};
-    size_t max_spreaders{250};
-    size_t max_contacts{2000};
-};
-
-struct SpreaderDebugRow {
-    size_t day{};
-    size_t spreader_id{};
-    std::string spr_agegrp{};
-    std::string spr_cond{};
-    uint8_t spr_duration{};
-    std::string spr_variant{};
-    float indoor_factor{};
-    float density_factor{};
-    float contact_factor{};
-    float contact_scale{};
-    size_t num_contacts{};
-    float sendrisk{};
-};
-
-struct ContactDebugRow {
-    size_t day{};
-    size_t spreader_id{};
-    size_t contact_order{};
-    size_t contact_id{};
-    std::string targ_agegrp{};
-    std::string targ_status{};
-    std::string targ_cond{};
-    float indoor_factor{};
-    float touch_factor{};
-    float touch_prob{};
-    bool touched{};
-    float sendrisk{};
-    float recvrisk{};
-    float recovfactor{};
-    float vaxfactor{};
-    float infect_risk{};
-    bool infected{};
-};
-
-struct SpreadDebugTrace {
-    SpreadDebugConfig config{};
-    std::vector<SpreaderDebugRow> spreaders{};
-    std::vector<ContactDebugRow> contacts{};
-
-    SpreadDebugTrace() = default;
-    explicit SpreadDebugTrace(SpreadDebugConfig cfg) : config(cfg) {
-        spreaders.reserve(cfg.max_spreaders);
-        contacts.reserve(cfg.max_contacts);
-    }
-};
 
 AgeBucket bucket_from_age(Agegrp agegrp);
 void increment_series(DayData& series, SeriesName name, Agegrp agegrp, size_t day);
@@ -161,10 +99,7 @@ void update_series(const PopData & pop, DayData & series);
 void finalize_series(DayData& series);
 void write_daily_trace_csv(const std::filesystem::path& output_path,
                            const std::vector<absl::CivilDay>& caldays,
-                           const DayData& series,
-                           const RuntimeTrace& runtime_trace);
-void write_spread_debug_csvs(const std::filesystem::path& output_prefix,
-                             const SpreadDebugTrace& spread_debug_trace);
+                           const DayData& series);
 void print_total_status_series(const DayData& series, size_t days_per_block = 15);
 void print_selected_series(std::vector<SeriesSelection> selections, const DayData& series,
                            size_t days_per_block = 15);

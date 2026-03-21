@@ -247,7 +247,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
     //
 
     void make_sick(PopData::AgentView person, Variant var, DayData & series, Condition condition = Cond::Nil,
-                   uint8_t durationdays = 0);
+                   uint8_t durationdays = 1);
     
 
 };

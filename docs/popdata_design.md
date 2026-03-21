@@ -46,6 +46,89 @@ Sequential data enables vectorization (SIMD instructions can process multiple pe
 **Selective Updates:**
 Only load the vectors you need. If updating status, you don't load vaccination history into cache.
 
+## AgentView: Mutable Virtual Row
+
+The main ergonomic cost of SoA is that a person's data is spread across many vectors. `PopData::AgentView` solves that without giving up the columnar layout.
+
+`AgentView` is a small row-like proxy:
+
+- it holds a reference to the owning `PopData`
+- it holds one person index
+- it does not materialize or copy a full row
+- passing it by value is cheap because it is only a handle
+
+Conceptually, it lets code work with a semantic "row" while the actual storage remains columnar.
+
+```cpp
+auto person = pop.agent(i);
+
+if (person.status() == Stat::Unexposed) {
+    person.cond() = Cond::Sick;
+    person.duration() = 1;
+}
+```
+
+This is a core design feature, not a convenience wrapper added on later.
+
+### Why It Matters
+
+Without `AgentView`, code that operates on one person becomes noisy and error-prone:
+
+```cpp
+// Without AgentView
+if (pop.status[i] == Stat::Unexposed) {
+    pop.cond[i] = Cond::Sick;
+    pop.duration[i] = 1;
+}
+```
+
+With `AgentView`, the code reads like a row-oriented model while still writing directly into the underlying SoA vectors.
+
+This gives three benefits at once:
+
+1. **Convenience**: person-oriented code is shorter and easier to read
+2. **Intuition**: `person.status()` and `person.cond()` match how we think about one agent
+3. **Performance**: no row object is copied out of the SoA storage
+
+### Mutability Is Intentional
+
+`AgentView` is deliberately mutable. That is part of the design goal.
+
+Accessors such as `status()`, `cond()`, and `duration()` return lvalue references to the underlying `PopData` vectors. That means they can appear on the left-hand side of an assignment:
+
+```cpp
+person.cond() = Cond::Sick;
+person.status() = Stat::Infectious;
+```
+
+This is the key idea: the accessor does not return a detached value. It returns a reference into the source data, so the virtual row remains writable.
+
+Because of that design:
+
+- `AgentView` is not a read-only facade
+- `AgentView` is not a copied row struct
+- `AgentView` exists specifically to provide convenient mutable access to dissimilar column types through a row-like interface
+
+### Passing AgentView to Functions
+
+Functions should usually take `PopData::AgentView` by value:
+
+```cpp
+void progression(PopData::AgentView person, DayData& series, ...);
+```
+
+That is appropriate because:
+
+- the handle is small
+- copying it does not copy the underlying person state
+- the function still mutates the real `PopData` through returned references
+
+Adding `const` to the `AgentView` parameter is usually the wrong signal for this type:
+
+- it does not improve performance
+- it does not add meaningful safety for the index, which is already private
+- it works against the design intent that the row view be writable
+
 ## Critical Constraint: Row Alignment
 
 **All vectors MUST stay aligned** - index `i` represents the same person across all vectors.

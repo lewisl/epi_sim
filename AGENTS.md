@@ -101,6 +101,28 @@ for (auto it = pop.status.begin() + 1; it != pop.status.end(); ++it) {
 }
 ```
 
+### PopData::AgentView Arguments
+
+`PopData::AgentView` is a small proxy/handle, not a materialized row copy of `PopData`.
+
+- An `AgentView` contains a reference to the underlying `PopData` plus the person's index
+- Passing `PopData::AgentView` by value is normally appropriate and cheap
+- Passing `PopData::AgentView` by value does **not** copy the population vectors or person state
+- Do not switch `AgentView` parameters to `const PopData::AgentView&` for performance reasons; that usually adds indirection without benefit
+
+Constness needs care here:
+
+- `const PopData::AgentView` makes the proxy object itself const inside the callee
+- It does **not** automatically make the underlying `PopData` entry const
+- If `AgentView` exposes const-qualified accessors returning mutable references, a function can still update the underlying person data through a `const AgentView`
+- Use `const PopData::AgentView` only when you specifically want to prevent rebinding or mutation of the proxy object inside the function; do **not** assume it means read-only access to the person's data
+
+Practical guidance:
+
+- Use `PopData::AgentView person` for ordinary agent-oriented helper functions
+- Use `const PopData::AgentView person` only if the API is intentionally designed so the proxy itself should not be changed in the callee
+- If a function must be truly read-only with respect to person state, the `AgentView` API itself must provide read-only accessors or a separate const view type
+
 ## Other Conventions
 
 (Add other coding conventions here as the project develops)
@@ -123,3 +145,7 @@ for (auto it = pop.status.begin() + 1; it != pop.status.end(); ++it) {
 - C++23 standard
 - LLVM/Clang toolchain
 
+## Other requests
+
+### Code management
+- Don't delete code unless requested by the user or clearly part of another requested code change 

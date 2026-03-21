@@ -10,8 +10,6 @@ using std::array;
 using std::string;
 using std::vector;
 
-
-
 //
 // Compile time classes for traits with values that can't be changed
 //

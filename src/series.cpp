@@ -93,14 +93,9 @@ void finalize_series(DayData& series) {
 
 void write_daily_trace_csv(const std::filesystem::path& output_path,
                            const std::vector<absl::CivilDay>& caldays,
-                           const DayData& series,
-                           const RuntimeTrace& runtime_trace) {
+                           const DayData& series) {
   if (caldays.size() != series.day_cnt) {
     throw std::runtime_error("caldays length did not match series.day_cnt");
-  }
-  if (runtime_trace.contacts.size() != series.day_cnt + 1 ||
-      runtime_trace.touched.size() != series.day_cnt + 1) {
-    throw std::runtime_error("runtime trace length did not match series.day_cnt");
   }
 
   ensure_parent_dir(output_path);
@@ -116,10 +111,7 @@ void write_daily_trace_csv(const std::filesystem::path& output_path,
   for (size_t day = 1; day <= series.day_cnt; ++day) {
     out << day << ','
         << format_civil_day(caldays[day - 1]) << ','
-        << runtime_trace.contacts[day] << ','
-        << runtime_trace.touched[day] << ','
         << series.at(SeriesName::new_infected, AgeBucket::total)[day] << ','
-        << runtime_trace.spread_new_infected[day] << ','
         << series.at(SeriesName::new_recovered, AgeBucket::total)[day] << ','
         << series.at(SeriesName::new_dead, AgeBucket::total)[day] << ','
         << series.at(SeriesName::new_infected, AgeBucket::age60_79)[day] << ','
@@ -128,70 +120,6 @@ void write_daily_trace_csv(const std::filesystem::path& output_path,
         << series.at(SeriesName::new_infected, AgeBucket::age80_up)[day] << ','
         << series.at(SeriesName::new_recovered, AgeBucket::age80_up)[day] << ','
         << series.at(SeriesName::new_dead, AgeBucket::age80_up)[day] << '\n';
-  }
-}
-
-void write_spread_debug_csvs(const std::filesystem::path& output_prefix,
-                             const SpreadDebugTrace& spread_debug_trace) {
-  auto spreaders_path = std::filesystem::path(output_prefix.string() + "_spreaders.csv");
-  auto contacts_path = std::filesystem::path(output_prefix.string() + "_contacts.csv");
-
-  ensure_parent_dir(spreaders_path);
-  ensure_parent_dir(contacts_path);
-
-  {
-    std::ofstream out(spreaders_path);
-    if (!out) {
-      throw std::runtime_error(fmt::format("Could not open spread-debug file '{}'", spreaders_path.string()));
-    }
-
-    out << "day,spreader_id,spr_agegrp,spr_cond,spr_duration,spr_variant,indoor_factor,"
-           "density_factor,contact_factor,contact_scale,num_contacts,sendrisk\n";
-
-    for (const auto& row : spread_debug_trace.spreaders) {
-      out << row.day << ','
-          << row.spreader_id << ','
-          << row.spr_agegrp << ','
-          << row.spr_cond << ','
-          << unsigned(row.spr_duration) << ','
-          << row.spr_variant << ','
-          << row.indoor_factor << ','
-          << row.density_factor << ','
-          << row.contact_factor << ','
-          << row.contact_scale << ','
-          << row.num_contacts << ','
-          << row.sendrisk << '\n';
-    }
-  }
-
-  {
-    std::ofstream out(contacts_path);
-    if (!out) {
-      throw std::runtime_error(fmt::format("Could not open spread-debug file '{}'", contacts_path.string()));
-    }
-
-    out << "day,spreader_id,contact_order,contact_id,targ_agegrp,targ_status,targ_cond,indoor_factor,"
-           "touch_factor,touch_prob,touched,sendrisk,recvrisk,recovfactor,vaxfactor,infect_risk,infected\n";
-
-    for (const auto& row : spread_debug_trace.contacts) {
-      out << row.day << ','
-          << row.spreader_id << ','
-          << row.contact_order << ','
-          << row.contact_id << ','
-          << row.targ_agegrp << ','
-          << row.targ_status << ','
-          << row.targ_cond << ','
-          << row.indoor_factor << ','
-          << row.touch_factor << ','
-          << row.touch_prob << ','
-          << int(row.touched) << ','
-          << row.sendrisk << ','
-          << row.recvrisk << ','
-          << row.recovfactor << ','
-          << row.vaxfactor << ','
-          << row.infect_risk << ','
-          << int(row.infected) << '\n';
-    }
   }
 }
 

@@ -7,7 +7,6 @@
 #include "sim.h"
 #include "series.h"
 
-void spread(PopData &pop, DayData & series, size_t p, SocialParams &social, vector<InfectParams> &infectparams,
-            vector<size_t> &contacts, float density_factor, vector<float> &indoor_seq,
-            SpreadDebugTrace* spread_debug_trace = nullptr);
+void spread(PopData &pop, DayData & series, PopData::AgentView person, SocialParams &social, vector<InfectParams> &infectparams,
+            vector<size_t> &contacts, float density_factor, vector<float> &indoor_seq);
 // additional parameters later: dovax, vaxset,  sd_cases

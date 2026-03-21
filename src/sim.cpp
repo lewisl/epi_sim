@@ -17,21 +17,17 @@ void print_summary(PopData & pop);
 
 
 // TODO later add parameters for runcases, showr0, silent, dovax?, vaxscheds?
-void runsim(Model& model, const std::filesystem::path& trace_path,
-            const std::filesystem::path& spread_debug_prefix)
+void runsim(Model& model, const std::filesystem::path& trace_path)
     // other arguments to add: runcases, showr0, silent, dovax, vaxscheds?
 {
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
 
   // seed the random number generator
-  xo::seed(12345);  // have used 12345
+  xo::seed(99999);  // have used 12345
 
   // create vector set for series statistics
   DayData series(model.ndays);
-  RuntimeTrace runtime_trace(model.ndays);
-  SpreadDebugTrace spread_debug_trace(SpreadDebugConfig{});
-  SpreadDebugTrace* spread_debug_ptr = spread_debug_prefix.empty() ? nullptr : &spread_debug_trace;
 
   // reset day counter to zero
   sim::reset_day();
@@ -48,13 +44,12 @@ void runsim(Model& model, const std::filesystem::path& trace_path,
   // create SeedCases
   vector<SeedFilter> sf {
     // agegrp, cond, duration, variant, count
-    {Age::Age20_39, Cond::Nil, 0, model.mp.variants[1], 3},
-    {Age::Age40_59, Cond::Nil, 0, model.mp.variants[1], 3}};
+    {Age::Age20_39, Cond::Nil, 1, model.mp.variants[1], 3},
+    {Age::Age40_59, Cond::Nil, 1, model.mp.variants[1], 3}};
   SeedCase sc1(1, true, sf, pop);
 
   // create useful pre-allocated vectors
-  vector<size_t> contacts(
-      250); // reserve and set size, cleared before later usage
+  vector<size_t> contacts(250); // reserve and set size, cleared before later usage
 
 
 
@@ -91,29 +86,24 @@ void runsim(Model& model, const std::filesystem::path& trace_path,
 
       // get an agent at index p
       auto person = pop.agent(p);
-      if (person.status() != Stat::Infectious) continue;
+      if (person.status() != Stat::Infectious || person.get_sickday() >= sim::ds.day) continue;
 
       spread_timing.start();
       // spread kernel
-      auto spr_duration = person.duration();       //pop.duration[p];  // a uint8_t
-      auto variant_count = person.variant_count();
-      if (variant_count == 0) continue;  // Skip if no variant assigned:  TODO this is really an error that shouldn't happen
-      auto spr_variant = person.get_variant();    // variant_count is 1-based, array is 0-based
-      auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[idx(spr_duration)];
+      auto spr_duration = person.duration();      
+      auto spr_variant = person.get_variant();    
+      auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
         sim::ds.starting_spreaders++;
-        spread(pop, series, p, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq,
-               spread_debug_ptr);
+        spread(pop, series, person, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
       }
       spread_timing.cum();
 
       // progression kernel
       progression_timing.start();
-      progression(pop, p, series, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
+      progression(person, series, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
       progression_timing.cum();
 
-      // cleanup before next person
-      // contacts.clear();  // get rid of all the contacts of the previous person!
     } // end persons loop
 
     // update history series
@@ -121,9 +111,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path,
     update_series(pop, series);
     history_timing.cum();
 
-    runtime_trace.contacts[sim::ds.day] = sim::ds.num_contacts;
-    runtime_trace.touched[sim::ds.day] = sim::ds.num_touched;
-    runtime_trace.spread_new_infected[sim::ds.day] = sim::ds.num_new_infected;
 
     // Print daily outcomes
     // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
@@ -138,14 +125,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path,
   } // day loop
 
   finalize_series(series);
-
-  if (!trace_path.empty()) {
-    write_daily_trace_csv(trace_path, model.caldays, series, runtime_trace);
-  }
-  if (!spread_debug_prefix.empty()) {
-    write_spread_debug_csvs(spread_debug_prefix, spread_debug_trace);
-  }
-
  
   //
   // at end of simulation
@@ -161,6 +140,7 @@ void runsim(Model& model, const std::filesystem::path& trace_path,
 
   fmt::println("Spread time: {} Progression time: {} History time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show());
+
 
 } // end runsim function
 

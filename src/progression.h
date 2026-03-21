@@ -7,7 +7,7 @@
 #include "parameters.h"
 
 // before probvec  InfectParams &infpar, 
-void progression(PopData &pop, size_t p, DayData & series, ProgressionSet &progset,
+void progression(PopData::AgentView person, DayData & series, ProgressionSet &progset,
                  vector<InfectParams> &infectparams,
                  array<float, 6> &probvec, bool dovax, VaxSet &vaxset);
 

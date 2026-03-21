@@ -22,6 +22,80 @@ using std::string;
 using std::vector;
 using std::string_view;
 
+namespace parameter_test {
+
+namespace fs = std::filesystem;
+
+struct VariantNamesGuard {
+    vector<string> saved_names = Variant::names;
+
+    ~VariantNamesGuard() {
+        Variant::names = saved_names;
+    }
+};
+
+struct SampleParamPaths {
+    string geodata;
+    string variants;
+    string social;
+    string vaccines;
+    string vax_sched;
+};
+
+fs::path project_dir() {
+    const fs::path cwd = fs::current_path();
+    if (fs::exists(cwd / "sample_parameters")) {
+        return cwd;
+    }
+    return fs::path(std::getenv("HOME")) / "code" / "epi_sim";
+}
+
+SampleParamPaths sample_paths() {
+    const fs::path root = project_dir();
+    return {
+        .geodata = (root / "sample_parameters" / "geo2data.csv").string(),
+        .variants = (root / "sample_parameters" / "variants.json").string(),
+        .social = (root / "sample_parameters" / "socialparams.json").string(),
+        .vaccines = (root / "sample_parameters" / "vaccines.json").string(),
+        .vax_sched = (root / "sample_parameters" / "vaccine_100k" / "loc38015_old.json").string(),
+    };
+}
+
+size_t require_locale_index(const GeoData& geodata, int locale) {
+    const auto it = std::find(geodata.fips.begin(), geodata.fips.end(), locale);
+    assert(it != geodata.fips.end());
+    return static_cast<size_t>(std::distance(geodata.fips.begin(), it));
+}
+
+const VaxParams& require_vax(const VaxSet& vaxset, string_view name) {
+    const auto it = std::find_if(vaxset.vaxset.begin(), vaxset.vaxset.end(),
+                                 [name](const auto& entry) { return entry.first == name; });
+    assert(it != vaxset.vaxset.end());
+    return it->second;
+}
+
+const PerVaxSpec& require_sched_vax(const VaxSched& sched, string_view name) {
+    const auto it = std::find_if(sched.vaxesincluded.begin(), sched.vaxesincluded.end(),
+                                 [name](const auto& entry) { return entry.vax_name == name; });
+    assert(it != sched.vaxesincluded.end());
+    return *it;
+}
+
+float require_named_factor(const vector<std::pair<string, float>>& entries, string_view name) {
+    const auto it = std::find_if(entries.begin(), entries.end(),
+                                 [name](const auto& entry) { return entry.first == name; });
+    assert(it != entries.end());
+    return it->second;
+}
+
+size_t require_calday_index(const vector<absl::CivilDay>& caldays, const absl::CivilDay& day) {
+    const auto it = std::find(caldays.begin(), caldays.end(), day);
+    assert(it != caldays.end());
+    return static_cast<size_t>(std::distance(caldays.begin(), it));
+}
+
+} // namespace parameter_test
+
 namespace poptable_test {
 
 string rtrim_copy(string value) {
@@ -524,6 +598,92 @@ void test_plotly() {
     fmt::println("=== Plotly Browser Launch Test Completed ===");
 }
 
+void test_sendrisk_indexing() {
+    fmt::print("\n=== Testing Variant sendrisk Indexing ===\n\n");
+
+    const vector<string> saved_variant_names = Variant::names;
+    Variant::names.clear();
+
+    nlohmann::ordered_json jdata = {
+        {"base",
+         {
+             {"spread",
+              {
+                  {"sendrisk", {0.0, 0.3, 0.65, 0.75, 0.85}},
+                  {"recvrisk", {0.1, 0.39, 0.44, 0.54, 0.56}},
+              }},
+             {"immunity",
+              {
+                  {"recovery_immunity", {{"base", 0.8}}},
+                  {"immunehalflife", 360},
+              }},
+         }},
+    };
+    const auto [variants, infectparams] = load_variants_data(jdata);
+
+    assert(variants.size() == infectparams.size());
+    assert(variants.size() > 1);
+
+    const auto& base_sendrisk = infectparams[1].sendrisk;
+    assert(base_sendrisk.size() == 6);
+    assert(approx_equal(base_sendrisk[0], 0.0, 1e-9));
+    assert(approx_equal(base_sendrisk[1], 0.0, 1e-9));
+    assert(approx_equal(base_sendrisk[2], 0.3, 1e-6));
+    assert(approx_equal(base_sendrisk[5], 0.85, 1e-6));
+
+    Variant::names = saved_variant_names;
+
+    fmt::println("=== Variant sendrisk Indexing Test Completed ===");
+}
+
+void test_make_sick_and_seedcase_duration_indexing() {
+    fmt::print("\n=== Testing make_sick and SeedCase Duration Indexing ===\n\n");
+
+    MapEnum<uint8_t> vax_lbl{{{"none", 0}, {"pfizer", 1}}};
+    MapEnum<uint8_t> true_false{{{"false", 0}, {"true", 1}}};
+    MapEnum<int> justint{};
+
+    const vector<string> saved_variant_names = Variant::names;
+    Variant::names = {"none", "base"};
+
+    PopData pop(4, vax_lbl, true_false, justint);
+    DayData series(5);
+
+    sim::reset_day();
+    sim::incr_day();
+    sim::ds.day = sim::get_day();
+
+    auto first_person = pop.agent(1);
+    pop.make_sick(first_person, Variant{1}, series);
+
+    assert(first_person.status() == Stat::Infectious);
+    assert(first_person.cond() == Cond::Nil);
+    assert(first_person.duration() == 1);
+    assert(first_person.variant_count() == 1);
+    assert(first_person.get_variant() == Variant{1});
+    assert(first_person.get_sickday() == 1);
+
+    vector<SeedFilter> filters{{Age::Age20_39, Cond::Mild, 3, Variant{1}, 1}};
+    SeedCase seed_case(2, true, filters, pop);
+
+    sim::incr_day();
+    sim::ds.day = sim::get_day();
+    const auto seeded = seed_case(series);
+
+    assert(seeded.size() == 1);
+    const auto seeded_person = pop.agent(seeded.front());
+    assert(seeded_person.status() == Stat::Infectious);
+    assert(seeded_person.cond() == Cond::Mild);
+    assert(seeded_person.duration() == 3);
+    assert(seeded_person.variant_count() == 1);
+    assert(seeded_person.get_variant() == Variant{1});
+    assert(seeded_person.get_sickday() == 2);
+
+    Variant::names = saved_variant_names;
+
+    fmt::println("=== make_sick and SeedCase Duration Indexing Test Completed ===");
+}
+
 void test_age_distribution(const PopData& pop) {
     fmt::print("\n=== Testing Age Distribution ===\n\n");
 
@@ -562,7 +722,107 @@ void test_age_distribution(const PopData& pop) {
     fmt::println("\n=== Age Distribution Test Completed ===");
 }
 
-void test_model_params(ModelParams mp, Model model) {
+void test_model_params() {
+  fmt::print("\n=== Testing ModelParams Loading ===\n\n");
+
+  parameter_test::VariantNamesGuard variant_names_guard;
+  Variant::names.clear();
+  const auto paths = parameter_test::sample_paths();
+
+  GeoData geodata = load_geodata_csv(paths.geodata);
+  assert(geodata.num_rows > 0);
+  assert(geodata.num_rows == geodata.fips.size());
+  assert(geodata.num_rows == geodata.county.size());
+  assert(geodata.num_rows == geodata.pop.size());
+  const size_t locale_idx = parameter_test::require_locale_index(geodata, 38015);
+  assert(geodata.county[locale_idx] == "Burleigh");
+  assert(geodata.city[locale_idx] == "Bismarck");
+  assert(geodata.state[locale_idx] == "ND");
+  assert(geodata.pop[locale_idx] == 95626);
+  assert(geodata.indoor_st[locale_idx] == "0001-09-15");
+  assert(geodata.indoor_end[locale_idx] == "0002-05-30");
+
+  auto [infectparams, progressionset, trvec, variants] = load_infect_params(paths.variants);
+  assert(!variants.empty());
+  assert(variants.size() == infectparams.size());
+  assert(variants.size() == progressionset.progression.size());
+  assert(variants[0].name() == "none");
+  assert(variants[1].name() == "base");
+  assert(variants[2].name() == "alpha");
+  assert(infectparams[1].sendrisk.size() > 20);
+  assert(approx_equal(infectparams[1].sendrisk[1], 0.0, 1e-9));
+  assert(approx_equal(infectparams[1].sendrisk[2], 0.3, 1e-9));
+  assert(approx_equal(infectparams[1].sendrisk[5], 0.85, 1e-9));
+  assert(approx_equal(infectparams[1].recvrisk[0], 0.1, 1e-9));
+  assert(approx_equal(infectparams[1].recvrisk[4], 0.56, 1e-9));
+  assert(progressionset.progression[1].tree.size() == 5);
+  assert(progressionset.progression[1].tree[0].contains(5));
+  const auto& base_age0_day5_nil = progressionset.progression[1].tree[0].at(5)[0];
+  assert(base_age0_day5_nil.size() == 6);
+  assert(approx_equal(base_age0_day5_nil[1], 0.4, 1e-9));
+  assert(approx_equal(base_age0_day5_nil[2], 0.5, 1e-9));
+  assert(progressionset.progression[2].factors.riskadjust.size() == 6);
+  assert(approx_equal(progressionset.progression[2].factors.riskadjust[3], 1.1, 1e-9));
+  assert(std::all_of(trvec.begin(), trvec.end(),
+                     [](float value) { return approx_equal(value, 0.0, 1e-9); }));
+
+  SocialParams socialdata = load_social_params(paths.social);
+  assert(approx_equal(socialdata.gammashape, 1.0, 1e-9));
+  assert(approx_equal(socialdata.indoor_uplift, 1.1, 1e-9));
+  assert(approx_equal(socialdata.contactfactors[0][1], 1.995, 1e-9));
+  assert(approx_equal(socialdata.contactfactors[3][4], 0.475, 1e-9));
+  assert(approx_equal(socialdata.touchfactors[0][0], 0.55, 1e-9));
+  assert(approx_equal(socialdata.touchfactors[4][0], 0.28, 1e-9));
+
+  auto [vaxset, vaxlist] = load_vax_data(paths.vaccines, variants);
+  assert(vaxset.vaxset.size() == 3);
+  assert(vaxlist.size() == 3);
+  assert(vaxlist.to_int("Pfizer").has_value());
+  assert(vaxlist.to_int("Moderna").has_value());
+  assert(vaxlist.to_int("JnJ").has_value());
+  const auto& pfizer = parameter_test::require_vax(vaxset, "Pfizer");
+  assert(pfizer.reqdshots == 2);
+  assert(pfizer.delay2ndshot == 21);
+  assert(pfizer.delaybooster == 160);
+  assert(approx_equal(pfizer.day1_effect, 0.65, 1e-9));
+  assert(approx_equal(parameter_test::require_named_factor(pfizer.infectfactor, "delta"), 0.85, 1e-9));
+  assert(pfizer.effectiveness.size() == 3);
+  assert(pfizer.effectiveness[1].first == "full");
+  assert(approx_equal(parameter_test::require_named_factor(pfizer.effectiveness[1].second, "delta"), 0.8, 1e-9));
+
+  VaxSched vaxsched = load_vax_sched(paths.vax_sched, vaxlist);
+  assert(vaxsched.vaxesincluded.size() == 3);
+  const auto& jnj_sched = parameter_test::require_sched_vax(vaxsched, "JnJ");
+  assert(approx_equal(jnj_sched.mix, 0.05, 1e-9));
+  assert(jnj_sched.starting_doses == 4000);
+  assert(approx_equal(jnj_sched.pct2ndshot, 0.0, 1e-9));
+  assert(approx_equal(jnj_sched.pctboost, 0.4, 1e-9));
+  assert(vaxsched.dayrange.first == 350);
+  assert(vaxsched.dayrange.second == 700);
+  assert(approx_equal(vaxsched.targetpct, 0.95, 1e-9));
+  assert((vaxsched.filtervec == vector<string>{"age80_up", "age60_79"}));
+  assert(vaxsched.shotmode == "all");
+  assert(vaxsched.pattern.size() == 12);
+  assert(approx_equal(vaxsched.pattern[3], 0.1, 1e-9));
+  assert(vaxsched.spreadfunc.empty());
+
+  ModelParams mp{
+      .geodata = std::move(geodata),
+      .variants = std::move(variants),
+      .infectparams = std::move(infectparams),
+      .progressionset = std::move(progressionset),
+      .trvec = std::move(trvec),
+      .socialdata = std::move(socialdata),
+      .vaxset = std::move(vaxset),
+      .vaxlist = std::move(vaxlist),
+      .vaxsched = std::move(vaxsched),
+  };
+
+  assert(mp.geodata.pop[locale_idx] == 95626);
+  assert(mp.variants[1].name() == "base");
+  assert(mp.vaxset.vaxset.size() == 3);
+  assert(mp.vaxsched.dayrange.first == 350);
+
   fmt::println("==================== Model Parameters ==================");
   mp.geodata.print();
   fmt::print("\n");
@@ -571,7 +831,6 @@ void test_model_params(ModelParams mp, Model model) {
   print_infectparams(mp.infectparams, mp.variants);
   fmt::print("\n");
   mp.socialdata.print();
-  fmt::print("\n");
   fmt::print("\n");
   mp.progressionset.print(mp.variants);
   fmt::print("\n");
@@ -584,19 +843,44 @@ void test_model_params(ModelParams mp, Model model) {
   mp.vaxsched.print();
   fmt::print("\n");
 
-  fmt::println("==================== Simulation Parameters ==================");
-  fmt::println(" first day of sim: {} -- last day of sim: {}\n\n",
-              absl::FormatCivilTime(model.caldays.front()),
-              absl::FormatCivilTime(model.caldays.back()));
-  fmt::println("==================== indoor_seq ==================");
-  int item_ctr{0};
-  for (auto factor : model.indoor_seq) {
-    fmt::print("{:5}", factor);
-    ++item_ctr;
-    if (item_ctr % 15 == 0) fmt::println("\n");
-  }
-  fmt::println("\n");
+  fmt::println("=== ModelParams Loading Test Completed ===");
+}
 
+// This test depends on successful parameter loading because setup_sim builds ModelParams first.
+void test_build_model() {
+  fmt::print("\n=== Testing Model Build ===\n\n");
+
+  parameter_test::VariantNamesGuard variant_names_guard;
+  Variant::names.clear();
+
+  constexpr int ndays = 366;
+  Model model = setup_sim(ndays, 38015, "2020-01-01", false);
+
+  assert(model.ndays == ndays);
+  assert(model.locale == 38015);
+  assert(model.caldays.size() == size_t(ndays));
+  assert(model.indoor_seq.size() == size_t(ndays));
+  assert(model.day1 == absl::CivilDay(2020, 1, 1));
+  assert(model.caldays.front() == absl::CivilDay(2020, 1, 1));
+  assert(model.caldays.back() == absl::CivilDay(2020, 12, 31));
+
+  const size_t jan1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 1, 1));
+  const size_t may30_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 5, 30));
+  const size_t jun1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 6, 1));
+  const size_t sep15_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 9, 15));
+  const size_t dec31_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 12, 31));
+  assert(approx_equal(model.indoor_seq[jan1_idx], 1.1, 1e-9));
+  assert(approx_equal(model.indoor_seq[may30_idx], 1.1, 1e-9));
+  assert(approx_equal(model.indoor_seq[jun1_idx], 1.0, 1e-9));
+  assert(approx_equal(model.indoor_seq[sep15_idx], 1.1, 1e-9));
+  assert(approx_equal(model.indoor_seq[dec31_idx], 1.1, 1e-9));
+
+  const size_t locale_idx = parameter_test::require_locale_index(model.mp.geodata, model.locale);
+  assert(model.pop.popn == model.mp.geodata.pop[locale_idx]);
+  assert(model.pop.popz == model.pop.popn + 1);
+  assert(model.mp.variants[1].name() == "base");
+
+  fmt::println("=== Model Build Test Completed ===");
 }
 
 void test_popdata_size(Model model) {
@@ -962,6 +1246,8 @@ void apportion_debug(int n, vector<float> splits) {
 
 void sim_test(size_t ndays=180, int locale=38015) {
   // fmt::print("\n=== Testing Spread Function (180-day simulation) ===\n\n");
+  parameter_test::VariantNamesGuard variant_names_guard;
+  Variant::names.clear();
   Model model = setup_sim(ndays, locale, "2020-01-01", false);
   // fmt::println("Population: {}", model.pop.popn);
   // fmt::println("Running simulation for {} days...\n", model.ndays);
@@ -970,31 +1256,20 @@ void sim_test(size_t ndays=180, int locale=38015) {
  
 }
 
+void test_short_sim_smoke(int days) {
+  fmt::print("\n=== Smoke Test: Short Simulation Run ===\n\n");
+  sim_test(days, 38015);
+  fmt::println("=== Short Simulation Smoke Test Completed ===");
+}
+
 int main() {
-  // Test seeding and spread contact generation
-  // test_seeding_and_spread();
-
-  // Unit test: PopData table printer
-  // test_popdata_print_table();
-  // test_simple_pop_print();
-  // test_simple_plot_render();
-  // test_plotly();
-  // test_finalize_series();
-
-  // Test random number generator functions
-  // test_random_functions();
-
-  // tests
-  // run_category_tests();
-
-  // Test model params
-  // Model model = setup_sim(180, 38015, "2020-02-01", true);
-  // test_model_params(model.mp, model);
-
-  // test age distribution
-  // test_age_distribution(setup_sim(1000, 38015, "2020-01-01", false).pop);
-
-  // Test full simulation
-  sim_test(180, 38015);
-
+  test_popdata_print_table();
+  test_simple_pop_print();
+  test_model_params();
+  test_build_model();
+  test_finalize_series();
+  test_simple_plot_render();
+  test_sendrisk_indexing();
+  test_make_sick_and_seedcase_duration_indexing();
+  test_short_sim_smoke(180);
 }
