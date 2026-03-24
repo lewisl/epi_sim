@@ -2,6 +2,7 @@
 
 #include "lib_includes.h"
 #include "series.h"
+#include "sim.h"
 
 std::string render_plot_html(
     std::string template_html,
@@ -13,5 +14,8 @@ std::string render_plot_html(
 
 bool open_plot_in_browser(const std::filesystem::path& path);
 
-void cumplot(std::vector<SeriesSelection> selections, const DayData& series,
-    const std::vector<absl::CivilDay>& caldays);
+void seriesplot(std::vector<SeriesSelection> selections, const DayData& series,
+    const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
+    std::string plot_title, const bool dostack=false);
+
+void produce_plot(std::string base_fname, std::string end_message, json data, json layout);

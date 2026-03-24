@@ -503,20 +503,20 @@ void test_finalize_series() {
     net_infected_total[0] = 77;
     now_infected_total[1] = 3;
     now_infected_total[2] = 5;
-    now_infected_total[3] = 5;
+    now_infected_total[3] = 4;
     now_infected_total[4] = 9;
 
     now_infected_40_59[0] = 42;
     net_infected_40_59[0] = 24;
     now_infected_40_59[1] = 1;
     now_infected_40_59[2] = 1;
-    now_infected_40_59[3] = 4;
+    now_infected_40_59[3] = 0;
     now_infected_40_59[4] = 4;
 
     finalize_series(series);
 
-    const vector<size_t> expected_total = {77, 3, 2, 0, 4};
-    const vector<size_t> expected_age = {24, 1, 0, 3, 0};
+    const vector<int> expected_total = {77, 3, 2, -1, 5};
+    const vector<int> expected_age = {24, 1, 0, -1, 4};
 
     assert(net_infected_total == expected_total);
     assert(net_infected_40_59 == expected_age);

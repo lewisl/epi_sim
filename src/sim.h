@@ -90,5 +90,14 @@ struct SeedCase {
   }
 };
 
+struct SummaryData {
+  std::array<int, 7> unexposed{};
+  std::array<int, 7> infected{};
+  std::array<int, 7> reinfected{};
+  std::array<int, 7> recovered{};
+  std::array<int, 7> dead{};
+  // index 1..5 = age groups, index 6 = total, index 0 unused
+};
+
 // Simulation runner function
 void runsim(Model& model, const std::filesystem::path& trace_path = {});

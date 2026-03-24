@@ -10,7 +10,7 @@ auto total_status_names = std::array{
     SeriesName::now_infected, SeriesName::now_unexposed,
     SeriesName::now_recovered, SeriesName::now_dead};
 
-void diff_from_cumulative(std::span<const size_t> src, std::span<size_t> dest) {
+void diff_from_cumulative(std::span<int> src, std::span<int> dest) {
   assert(src.size() == dest.size());
   if (src.size() <= 1) return;  // only the unused 0 slot exists
 
@@ -86,8 +86,8 @@ void update_series(const PopData & pop, DayData & series) {
 
 void finalize_series(DayData& series) {
   for (auto bucket : all_age_buckets) {
-    diff_from_cumulative(std::span<const size_t>(series.at(SeriesName::now_infected, bucket)),
-                         std::span<size_t>(series.at(SeriesName::net_infected, bucket)));
+    diff_from_cumulative(std::span<int>(series.at(SeriesName::now_infected, bucket)),
+                         std::span<int>(series.at(SeriesName::net_infected, bucket)));
   }
 }
 

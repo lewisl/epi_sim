@@ -71,14 +71,14 @@ read a value:                     series.at(SeriesName::now_infected, AgeBucket:
 `DayData` stores them by semantic name first, then by age bucket.
 */
 struct DayData {
-    using BucketSeries = std::array<std::vector<size_t>, size_t(AgeBucket::COUNT)>;
+    using BucketSeries = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;
 
     size_t day_cnt;  // actual simulated day count; vectors allocate one extra slot for unused index 0
     std::array<BucketSeries, size_t(SeriesName::COUNT)> cols;
 
     DayData(size_t day_cnt) : day_cnt(day_cnt) {
         for (auto& group : cols) {
-            for (auto& v : group) v.assign(day_cnt + 1, 0uz);  // days are 1 indexed
+            for (auto& v : group) v.assign(day_cnt + 1, 0);  // days are 1 indexed
         }
     }
 

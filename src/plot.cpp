@@ -76,7 +76,6 @@ std::filesystem::path write_plot_html_file(const std::string& html, std::string 
 }
 
 
-
 std::string render_plot_html(
     std::string template_html,
     const std::string& title,
@@ -96,15 +95,31 @@ bool open_plot_in_browser(const std::filesystem::path& path) {
     return std::system(cmd.c_str()) == 0;
 }
 
+// same steps for every plot
+void produce_plot(std::string base_fname, std::string end_message, json data, json layout) {
+  // generate path/filename
+  string fname = make_timestamped_filename(base_fname);
+
+  // render the complete html
+  std::string cum_plot_html = render_plot_html(html_template, fname, end_message, data, layout);
+
+  // output the finished html file
+  std::filesystem::path fpath = write_plot_html_file(cum_plot_html, fname);
+
+  // open in browser
+  open_plot_in_browser(fpath);
+}
+
 //
 // standard plot types for simulation history output
 //
-void cumplot(std::vector<SeriesSelection> selections, const DayData& series,
-    const std::vector<absl::CivilDay>& caldays) {
+void seriesplot(std::vector<SeriesSelection> selections, const DayData& series,
+    const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
+    const std::string plot_title, const bool dostack) {
 
   // step 1: assemble data from simulation run
   vector<std::pair<SeriesName, AgeBucket>> cols;
-  vector<std::string_view> labels;
+  vector<std::string> labels;
   cols.reserve(selections.size());
   labels.reserve(selections.size());
   vector<string> invalid_selections;
@@ -122,36 +137,63 @@ void cumplot(std::vector<SeriesSelection> selections, const DayData& series,
       continue;
     }
     cols.emplace_back(*name, *bucket);
-    labels.push_back(to_string(*name));
+    labels.emplace_back(fmt::format("{}:{}", name_text, bucket_text));
   }
+  // summary totals for plot inset text box
+  int died = sumstruct.dead[6];
+  int recovered = sumstruct.recovered[6];
+  int unexposed = sumstruct.unexposed[6];
+  int infected = sumstruct.infected[6];
 
   // step 2: create the json objects
   json data = json::array();
   for (auto [label, col] : std::views::zip(labels, cols) ) {
     const auto& [name, bucket] = col;
     const auto& y_series = series.at(name, bucket);
-    std::vector<size_t> y_values(y_series.begin() + 1, y_series.end());
+    std::vector<int> y_values(y_series.begin() + 1, y_series.end());
 
-    data.push_back({
+    json trace = {
       {"x", daystrs},
       {"y", y_values},
       {"type", "scatter"},
       {"mode", "lines"},
       {"name", label}
-    });
+    };
+
+    if (dostack) {
+      trace["stackgroup"] = "stk";
+    }
+
+    data.push_back(std::move(trace));
   }
 
-  json layout = {{"title", "Cumulative Covid Outcome"}};
+  // this is the ideal and most reliable way to do this
+  json layout;  // add keys just like a map
+  layout["title"] = plot_title;
+  layout["xaxis"]["title"]["text"] = "Simulation Days";
+  layout["yaxis"]["title"]["text"] = "Count of People";
+  layout["plot_bgcolor"] = "#f3f2f2";
+  layout["annotations"] = json::array({
+      {
+        {"text", fmt::format(
+            "Died: {}<br>Infected: {}<br>Recovered: {}<br>Unexposed: {}",
+            died, infected, recovered, unexposed)},
+        {"xref", "paper"},
+        {"yref", "paper"},
+        {"x", 0.02},
+        {"y", 0.55},
+        {"showarrow", false},
+        {"font", {{"size", 13}}},
+        {"align", "left"},
+        {"bgcolor", "rgba(255,255,255,0.8)"},
+        {"bordercolor", "#888"},
+        {"borderwidth", 1},
+        {"borderpad", 6}
+      }
+  });
 
-  // step 3: render the complete html
-  std::string cum_plot_html = render_plot_html(html_template, "CumPlot","hey, did it work", data, layout);
-
-  // step 4: generate path/filename
-  string fname = make_timestamped_filename("cumplot");
-
-  // step 5: output the finished html file
-  std::filesystem::path fpath = write_plot_html_file(cum_plot_html, fname);
-
-  //step 6: open in browser
-  open_plot_in_browser(fpath);
+  produce_plot(plot_title, "Close the tab and return to terminal.", data, layout);
 }
+
+
+  
