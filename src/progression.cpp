@@ -18,38 +18,30 @@ they move to recovered or dead. Note: p is the contacted person.
 void progression(PopData::AgentView person, DayData & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
                  array<float, 6> &probvec, bool dovax, VaxSet &vaxset) {
   auto today = sim::get_day();
-  // auto person = pop.agent(p);
-  // extract traits for current person
-  // won't update these
-  const auto p_agegrp =  person.agegrp(); 
+  // extract traits for current person -- won't update these
   const auto p_variant = person.get_variant();   
   const auto p_vaxstatus = person.vaxstatus();  
-  // progression may update these--only duration is modified in this function!
-  auto & p_cond = person.cond();           
-  auto & p_status = person.status();    
-  auto  p_recovday = person.get_recovday();       
-  auto & p_duration = person.duration();   
 
   // set scope to function level
   float risk{};
   float recoveff{};
 
   const auto &probtree = progset.progression[p_variant].tree;
-  const auto & age_map = probtree.at(zidx(p_agegrp));
-  if (auto it = age_map.find(p_duration); it != age_map.end()) {
-    const auto& src = it->second[zidx(p_cond)];  
+  const auto & age_probs = probtree.at(zidx(person.agegrp()));
+  if (auto it = age_probs.find(person.duration()); it != age_probs.end()) {
+    const auto& src = it->second[zidx(person.cond())];  // zidx copies the input value
     std::copy(src.begin(), src.end(), probvec.begin());  // make a copy so we can alter this person's probs
 
     recoveff = recoveffect(person, today, p_variant, infectparams);                            
                                                     
-    float vaxeff = 1.0f; // more to do!
+    float vaxeff = 1.0f; // TODO more to do!
 
     risk = riskfactor(recoveff, vaxeff);
-    redistribute_probability(probvec, risk, p_duration);
-    do_progression(person, series, probvec);
+    redistribute_probability(probvec, risk, person.duration());  // update probvec in place
+    do_progression(person, series, probvec);  // update person in place even passed as value--change is in row of PopData
     
-  } else {   // not at a break point; no pr array applies
-    ++p_duration;
+  } else {   // not at a break point; no probvec applies
+    ++person.duration();
   }
 }
 

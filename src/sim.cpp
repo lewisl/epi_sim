@@ -11,6 +11,7 @@
 #include "progression.h"
 #include "timing.h"
 #include "series.h"
+#include "plot.h"
 
 // forward declarations
 void print_summary(PopData & pop);
@@ -140,6 +141,11 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
 
   fmt::println("Spread time: {} Progression time: {} History time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show());
+
+  cumplot({{"now_infected", "total"},
+            {"now_unexposed", "total"}, 
+            {"now_recovered", "total"}, 
+            {"now_dead", "total"}}, series, model.caldays);
 
 
 } // end runsim function

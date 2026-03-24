@@ -36,7 +36,7 @@ inline size_t idx(uint8_t i) {
 }
 
 // static cast to size_t and subtract 1
-// to convert 1 based indices to zero-based
+// to convert 1 based indices to zero-based, copies value argument
 inline size_t zidx(uint8_t i) {
     return static_cast<size_t>(i-1);
 }

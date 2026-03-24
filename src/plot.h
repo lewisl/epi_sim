@@ -1,37 +1,17 @@
 #pragma once
 
 #include "lib_includes.h"
-
-nlohmann::json make_plot_payload(
-    const std::string& title,
-    const std::vector<double>& x,
-    const std::vector<double>& y,
-    const std::string& trace_name = "series"
-);
+#include "series.h"
 
 std::string render_plot_html(
     std::string template_html,
     const std::string& title,
-    const std::string& heading,
-    const nlohmann::json& payload
+    const std::string& endmessage,
+    const nlohmann::json& data,
+    const nlohmann::json& layout
 );
 
-bool open_with_default_app(const std::filesystem::path& path);
+bool open_plot_in_browser(const std::filesystem::path& path);
 
-std::filesystem::path write_plot(
-    const std::string& title,
-    const std::string& heading,
-    const std::vector<double>& x,
-    const std::vector<double>& y,
-    const std::string& trace_name = "series"
-);
-
-std::filesystem::path do_plot(
-    const std::string& title,
-    const std::string& heading,
-    const std::vector<double>& x,
-    const std::vector<double>& y,
-    const std::string& trace_name = "series"
-);
-
-std::filesystem::path do_plot();
+void cumplot(std::vector<SeriesSelection> selections, const DayData& series,
+    const std::vector<absl::CivilDay>& caldays);

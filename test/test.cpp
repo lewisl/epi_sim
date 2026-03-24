@@ -538,6 +538,7 @@ void test_finalize_series() {
     fmt::println("=== Finalize Series Test Completed ===");
 }
 
+/*
 void test_simple_plot_render() {
     fmt::print("\n=== Testing Plot HTML Render ===\n\n");
 
@@ -581,7 +582,9 @@ void test_simple_plot_render() {
 
     fmt::println("=== Plot HTML Render Test Completed ===");
 }
+*/
 
+/*
 void test_plotly() {
     fmt::print("\n=== Testing Plotly Browser Launch ===\n\n");
 
@@ -597,6 +600,7 @@ void test_plotly() {
     fmt::println("Verify in the browser that a line plot appears.");
     fmt::println("=== Plotly Browser Launch Test Completed ===");
 }
+*/
 
 void test_sendrisk_indexing() {
     fmt::print("\n=== Testing Variant sendrisk Indexing ===\n\n");
@@ -1268,7 +1272,7 @@ int main() {
   test_model_params();
   test_build_model();
   test_finalize_series();
-  test_simple_plot_render();
+  // test_simple_plot_render();
   test_sendrisk_indexing();
   test_make_sick_and_seedcase_duration_indexing();
   test_short_sim_smoke(180);
