@@ -5,8 +5,7 @@
 #include "../src/setup.h"
 #include "../src/sim.h"
 #include "../src/population.h"
-#include "../src/population_print.h"
-#include "../src/simple_print.h"
+#include "../src/agent_pop_print.h"
 #include "../src/helpers.h"
 #include "../src/random.h"
 #include "../src/series.h"
@@ -253,241 +252,146 @@ void run_category_tests() {
     fmt::println("=== All namespace tests completed ===");
 }
 
-void test_popdata_print_table() {
-    fmt::print("\n=== Testing PopData Print Table ===\n\n");
+
+
+
+
+void test_agent_pop_print() {
+    fmt::print("\n=== Testing Agent Pop Printer ===\n\n");
 
     vector<string> saved_variant_names = Variant::names;
     PopData pop = poptable_test::make_popdata_print_fixture();
     vector<size_t> rows = {1, 2, 3};
 
-    using PC = PopColumn;
-    vector<PC> scalar_cols = {
-        PC::status,
-        PC::agegrp,
-        PC::cond,
-        PC::duration,
-        PC::ring
-    };
-
     std::ostringstream scalar_out;
-    print_pop_table(pop, rows, scalar_cols, scalar_out);
+    print_agent_pop_table(pop, rows,
+                          {"status", "agegrp", "cond", "duration", "ring"},
+                          scalar_out);
     const auto scalar_lines = poptable_test::split_trimmed_lines(scalar_out.str());
     for (const auto& line : scalar_lines) {
         fmt::println("{}", line);
     }
     fmt::print("\n");
-
     const vector<string> expected_scalar = {
-        "row  status      agegrp    cond        duration  ring",
-        "------------------------------------------------------",
-        "  1  Recovered   Age20_39  Uninfected  0         0",
-        "  2  Infectious  Age40_59  Mild        5         3",
-        "  3  Unexposed   Age80_Up  Uninfected  0         0",
+        "row  status      agegrp      cond        duration  ring",
+        "-------------------------------------------------------",
+        "  1  Recovered   Age20_39    Uninfected  0         0",
+        "  2  Infectious  Age40_59    Mild        5         3",
+        "  3  Unexposed   Age80_Up    Uninfected  0         0",
     };
     assert(scalar_lines == expected_scalar);
 
-    vector<PC> mixed_cols = {
-        PC::variant,
-        PC::variant_count,
-        PC::sickday,
-        PC::recovday,
-        PC::tested,
-        PC::testday
-    };
-
     std::ostringstream mixed_out;
-    print_pop_table(pop, rows, mixed_cols, mixed_out);
+    print_agent_pop_table(pop, rows,
+                          {"variant", "variant_count", "sickday",
+                           "recovday", "tested", "testday"},
+                          mixed_out);
     const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
     for (const auto& line : mixed_lines) {
         fmt::println("{}", line);
     }
     fmt::print("\n");
-
     const vector<string> expected_mixed = {
-        "row  variant  variant_count  sickday  recovday  tested  testday",
-        "----------------------------------------------------------------",
-        "  1  alpha    1              2        9         -       -",
-        "  2  delta    2              11       -         true    12",
-        "  3  none     0              -        -         -       -",
+        "row  variant     variant_count  sickday  recovday  tested  testday",
+        "------------------------------------------------------------------",
+        "  1  alpha       1              2        9         -       -",
+        "  2  delta       2              11       -         true    12",
+        "  3  none        0              -        -         -       -",
     };
     assert(mixed_lines == expected_mixed);
 
-    vector<string_view> runtime_cols = {
-        "vaxstatus",
-        "vaxrcvd",
-        "vax_count",
-        "quar",
-        "quarday"
-    };
-
-    std::ostringstream runtime_out;
-    print_pop_table(pop, rows, runtime_cols, runtime_out);
-    const auto runtime_lines = poptable_test::split_trimmed_lines(runtime_out.str());
-    for (const auto& line : runtime_lines) {
-        fmt::println("{}", line);
-    }
-    fmt::print("\n");
-
-    const vector<string> expected_runtime = {
-        "row  vaxstatus  vaxrcvd  vax_count  quar   quarday",
-        "---------------------------------------------------",
-        "  1  none       -        0          false  0",
-        "  2  booster    moderna  2          true   8",
-        "  3  none       -        0          false  0",
-    };
-    assert(runtime_lines == expected_runtime);
-
     std::ostringstream multi_out;
-    print_pop_table(pop, rows, mixed_cols, multi_out, true);
+    print_agent_pop_table(pop, rows,
+                          {"variant", "variant_count", "sickday",
+                           "recovday", "tested", "testday"},
+                          multi_out, true);
     const auto multi_lines = poptable_test::split_trimmed_lines(multi_out.str());
     for (const auto& line : multi_lines) {
         fmt::println("{}", line);
     }
     fmt::print("\n");
-
     const vector<string> expected_multi = {
-        "row  variant  variant_count  sickday  recovday  tested  testday",
-        "----------------------------------------------------------------",
-        "  1  alpha    1              2        9         -       -",
-        "  2  alpha    2              4                  false   6",
-        "  *  delta                   11                 true    12",
-        "  3  none     0              -        -         -       -",
+        "row  variant     variant_count  sickday  recovday  tested  testday",
+        "------------------------------------------------------------------",
+        "  1  alpha       1              2        9         -       -",
+        "  2  alpha       2              4        -         false   6",
+        "  *  delta                      11                 true    12",
+        "  3  none        0              -        -         -       -",
     };
     assert(multi_lines == expected_multi);
 
-    bool bad_row_threw = false;
-    try {
-        const vector<size_t> bad_rows = {0, 1};
-        print_pop_table(pop, bad_rows, scalar_cols);
-    } catch (const std::invalid_argument&) {
-        bad_row_threw = true;
-    }
-    assert(bad_row_threw);
+    std::ostringstream init_list_out;
+    print_agent_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_out);
+    std::ostringstream init_list_expected_out;
+    print_agent_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_expected_out);
+    assert(poptable_test::split_trimmed_lines(init_list_out.str()) ==
+           poptable_test::split_trimmed_lines(init_list_expected_out.str()));
 
-    bool bad_column_threw = false;
-    try {
-        const vector<string_view> bad_cols = {"status", "does_not_exist"};
-        print_pop_table(pop, rows, bad_cols);
-    } catch (const std::invalid_argument&) {
-        bad_column_threw = true;
-    }
-    assert(bad_column_threw);
-
+    Variant::names = {"none", "alpha_variant_extra", "delta"};
+    std::ostringstream truncation_out;
+    const vector<size_t> truncation_rows = {1};
+    print_agent_pop_table(pop, truncation_rows, {"variant"}, truncation_out);
+    const vector<string> expected_truncation = {
+        "row  variant",
+        "---------------",
+        "  1  alpha_vari",
+    };
+    assert(poptable_test::split_trimmed_lines(truncation_out.str()) == expected_truncation);
     Variant::names = saved_variant_names;
 
-    fmt::println("=== PopData Print Table Test Completed ===");
-}
+    const string all_cols_runtime = "all";
+    std::ostringstream all_out;
+    std::ostringstream all_expected_out;
+    print_agent_pop_table(pop, rows, all_cols_runtime, all_out);
+    print_agent_pop_table(
+        pop, rows,
+        {"status", "agegrp", "cond", "duration", "variant", "variant_count",
+         "sickday", "recovday", "recovday_count", "deadday", "ring", "sdcase",
+         "tested", "tested_count", "testday", "quar", "quarday", "vaxstatus",
+         "vaxrcvd", "vax_count", "vaxday"},
+        all_expected_out);
+    assert(poptable_test::split_trimmed_lines(all_out.str()) ==
+           poptable_test::split_trimmed_lines(all_expected_out.str()));
 
-void test_simple_pop_print() {
-    fmt::print("\n=== Testing Simple Pop Printer ===\n\n");
-
-    vector<string> saved_variant_names = Variant::names;
-    PopData pop = poptable_test::make_popdata_print_fixture();
-    vector<size_t> rows = {1, 2, 3};
-
-    vector<string_view> scalar_cols = {
-        "status",
-        "agegrp",
-        "cond",
-        "duration",
-        "ring"
-    };
-
-    std::ostringstream scalar_out;
-    print_simple_pop(pop, rows, scalar_cols, scalar_out);
-    const auto scalar_lines = poptable_test::split_trimmed_lines(scalar_out.str());
-    for (const auto& line : scalar_lines) {
-        fmt::println("{}", line);
-    }
-    fmt::print("\n");
-    const vector<string> expected_scalar = {
-        "row  status      agegrp    cond        duration  ring",
-        "------------------------------------------------------",
-        "  1  Recovered   Age20_39  Uninfected  0         0",
-        "  2  Infectious  Age40_59  Mild        5         3",
-        "  3  Unexposed   Age80_Up  Uninfected  0         0",
-    };
-    assert(scalar_lines == expected_scalar);
-
-    vector<string_view> mixed_cols = {
-        "variant",
-        "variant_count",
-        "sickday",
-        "recovday",
-        "tested",
-        "testday"
-    };
-
-    std::ostringstream mixed_out;
-    print_simple_pop(pop, rows, mixed_cols, mixed_out);
-    const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
-    for (const auto& line : mixed_lines) {
-        fmt::println("{}", line);
-    }
-    fmt::print("\n");
-    const vector<string> expected_mixed = {
-        "row  variant  variant_count  sickday  recovday  tested  testday",
-        "----------------------------------------------------------------",
-        "  1  alpha    1              2        9         -       -",
-        "  2  delta    2              11       -         true    12",
-        "  3  none     0              -        -         -       -",
-    };
-    assert(mixed_lines == expected_mixed);
-
-    vector<string_view> runtime_cols = {
-        "vaxstatus",
-        "vaxrcvd",
-        "vax_count",
-        "quar",
-        "quarday"
-    };
-
-    std::ostringstream runtime_out;
-    print_simple_pop(pop, rows, runtime_cols, runtime_out);
-    const auto runtime_lines = poptable_test::split_trimmed_lines(runtime_out.str());
-    for (const auto& line : runtime_lines) {
-        fmt::println("{}", line);
-    }
-    fmt::print("\n");
-    const vector<string> expected_runtime = {
-        "row  vaxstatus  vaxrcvd  vax_count  quar   quarday",
-        "---------------------------------------------------",
-        "  1  none       -        0          false  0",
-        "  2  booster    moderna  2          true   8",
-        "  3  none       -        0          false  0",
-    };
-    assert(runtime_lines == expected_runtime);
-
-    bool bad_row_threw = false;
+    bool bad_zero_row_threw = false;
     try {
         const vector<size_t> bad_rows = {0, 1};
-        print_simple_pop(pop, bad_rows, scalar_cols);
+        print_agent_pop_table(pop, bad_rows,
+                              {"status", "agegrp", "cond", "duration", "ring"});
     } catch (const std::invalid_argument&) {
-        bad_row_threw = true;
+        bad_zero_row_threw = true;
     }
-    assert(bad_row_threw);
+    assert(bad_zero_row_threw);
 
-    bool big_row_threw = false;
+    bool bad_big_row_threw = false;
     try {
         const vector<size_t> bad_rows = {1, 4};
-        print_simple_pop(pop, bad_rows, scalar_cols);
+        print_agent_pop_table(pop, bad_rows,
+                              {"status", "agegrp", "cond", "duration", "ring"});
     } catch (const std::invalid_argument&) {
-        big_row_threw = true;
+        bad_big_row_threw = true;
     }
-    assert(big_row_threw);
+    assert(bad_big_row_threw);
 
     bool bad_column_threw = false;
     try {
-        const vector<string_view> bad_cols = {"status", "does_not_exist"};
-        print_simple_pop(pop, rows, bad_cols);
+        print_agent_pop_table(pop, rows, {"status", "does_not_exist"});
     } catch (const std::invalid_argument&) {
         bad_column_threw = true;
     }
     assert(bad_column_threw);
 
+    bool bad_runtime_selector_threw = false;
+    try {
+        print_agent_pop_table(pop, rows, string{"status"});
+    } catch (const std::invalid_argument&) {
+        bad_runtime_selector_threw = true;
+    }
+    assert(bad_runtime_selector_threw);
+
     Variant::names = saved_variant_names;
 
-    fmt::println("=== Simple Pop Printer Test Completed ===");
+    fmt::println("=== Agent Pop Printer Test Completed ===");
 }
 
 void test_finalize_series() {
@@ -1267,8 +1171,7 @@ void test_short_sim_smoke(int days) {
 }
 
 int main() {
-  test_popdata_print_table();
-  test_simple_pop_print();
+  test_agent_pop_print();
   test_model_params();
   test_build_model();
   test_finalize_series();

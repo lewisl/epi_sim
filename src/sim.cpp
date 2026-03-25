@@ -12,6 +12,7 @@
 #include "timing.h"
 #include "series.h"
 #include "plot.h"
+#include "agent_pop_print.h"
 
 // forward declarations
 SummaryData print_summary(PopData & pop);
@@ -65,9 +66,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
 
   fmt::print("\n");
 
-  // start totaltime
-
-  
 
   // day loop
   for (int d_i = 1; d_i <= model.ndays; ++d_i) {
@@ -81,6 +79,7 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
     }
 
     // do vaccination if using vaccination
+
 
     // Loop through all people and process infectious ones (no vector allocation needed)
     for (size_t p = 1; p <= pop.popn; ++p) {
@@ -111,6 +110,18 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
     history_timing.start();
     update_series(pop, series);
     history_timing.cum();
+
+    if (d_i == 90) {
+      std::vector<size_t> rows;
+      for (size_t p = 1; p <= pop.popn; ++p) {
+        auto person = pop.agent(p);
+        if (person.status() == Stat::Infectious && person.agegrp() == Age::Age80_up) {
+          rows.push_back(p);
+          if (rows.size() == 20) break;
+        }
+      }
+      print_agent_pop_table(pop, rows, {"status", "agegrp", "cond", "duration"});
+    }
 
 
     // Print daily outcomes
@@ -150,7 +161,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
             {"now_dead", "total"}}, 
             series, model.caldays, sumstruct, "Cumulative Covid Outcome");
 
-  // need to wait or else 2nd plot overwrites first
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   seriesplot({{"now_dead", "age0_19"},
@@ -160,7 +170,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
           {"now_dead", "age80_up"}}, 
           series, model.caldays, sumstruct, "Cumulative Died by Age Group", true);
 
-  // need to wait or else 2nd plot overwrites first
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   seriesplot({{"new_infected", "total"}},
@@ -170,7 +179,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
           // {"now_dead", "age80_up"}}, 
           series, model.caldays, sumstruct, "New Infection Cases", false);
 
-    // need to wait or else 2nd plot overwrites first
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   seriesplot({{"new_dead", "total"}},
@@ -180,8 +188,6 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
           // {"now_dead", "age80_up"}}, 
           series, model.caldays, sumstruct, "Daily Deaths", false);
 
-
-  // need to wait or else new plot overwrites preceding
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   seriesplot({{"net_infected", "total"},

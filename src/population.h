@@ -148,6 +148,9 @@ at one index value.  No row is materialized. We only pay when we access somethin
       Vaxstatus &vaxstatus() { return pop.vaxstatus[i]; }
       array<uint8_t, 16> &vaxrcvd() { return pop.vaxrcvd[i]; }
       uint8_t &vax_count() { return pop.vax_count[i]; }
+      array<int16_t, 16> &vaxday() { return pop.vaxday[i]; }
+      const MapEnum<uint8_t> &vax_labels() { return pop.vax_lbl; }
+      const MapEnum<uint8_t> &bool_labels() { return pop.true_false; }
 
       // alternative methods defined in disease_modeling.cpp as PopData::AgentView::make_well
       void make_well(DayData & series);
@@ -228,13 +231,14 @@ at one index value.  No row is materialized. We only pay when we access somethin
     // note we don't allow a set_variant because it should only happen if all the invariants for getting sick are met,
     // which happens in the make_sick method.
     // get_variant as PopData method: can access columns without pop.
+    // used by printing
     uint8_t get_variant(size_t p) const {
       if (variant_count[p] == 0) return 0; // maps to "none"
       else if (variant_count[p] >= 16) return variant[p].back();
       else return variant[p][zidx(variant_count[p])];
     }
 
-
+    // used by printing
     size_t get_recovday(size_t p) const {    // don't need a setter because it happens in make_well()
       if (recovday_count[p] == 0) return 0; // maps to "none"
       else if (recovday_count[p] >= 16) return recovday[p].back();
