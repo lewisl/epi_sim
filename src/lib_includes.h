@@ -15,6 +15,7 @@
 #include <fmt/format.h> // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h> // for printing containers like vector
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <nlohmann/json.hpp> // amazing for parsing complex files (maybe not for high speed web services)

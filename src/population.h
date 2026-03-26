@@ -117,7 +117,7 @@ at one index value.  No row is materialized. We only pay when we access somethin
           return all_variants.back();
         else return all_variants[zidx(variant_count)];
         }
-      std::uint8_t &variant_count() { return pop.variant_count[i]; }
+      std::uint8_t & variant_count() { return pop.variant_count[i]; }
       array<int16_t, 16> &all_sickdays() { return pop.sickday[i]; }
       int16_t get_sickday() {
         const auto variant_count = pop.variant_count[i];
@@ -152,15 +152,19 @@ at one index value.  No row is materialized. We only pay when we access somethin
       const MapEnum<uint8_t> &vax_labels() { return pop.vax_lbl; }
       const MapEnum<uint8_t> &bool_labels() { return pop.true_false; }
 
-      // alternative methods defined in disease_modeling.cpp as PopData::AgentView::make_well
+      //
+      // methods defined in disease_modeling.cpp as PopData::AgentView::make_well,etc.
+      // change status of 1 person, keeping all traits consistent. the person is the object: person.make_well(series)
+      void make_sick(Variant var, DayData & series, Condition condition = Cond::Nil, uint8_t durationdays = 1);
       void make_well(DayData & series);
-      void make_dead(DayData & series);  // Note: no method for using PopDate and an index to do this...
+      void make_dead(DayData & series);  
       
   };  // end of struct AgentView
 
   //
   // enables easy use of AgentView with any instance variable of class PopData
   //     called with an instance of PopData because it's a PopData method:   auto a = pop.agent(i)
+  // encapsulates the person's PopData index. allows fast access to "column" values
   AgentView agent(std::size_t i) { return AgentView{*this, i}; }
 
 
@@ -244,15 +248,6 @@ at one index value.  No row is materialized. We only pay when we access somethin
       else if (recovday_count[p] >= 16) return recovday[p].back();
       else return recovday[p][zidx(recovday_count[p])];    
     }
-
-    //
-    // class member functions defined in disease_modeling.cpp
-    // some complex getters and setters that modify multiple vectors at the same index
-    //
-
-    void make_sick(PopData::AgentView person, Variant var, DayData & series, Condition condition = Cond::Nil,
-                   uint8_t durationdays = 1);
-    
 
 };
 

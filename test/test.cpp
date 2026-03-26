@@ -562,7 +562,7 @@ void test_make_sick_and_seedcase_duration_indexing() {
     sim::ds.day = sim::get_day();
 
     auto first_person = pop.agent(1);
-    pop.make_sick(first_person, Variant{1}, series);
+    first_person.make_sick(Variant{1}, series);
 
     assert(first_person.status() == Stat::Infectious);
     assert(first_person.cond() == Cond::Nil);
@@ -851,7 +851,7 @@ void test_multiple_infections() {
   for (int infection = 0; infection < 10; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
-    pop.make_sick(person_age20_39, base_variant, series, condition, duration);
+    person_age20_39.make_sick(base_variant, series, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
                  infection + 1, day, static_cast<int>(person_age20_39.variant_count()));
   }
@@ -871,7 +871,7 @@ void test_multiple_infections() {
   for (int infection = 0; infection < 17; ++infection) {
     int day = 1 + (infection * 20);
     sim::current_day = day;
-    pop.make_sick(person_age60_79, base_variant, series, condition, duration);
+    person_age60_79.make_sick(base_variant, series, condition, duration);
     fmt::println("  Infection {} on day {} - variant_count: {}",
                  infection + 1, day, static_cast<int>(person_age60_79.variant_count()));
   }

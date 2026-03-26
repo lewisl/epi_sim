@@ -10,29 +10,29 @@
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::make_sick(PopData::AgentView contact, Variant var, DayData & series, Condition condition, uint8_t durationdays) {
-  contact.cond() = condition;
-  contact.duration() = durationdays;
-  contact.status() = Stat::Infectious;
-  increment_series(series, SeriesName::new_infected, contact.agegrp(), sim::get_day());
+void PopData::AgentView::make_sick(Variant var,  DayData & series, Condition condition, uint8_t durationdays) {
+  cond() = condition;
+  duration() = durationdays;
+  status() = Stat::Infectious;
+  increment_series(series, SeriesName::new_infected, agegrp(), sim::get_day());
 
-  auto &variant_vec = contact.all_variants();
-  auto &variant_count = contact.variant_count();
-  auto &sickday_vec = contact.all_sickdays();
+  auto &variant_vec = all_variants();
+  auto &variant_cnt = variant_count();
+  auto &sickday_vec = all_sickdays();
   
-  if (variant_count < 16) {
-    variant_vec[variant_count] = var;
-    sickday_vec[variant_count] = sim::get_day();
-    variant_count++;   // there is no sickday_count; it's the same as variant_count
+  if (variant_cnt < 16) {
+    variant_vec[variant_cnt] = var;
+    sickday_vec[variant_cnt] = sim::get_day();
+    variant_cnt++;   // there is no sickday_count; it's the same as variant_count
   } else {
       std::shift_left(variant_vec.begin(), variant_vec.end(), 1);
       std::shift_left(sickday_vec.begin(), sickday_vec.end(), 1);
       variant_vec.back() = var;
       sickday_vec.back() = sim::get_day();
-      ++variant_count;
-      std::cerr << "Variant overflow for person " << contact.id
+      ++variant_cnt;
+      std::cerr << "Variant overflow for person " << id
               << ". Oldest variant lost.\n";
-      std::cerr << "variant_count increased to " << variant_count << "\n";  
+      std::cerr << "variant_count increased to " << variant_cnt << "\n";  
   }
 }
 
@@ -61,7 +61,7 @@ void PopData::AgentView::make_well(DayData & series) {    // the object is perso
   ++recovday_count();
 }
 
-// this is an AgentView method:  where is the person?  called as person.make_dead
+// this is an AgentView method:  where is the person?  called as person.make_dead(series)
 void PopData::AgentView::make_dead(DayData & series) {
   // update the person: update deadday and status for the person
   deadday() = sim::get_day();   
@@ -69,37 +69,6 @@ void PopData::AgentView::make_dead(DayData & series) {
   // update the history of the simulation
   sim::ds.num_died++;
   increment_series(series, SeriesName::new_dead, agegrp(), deadday());
-}
-
-/*
-Returns the number of contacts that someone spreading the disease will make on a day. This
-method uses the spreadcase applicable to the current spreader but with contactfactors set by
-a spreadcase.
-*/
-float contact_factor(const array<array<float, 5>, 4> &contactfactors,
-                     uint8_t spr_agegrp, uint8_t spr_cond) {
-  return contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
-}
-
-float contact_scale(float density_factor, float indoor_factor,
-                    uint8_t spr_agegrp, uint8_t spr_cond,
-                    const array<array<float, 5>, 4> &contactfactors) {
-  return density_factor * indoor_factor * contact_factor(contactfactors, spr_agegrp, spr_cond);
-}
-
-int how_many_contacts(float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp, uint8_t spr_cond,
-                      const array<array<float, 5>, 4> &contactfactors) 
-{
-  auto scale = contact_scale(density_factor, indoor_factor, spr_agegrp, spr_cond, contactfactors);
-  return xo::gamma_int(gammashape, scale, 12);
-}
-
-// Update passed in vector of contacts, which are indices to the population table
-void get_contacts(const PopData &pop, float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
-                uint8_t spr_cond, const array<array<float, 5>, 4> &contactfactors, vector<size_t> &contacts) 
-{
-  auto num_contacts = how_many_contacts(density_factor, indoor_factor, gammashape, spr_agegrp, spr_cond, contactfactors);
-  xo::get_n_draws<size_t>(1, pop.popn, num_contacts, contacts); // this function clears contacts before refilling it
 }
 
 
@@ -125,24 +94,6 @@ uint8_t touch_map(Status target_status, Condition target_cond) {
 }
 //clang-format on
 
-
-bool istouched(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
-  return xo::bernoulli(touch_probability(contact, touchfactors, indoor_factor)) == 1;
-}
-
-float touch_probability(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor) {
-  Status target_status = contact.status();
-  Condition target_condition = contact.cond();
-  if ((target_status == Stat::Unexposed) || (target_status == Stat::Recovered)) {
-    uint8_t target_touchmap = touch_map(target_status, target_condition);
-    auto baseprob = touchfactors[idx(target_touchmap)][zidx(contact.agegrp())];
-    if (indoor_factor == 1.0f) {
-      return baseprob;
-    }
-    return std::clamp(baseprob * indoor_factor, 0.0f, 0.97f);
-  }
-  return 0.0f;
-}
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
                  uint8_t spr_duration, uint8_t contact_agegrp, float recovfactor, float vaxfactor) {

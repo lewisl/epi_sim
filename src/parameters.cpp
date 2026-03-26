@@ -317,10 +317,10 @@ VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
   sched.filtervec = jdata["filtervec"];
   sched.shotmode = jdata["shotmode"];
   sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
-  // Handle null spreadfunc
-  if (!jdata["spreadfunc"].is_null()) {
-    sched.spreadfunc = jdata["spreadfunc"];
-  }
+  // // Handle null spreadfunc
+  // if (!jdata["spreadfunc"].is_null()) {
+  //   sched.spreadfunc = jdata["spreadfunc"];
+  // }
 
   return sched;
 }

@@ -3,6 +3,7 @@
 #include "lib_includes.h"
 
 #include "helpers.h"    // for shifter
+#include <functional>
 
 // using json = nlohmann::json; // for not ordered mapping
 using json = nlohmann::ordered_json;
@@ -565,9 +566,13 @@ struct VaxSched {
   std::pair<int, int> dayrange{};
   float targetpct {};
   vector<string> filtervec {};
-  string shotmode {};
-  vector<float> pattern {};
-  string spreadfunc {};  // will change to function pointer later
+  string shotmode {};  // one of :first, :second, :all, :booster.  best to use :all. others force only single shot
+  vector<float> pattern {}; // ex: [0.0, .02, .05, .10, .15, .19, .21, .16, .08, .03, .01]
+    // pattern defines 11 point on a piecewise linear "curve" of the pace of vaccination as the
+    // percentage of a given population that receives vaccination-> must sum to 1.0
+    
+  //                     dayrange        targetpct  pattern     shotmode
+  // std::function<float(std::pair<int,int>, float, vector<float>, string)> spreadfunc {};  // will change to function pointer later
 
   void print() const {
     fmt::println("\n=== VaxSched ===");
@@ -612,7 +617,7 @@ struct VaxSched {
     }
 
     // Print spread function
-    fmt::println("  Spread func: {}", spreadfunc.empty() ? "null" : spreadfunc);
+    // fmt::println("  Spread func: {}", spreadfunc.empty() ? "null" : spreadfunc);
 
     fmt::println("=== End VaxSched ===\n");
   }

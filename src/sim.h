@@ -71,16 +71,11 @@ struct SeedCase {
     for (auto filt : filtervec) {
       count_of_seeds = 0;
       for (int i = 1; count_of_seeds < filt.count && i <= pop.popn; ++i) {
-        if (pop.agegrp[i] == filt.agegrp) {
-          pop.make_sick(pop.agent(i), filt.variant, series, filt.condition, filt.duration );
+        auto seed_person = pop.agent(i);
+        if (seed_person.agegrp() == filt.agegrp) {
+          seed_person.make_sick(filt.variant, series, filt.condition, filt.duration );
           seeded_persons.push_back(i);
           ++count_of_seeds;
-          // pop.cond[i] = filt.condition;
-          // pop.duration[i] = filt.duration;
-          // pop.variant[i][0] = filt.variant;
-          // pop.variant_count[i] = 1;
-          // pop.status[i] = Trait::Stat::infectious;
-          // pop.sickday[i][0] = sim::get_day();
         }
       }
     }

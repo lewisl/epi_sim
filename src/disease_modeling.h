@@ -3,18 +3,6 @@
 #include "lib_includes.h"
 #include "population.h"
 
-float contact_factor(const array<array<float, 5>, 4>& contactfactors,
-                     uint8_t spr_agegrp, uint8_t spr_cond);
-float contact_scale(float density_factor, float indoor_factor,
-                    uint8_t spr_agegrp, uint8_t spr_cond,
-                    const array<array<float, 5>, 4>& contactfactors);
-int how_many_contacts(float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
-                     uint8_t spr_cond, const array<array<float, 5>, 4>& contactfactors);
-
-void get_contacts(const PopData& pop, float density_factor, float indoor_factor, float gammashape, uint8_t spr_agegrp,
-                  uint8_t spr_cond,
-                  const array<array<float, 5>, 4> &contactfactors,
-                  vector<size_t> &contacts);
 
 uint8_t touch_map(Status target_status, Condition target_cond);
 
