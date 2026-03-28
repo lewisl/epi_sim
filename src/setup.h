@@ -4,6 +4,7 @@
 
 #include "parameters.h"
 #include "population.h"
+#include "sim.h"
 namespace fs = std::filesystem;
 
 using series_type = absl::flat_hash_map<string, vector<float>>;
@@ -31,9 +32,11 @@ ModelParams setup_model_params(bool dovax, string geo_path,
                                string vax_path, string vaxsched_path);
 
 // don't put parameters defaults in the definition of the function in .cpp--only the types and names
-Model setup_sim(int ndays, int locale,  // require inputs
-    string date = "2020-01-01",   // all the rest have defaults...
-    bool dovax = false,
+// Model setup_sim(int ndays, int locale,  // require inputs
+//     string date = "2020-01-01",   // all the rest have defaults...
+//     bool dovax = false,
+
+Model setup_sim(Config config,
     const fs::path& project_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim",
     const fs::path& paramdir = "sample_parameters",
     const fs::path& geodata_fname = "geo2data.csv",

@@ -24,6 +24,7 @@ json load_json_params(string fpath) {
 
   catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << "\n";
+      throw std::invalid_argument(fmt::format("Invalid file path for json file: {}", fpath)); 
       return json();  // empty object
   }
 }
@@ -290,10 +291,26 @@ std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Var
   return {vaxset, vaxlist};
 };
 
+static Agegrp agegrp_from_string(const string& s) {
+    // lowercase s and compare against lowercased Agegrp names
+    string sl = s;
+    std::transform(sl.begin(), sl.end(), sl.begin(), ::tolower);
+    for (size_t i = 0; i < Agegrp::names.size(); ++i) {
+        string nl = Agegrp::names[i];
+        std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
+        // also handle underscore vs no-underscore: "age80_up" vs "age80up"
+        nl.erase(std::remove(nl.begin(), nl.end(), '_'), nl.end());
+        sl.erase(std::remove(sl.begin(), sl.end(), '_'), sl.end());  // strip both
+        if (sl == nl) return Agegrp{static_cast<uint8_t>(i)};
+    }
+    fmt::println("WARNING: unknown agegrp filter string: {}", s);
+    return Age::Unknown;
+}
 
 
 VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
   json jdata = load_json_params(fname);
+  
   VaxSched sched{};
 
   //  vaxesincluded member
@@ -314,16 +331,24 @@ VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
   // other members
   sched.dayrange = {jdata["dayrange"][0], jdata["dayrange"][1]}; // vector of 2 set to pair
   sched.targetpct = jdata["targetpct"];
-  sched.filtervec = jdata["filtervec"];
+  // sched.filtervec = jdata["filtervec"];    // PROBLEM HERE: not sure how to convert the vector<Agegrp>
+  for (const auto& f : jdata["filtervec"])
+    sched.filtervec.push_back(agegrp_from_string(f.get<string>()));  // PROBLEM. no such thing as f
   sched.shotmode = jdata["shotmode"];
   sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
   // // Handle null spreadfunc
   // if (!jdata["spreadfunc"].is_null()) {
   //   sched.spreadfunc = jdata["spreadfunc"];
-  // }
+  // 
+  for (const auto& f : jdata["filtervec"])
+    sched.filtervec.push_back(agegrp_from_string(f.get<string>()));
+
 
   return sched;
 }
+
+
+
 
 
 

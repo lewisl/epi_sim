@@ -11,6 +11,13 @@
 struct Model;
 struct DayData;
 
+struct Config {
+  int days {180};
+  int locale {38015};
+  string calendar_start {"2020-01-01"};
+  bool dovax {false};
+};
+
 // parameters used throughout the simulation that are better global
 //    than passed into every function
 namespace sim {
@@ -94,5 +101,8 @@ struct SummaryData {
   // index 1..5 = age groups, index 6 = total, index 0 unused
 };
 
+// Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
+vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp);
+
 // Simulation runner function
-void runsim(Model& model, const std::filesystem::path& trace_path = {});
+void runsim(Model& model, vector<SeedCase> seedcases);

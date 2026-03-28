@@ -29,7 +29,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
     VaxSched vaxsched;
     if (dovax) {
       fmt::println("we got here to load valid vax parameters...");
-      std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); // load the returned tuple into existing variables
+      std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); 
       vaxsched = load_vax_sched(vaxsched_path, vaxlist);
     }
   auto socialdata = load_social_params(social_path);
@@ -112,9 +112,10 @@ vector<float> build_indoor_seq(int ndays, int locale, GeoData geodata,
 }
 
 // clang-format off
-Model setup_sim(int ndays, int locale,  // require inputs
-    string date,   // all the rest have defaults...
-    bool dovax,
+// Model setup_sim(int ndays, int locale,  // require inputs
+//     string date,   // all the rest have defaults...
+//     bool dovax,
+Model setup_sim(Config config,    
     const fs::path& project_dir,
     const fs::path& paramdir,
     const fs::path& geodata_fname,
@@ -131,6 +132,12 @@ Model setup_sim(int ndays, int locale,  // require inputs
     const string social_path = (project_dir / param_dir / social_fname).string();
     const string vax_path = (project_dir / param_dir / vax_fname).string();
     const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
+
+    //extract values from Config struct
+      int ndays = config.days;
+      int locale = config.locale;
+      string date = config.calendar_start;
+      bool dovax = config.dovax;
 
 
     ModelParams mp = setup_model_params(dovax, geodata_path, variants_path, social_path,

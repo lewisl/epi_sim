@@ -13,15 +13,47 @@
 #include "series.h"
 #include "plot.h"
 #include "agent_pop_print.h"
+#include "vaccination.h"
 
 // forward declarations
 SummaryData print_summary(PopData & pop);
 
 
 // TODO later add parameters for runcases, showr0, silent, dovax?, vaxscheds?
-void runsim(Model& model, const std::filesystem::path& trace_path)
-    // other arguments to add: runcases, showr0, silent, dovax, vaxscheds?
-{
+vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp) {
+  vector<SeedCase> seedcases;
+  for (const auto& sc : jdata) {
+    int triggerday    = sc["triggerday"];
+    bool startofday   = sc["startofday"];
+    vector<SeedFilter> filtervec;
+    for (const auto& f : sc["filtervec"]) {
+      auto agegrp_opt = trait_from_string<Agegrp>(f["agegrp"].get<string>());  // uses return type option
+      if (!agegrp_opt) {   
+        fmt::println("WARNING: unknown agegrp '{}' in seed file, skipping filter", f["agegrp"].get<string>());
+        continue;
+      }
+      auto cond_opt = trait_from_string<Condition>(f["condition"].get<string>());
+      if (!cond_opt) {
+        fmt::println("WARNING: unknown condition '{}' in seed file, skipping filter", f["condition"].get<string>());
+        continue;
+      }
+      string variant_str = f["variant"].get<string>();
+      auto var_iter = std::find_if(mp.variants.begin(), mp.variants.end(),
+                              [&](const Variant& v) { return v.name() == variant_str; });
+      if (var_iter == mp.variants.end()) {
+        fmt::println("WARNING: unknown variant '{}' in seed file, skipping filter", variant_str);
+        continue;
+      }
+      filtervec.push_back({*agegrp_opt, *cond_opt,
+                           f["duration"].get<uint8_t>(), *var_iter,
+                           f["count"].get<int8_t>()});
+    }
+    seedcases.emplace_back(triggerday, startofday, std::move(filtervec), pop);
+  }
+  return seedcases;
+}
+
+void runsim(Model& model, vector<SeedCase> seedcases) {
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
 
@@ -35,25 +67,20 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
   sim::reset_day();
 
   // setup timers for performance metering
-  // sprtime
   Timing spread_timing;
-  // trtime
   Timing progression_timing;
-  // histtime
   Timing history_timing;
-  // totaltime
+  Timing vax_timing;
 
-  // create SeedCases
-  vector<SeedFilter> sf {
-    // agegrp, cond, duration, variant, count
-    {Age::Age20_39, Cond::Nil, 1, model.mp.variants[1], 3},
-    {Age::Age40_59, Cond::Nil, 1, model.mp.variants[1], 3}};
-  SeedCase sc1(1, true, sf, pop);
 
   // create useful pre-allocated vectors
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
 
-
+  // override dovax=true if any vax parameters within ModelParameters instance mp are empty
+    if (model.dovax) { 
+      if ( (mp.vaxlist.size() == 0) | (mp.vaxset.vaxset.size() == 0) | (mp.vaxsched.vaxesincluded.size() == 0))
+            model.dovax = false;
+    }
 
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
@@ -73,12 +100,21 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
     sim::incr_day();
     sim::ds.day = sim::get_day();
 
-    // run beginning of day cases--required SeedCases
-    if (sc1.startofday && sc1.triggerday == sim::ds.day) {
-      sc1(series);
-    }
+    // run beginning of day seed cases
+    for (auto& sc : seedcases)
+      if (sc.startofday && sc.triggerday == sim::ds.day)
+        sc(series);
 
     // do vaccination if using vaccination
+    if (model.dovax) {
+      vax_timing.start();
+      vaccinate(sim::get_day(),
+               mp.vaxsched,
+               mp.vaxset,
+               mp.vaxlist,
+               pop);
+      vax_timing.cum();
+    }
 
 
     // Loop through all people and process infectious ones (no vector allocation needed)
@@ -152,8 +188,8 @@ void runsim(Model& model, const std::filesystem::path& trace_path)
 
   SummaryData sumstruct = print_summary(pop);
 
-  fmt::println("Spread time: {} Progression time: {} History time: {}", 
-        spread_timing.show(), progression_timing.show(), history_timing.show());
+  fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
+        spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());
 
   seriesplot({{"now_infected", "total"},
             {"now_unexposed", "total"}, 

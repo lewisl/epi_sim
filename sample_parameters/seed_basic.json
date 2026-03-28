@@ -1,0 +1,25 @@
+[
+    {
+        "triggerday" : 1,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "base",
+                    "count"   : 3
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "base",
+                    "count"   : 3
+                }
+            ]
+    }
+]

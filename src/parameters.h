@@ -178,6 +178,28 @@ struct fmt::formatter<T> : fmt::formatter<uint8_t> {
     }
 };
 
+/* trait_from_string<T>(s) -- converts a string name to a trait value.
+   T must be a TraitType (Agegrp, Status, Condition, etc.).
+   Returns std::nullopt if s is not found in T::names.
+   Usage:
+     auto ret = trait_from_string<Agegrp>("Age20_39");
+     if (!ret) { // handle bad input }
+     Agegrp ag = *ret;
+*/
+template<TraitType T>
+std::optional<T> trait_from_string(const std::string& s) {
+    auto tolower_str = [](const std::string& str) {
+        std::string out = str;
+        std::transform(out.begin(), out.end(), out.begin(), ::tolower);  // like functional "apply"
+        return out;
+    };
+    string sl = tolower_str(s);
+    auto it = std::find_if(T::names.begin(), T::names.end(),
+        [&](const std::string& name) { return tolower_str(name) == sl; });
+    if (it == T::names.end()) return std::nullopt;    // use nullopt instead of nullptr--because the return object is not a pointer. we could use {} instead
+    return T{static_cast<uint8_t>(std::distance(T::names.begin(), it))};
+}
+
 template<typename T>    // T is the type of numeric to use for the number behind the enum
 struct MapEnum {
   std::vector<std::string> names; // Index-to-Name (Number -> String)
@@ -538,6 +560,7 @@ struct PerVaxSpec {
   string vax_name{};
   float mix{};
   int starting_doses{};
+  int doses{};
   float pct2ndshot {};
   float pctboost {};
   vector<string> alternate {};
@@ -546,6 +569,7 @@ struct PerVaxSpec {
     fmt::println("    Vaccine: {}", vax_name);
     fmt::println("      Mix: {:.2f}", mix);
     fmt::println("      Starting doses: {}", starting_doses);
+    fmt::println("      Doses remaining: {}", doses);
     fmt::println("      Pct 2nd shot: {:.2f}", pct2ndshot);
     fmt::println("      Pct boost: {:.2f}", pctboost);
     if (alternate.empty()) {
@@ -561,18 +585,42 @@ struct PerVaxSpec {
   }
 };
 
+
+
 struct VaxSched {
-  vector<PerVaxSpec> vaxesincluded {};
-  std::pair<int, int> dayrange{};
-  float targetpct {};
-  vector<string> filtervec {};
-  string shotmode {};  // one of :first, :second, :all, :booster.  best to use :all. others force only single shot
-  vector<float> pattern {}; // ex: [0.0, .02, .05, .10, .15, .19, .21, .16, .08, .03, .01]
-    // pattern defines 11 point on a piecewise linear "curve" of the pace of vaccination as the
-    // percentage of a given population that receives vaccination-> must sum to 1.0
-    
-  //                     dayrange        targetpct  pattern     shotmode
-  // std::function<float(std::pair<int,int>, float, vector<float>, string)> spreadfunc {};  // will change to function pointer later
+  vector<PerVaxSpec>         vaxesincluded {};
+  std::pair<int, int>        dayrange {};
+  float                      targetpct {};
+  vector<Agegrp>             filtervec {};   // was vector<string>
+  string                     shotmode {};
+  vector<float>              pattern {};
+  std::function<float(int)>  spreadfunc {};
+
+  void init_spreadfunc() {
+    int   schedlength = dayrange.second - dayrange.first + 1;
+    float scale       = (float)(pattern.size() - 1) / (float)schedlength;
+
+    spreadfunc = [dayrange  = this->dayrange,
+                  targetpct = this->targetpct,
+                  pattern   = this->pattern,
+                  scale](int day) -> float {
+
+      float p = (float)(day - dayrange.first + 1) * scale;
+      p = std::min(p, (float)(pattern.size() - 1));
+
+      int   lo   = (int)p;
+      int   hi   = std::min(lo + 1, (int)pattern.size() - 1);
+      float frac = p - (float)lo;
+
+      return (pattern[lo] + frac * (pattern[hi] - pattern[lo])) * scale * targetpct;
+    };
+  }
+
+  void reset_doses() {
+    for (auto& spec : vaxesincluded)
+      spec.doses = spec.starting_doses;  // PROBLEM:  no member doeses in vaxesincluded whivch is probably just a vector of vax nanmes
+  }
+
 
   void print() const {
     fmt::println("\n=== VaxSched ===");
