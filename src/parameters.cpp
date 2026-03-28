@@ -17,7 +17,7 @@ json load_json_params(string fpath) {
 
   try {
     std::ifstream fcontent(fpath);
-    json data = json::parse(fcontent);
+    json data = json::parse(fcontent, nullptr, true, true);  // json data = json::parse(fcontent, nullptr, true, true);
 
     return data;
   }
@@ -25,7 +25,6 @@ json load_json_params(string fpath) {
   catch (const std::exception& e) {
       std::cerr << "Error: " << e.what() << "\n";
       throw std::invalid_argument(fmt::format("Invalid file path for json file: {}", fpath)); 
-      return json();  // empty object
   }
 }
 
@@ -122,13 +121,32 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
     }
 
     const auto raw_sendrisk = variant.value()["spread"]["sendrisk"].get<vector<float>>();
-    vector<float> sendrisk(raw_sendrisk.size() + 1, 0.0f);
-    std::copy(raw_sendrisk.begin(), raw_sendrisk.end(), sendrisk.begin() + 1);
+    vector<float> sendrisk;
+    float base = variant.value()["spread"]["basemultiplier"].get<float>();
+    if (raw_sendrisk.size() == 0) {
+      sendrisk = infectparams[1].sendrisk;
+      std::transform(sendrisk.begin(), sendrisk.end(), sendrisk.begin(), [base](float x) {return x * base;} );
+    } else {
+      sendrisk = raw_sendrisk;
+    }
+
+    const auto raw_recvrisk = variant.value()["spread"]["recvrisk"].get<vector<float>>();
+    vector<float> recvrisk;
+    // use basemultiplier from above... 
+    if (raw_recvrisk.size() == 0) {
+      recvrisk = infectparams[1].recvrisk;
+      std::transform(recvrisk.begin(), recvrisk.end(), recvrisk.begin(), [base](float x) {return x * base;} );
+    } else {
+      recvrisk = raw_recvrisk;
+    }
+
+
 
     infectparams.emplace_back(InfectParams{
         .sendrisk = std::move(sendrisk),
-        .recvrisk = variant.value()["spread"]["recvrisk"],
+        .recvrisk = std::move(recvrisk),
         .recovery_immunity = std::move(recovery_immunity),
+        .basemultiplier = variant.value()["spread"]["basemultiplier"].get<float>(),
         .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
 
   }
@@ -176,25 +194,45 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
     };
 
     // create members of Agetree tree
-    vector<absl::flat_hash_map<uint8_t, vector<vector<float>>>> age_vec{};
-    for (const auto& [age, body_age] : jsontree.items()) {  // age is a string we won't store because it will be the vector index
-      absl::flat_hash_map<uint8_t, vector<vector<float>>> one_age_map {};
-      for (const auto& [duration, body_duration] : body_age.items()) {
-        vector<vector<float>> tmpvec{};
-        // Explicitly load in Cond enum order: Nil(0), Mild(1), Sick(2), Severe(3)
-        // nlohmann::json iterates object keys alphabetically (mild < nil < severe < sick),
-        // so we MUST NOT rely on .items() iteration order here.
-        // Drive the order from Condition::names (skip index 0 = "Uninfected"),
-        // lowercasing to match JSON keys.
-        for (size_t ci = 1; ci < Condition::names.size(); ++ci) {
-          string key = Condition::names[ci];
-          std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-          tmpvec.push_back(body_duration[key].get<vector<float>>());
+    Agetree age_vec;
+    if (jsontree.is_null()) {
+      // Copy base tree (index 1) and apply riskadjust — base must appear first in JSON, well 2nd because nulls are at idx 0
+      age_vec = progressionset.progression[1].tree;
+      if (!factors.riskadjust.empty()) {          // TODO this is an error if jsontree is null!
+        for (auto& breakday_map : age_vec) {
+          for (auto& [day, cond_vec] : breakday_map) {
+            for (auto& row : cond_vec) {
+              float sum = 0.0f;
+              for (float x : row) sum += x;
+              if (sum != 0.0f) {
+                for (size_t i = 0; i < row.size(); ++i)
+                  row[i] *= factors.riskadjust[i];
+                sum = 0.0f;
+                for (float x : row) sum += x;
+                for (float& x : row) x /= sum;  // normalize to 1.0 after multiplying times riskadjust...
+              }
+            }
+          }
         }
-        one_age_map[std::stoi(duration)] = tmpvec;
-      };
-      age_vec.push_back(one_age_map);
-    }; // age loop
+      }
+    } else {
+      for (const auto& [age, body_age] : jsontree.items()) {
+        absl::flat_hash_map<uint8_t, vector<vector<float>>> one_age_map {};
+        for (const auto& [duration, body_duration] : body_age.items()) {
+          vector<vector<float>> tmpvec{};
+          // Explicitly load in Cond enum order: Nil(0), Mild(1), Sick(2), Severe(3)
+          // nlohmann::json iterates object keys alphabetically (mild < nil < severe < sick),
+          // so we MUST NOT rely on .items() iteration order here.
+          for (size_t ci = 1; ci < Condition::names.size(); ++ci) {
+            string key = Condition::names[ci];
+            std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+            tmpvec.push_back(body_duration[key].get<vector<float>>());
+          }
+          one_age_map[std::stoi(duration)] = tmpvec;
+        }
+        age_vec.push_back(one_age_map);
+      }
+    } // end null-tree branch
     
     Progression pg {
       .tree = age_vec,
@@ -381,7 +419,7 @@ void print_infectparams(const vector<InfectParams>& infectparams, const vector<V
   fmt::println("========== InfectParams =============");
   for (size_t i = 0; i < infectparams.size(); ++i) {
     fmt::println(" ==== infectparams of variant {} ====", variants[i].name());
-    fmt::print("  sendrisk={},\n  recvrisk={},\n  base={:.2f},   halflife={}\n",
+    fmt::print("  sendrisk={},\n  recvrisk={},\n  basemultiplier={:.2f},   halflife={}\n",
                infectparams[i].sendrisk,
                infectparams[i].recvrisk,
                infectparams[i].basemultiplier,

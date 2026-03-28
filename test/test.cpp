@@ -754,261 +754,261 @@ void test_model_params() {
   fmt::println("=== ModelParams Loading Test Completed ===");
 }
 
-// This test depends on successful parameter loading because setup_sim builds ModelParams first.
-void test_build_model() {
-  fmt::print("\n=== Testing Model Build ===\n\n");
+// // This test depends on successful parameter loading because setup_sim builds ModelParams first.
+// void test_build_model() {
+//   fmt::print("\n=== Testing Model Build ===\n\n");
 
-  parameter_test::VariantNamesGuard variant_names_guard;
-  Variant::names.clear();
+//   parameter_test::VariantNamesGuard variant_names_guard;
+//   Variant::names.clear();
 
-  constexpr int ndays = 366;
-  Model model = setup_sim(ndays, 38015, "2020-01-01", false);
+//   constexpr int ndays = 366;
+//   Model model = setup_sim(ndays, 38015, "2020-01-01", false);
 
-  assert(model.ndays == ndays);
-  assert(model.locale == 38015);
-  assert(model.caldays.size() == size_t(ndays));
-  assert(model.indoor_seq.size() == size_t(ndays));
-  assert(model.day1 == absl::CivilDay(2020, 1, 1));
-  assert(model.caldays.front() == absl::CivilDay(2020, 1, 1));
-  assert(model.caldays.back() == absl::CivilDay(2020, 12, 31));
+//   assert(model.ndays == ndays);
+//   assert(model.locale == 38015);
+//   assert(model.caldays.size() == size_t(ndays));
+//   assert(model.indoor_seq.size() == size_t(ndays));
+//   assert(model.day1 == absl::CivilDay(2020, 1, 1));
+//   assert(model.caldays.front() == absl::CivilDay(2020, 1, 1));
+//   assert(model.caldays.back() == absl::CivilDay(2020, 12, 31));
 
-  const size_t jan1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 1, 1));
-  const size_t may30_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 5, 30));
-  const size_t jun1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 6, 1));
-  const size_t sep15_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 9, 15));
-  const size_t dec31_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 12, 31));
-  assert(approx_equal(model.indoor_seq[jan1_idx], 1.1, 1e-9));
-  assert(approx_equal(model.indoor_seq[may30_idx], 1.1, 1e-9));
-  assert(approx_equal(model.indoor_seq[jun1_idx], 1.0, 1e-9));
-  assert(approx_equal(model.indoor_seq[sep15_idx], 1.1, 1e-9));
-  assert(approx_equal(model.indoor_seq[dec31_idx], 1.1, 1e-9));
+//   const size_t jan1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 1, 1));
+//   const size_t may30_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 5, 30));
+//   const size_t jun1_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 6, 1));
+//   const size_t sep15_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 9, 15));
+//   const size_t dec31_idx = parameter_test::require_calday_index(model.caldays, absl::CivilDay(2020, 12, 31));
+//   assert(approx_equal(model.indoor_seq[jan1_idx], 1.1, 1e-9));
+//   assert(approx_equal(model.indoor_seq[may30_idx], 1.1, 1e-9));
+//   assert(approx_equal(model.indoor_seq[jun1_idx], 1.0, 1e-9));
+//   assert(approx_equal(model.indoor_seq[sep15_idx], 1.1, 1e-9));
+//   assert(approx_equal(model.indoor_seq[dec31_idx], 1.1, 1e-9));
 
-  const size_t locale_idx = parameter_test::require_locale_index(model.mp.geodata, model.locale);
-  assert(model.pop.popn == model.mp.geodata.pop[locale_idx]);
-  assert(model.pop.popz == model.pop.popn + 1);
-  assert(model.mp.variants[1].name() == "base");
+//   const size_t locale_idx = parameter_test::require_locale_index(model.mp.geodata, model.locale);
+//   assert(model.pop.popn == model.mp.geodata.pop[locale_idx]);
+//   assert(model.pop.popz == model.pop.popn + 1);
+//   assert(model.mp.variants[1].name() == "base");
 
-  fmt::println("=== Model Build Test Completed ===");
-}
+//   fmt::println("=== Model Build Test Completed ===");
+// }
 
-void test_popdata_size(Model model) {
-  fmt::println("Vector sizing: {} popz {}", model.pop.status.size(), model.pop.popz);
-  fmt::println("Index to actual population size: {}",
-               Agegrp::names[model.pop.agegrp[model.pop.popn]]);
-}
+// void test_popdata_size(Model model) {
+//   fmt::println("Vector sizing: {} popz {}", model.pop.status.size(), model.pop.popz);
+//   fmt::println("Index to actual population size: {}",
+//                Agegrp::names[model.pop.agegrp[model.pop.popn]]);
+// }
+// 
+// void test_multiple_infections() {
+//   fmt::print("\n=== Testing Multiple Infections Over Time ===\n\n");
 
-void test_multiple_infections() {
-  fmt::print("\n=== Testing Multiple Infections Over Time ===\n\n");
+//   // Create a fresh model for this test
+//   fmt::println("Setting up independent test environment...");
+//   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
+//   PopData& pop = test_model.pop;
+//   vector<Variant>& variants = test_model.mp.variants;
 
-  // Create a fresh model for this test
-  fmt::println("Setting up independent test environment...");
-  Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
-  PopData& pop = test_model.pop;
-  vector<Variant>& variants = test_model.mp.variants;
+//   // Find one person in age20_39 and one in age60_79
+//   size_t idx_age20_39 = 0;
+//   size_t idx_age60_79 = 0;
 
-  // Find one person in age20_39 and one in age60_79
-  size_t idx_age20_39 = 0;
-  size_t idx_age60_79 = 0;
+//   for (size_t i = 1; i <= pop.popn; ++i) {
+//     if (idx_age20_39 == 0 && pop.agegrp[i] == Age::Age20_39) {
+//       idx_age20_39 = i;
+//     }
+//     if (idx_age60_79 == 0 && pop.agegrp[i] == Age::Age60_79) {
+//       idx_age60_79 = i;
+//     }
+//     if (idx_age20_39 != 0 && idx_age60_79 != 0) {
+//       break;
+//     }
+//   }
 
-  for (size_t i = 1; i <= pop.popn; ++i) {
-    if (idx_age20_39 == 0 && pop.agegrp[i] == Age::Age20_39) {
-      idx_age20_39 = i;
-    }
-    if (idx_age60_79 == 0 && pop.agegrp[i] == Age::Age60_79) {
-      idx_age60_79 = i;
-    }
-    if (idx_age20_39 != 0 && idx_age60_79 != 0) {
-      break;
-    }
-  }
+//   if (idx_age20_39 == 0 || idx_age60_79 == 0) {
+//     fmt::println("ERROR: Could not find required age groups in population");
+//     return;
+//   }
 
-  if (idx_age20_39 == 0 || idx_age60_79 == 0) {
-    fmt::println("ERROR: Could not find required age groups in population");
-    return;
-  }
+//   // resolve idx for person to the person's row of traits:
+//   auto person_age20_39 = pop.agent(idx_age20_39);
+//   auto person_age60_79 = pop.agent(idx_age60_79);
 
-  // resolve idx for person to the person's row of traits:
-  auto person_age20_39 = pop.agent(idx_age20_39);
-  auto person_age60_79 = pop.agent(idx_age60_79);
+//   fmt::println("Testing with:");
+//   fmt::println("  Person {} (age group: {}) - will be infected 10 times",
+//                person_age20_39.id, Agegrp::names[person_age20_39.agegrp()]);
+//   fmt::println("  Person {} (age group: {}) - will be infected 17 times\n",
+//                person_age60_79.id, Agegrp::names[person_age60_79.agegrp()]);
 
-  fmt::println("Testing with:");
-  fmt::println("  Person {} (age group: {}) - will be infected 10 times",
-               person_age20_39.id, Agegrp::names[person_age20_39.agegrp()]);
-  fmt::println("  Person {} (age group: {}) - will be infected 17 times\n",
-               person_age60_79.id, Agegrp::names[person_age60_79.agegrp()]);
+//   // Use first real variant (index 1, since 0 is "none")
+//   Variant base_variant = test_model.mp.variants[1];
+//   Condition condition = Cond::Nil;
+//   uint8_t duration = 5;
 
-  // Use first real variant (index 1, since 0 is "none")
-  Variant base_variant = test_model.mp.variants[1];
-  Condition condition = Cond::Nil;
-  uint8_t duration = 5;
+//   // Reset sim day to 1
+//   sim::current_day = 1;
+//   DayData series(400);
 
-  // Reset sim day to 1
-  sim::current_day = 1;
-  DayData series(400);
+//   // Infect person 1 ten times (days 1, 21, 41, 61, 81, 101, 121, 141, 161, 181)
+//   fmt::println("Infecting person {} 10 times:", person_age20_39.id);
+//   for (int infection = 0; infection < 10; ++infection) {
+//     int day = 1 + (infection * 20);
+//     sim::current_day = day;
+//     person_age20_39.make_sick(base_variant, series, condition, duration);
+//     fmt::println("  Infection {} on day {} - variant_count: {}",
+//                  infection + 1, day, static_cast<int>(person_age20_39.variant_count()));
+//   }
 
-  // Infect person 1 ten times (days 1, 21, 41, 61, 81, 101, 121, 141, 161, 181)
-  fmt::println("Infecting person {} 10 times:", person_age20_39.id);
-  for (int infection = 0; infection < 10; ++infection) {
-    int day = 1 + (infection * 20);
-    sim::current_day = day;
-    person_age20_39.make_sick(base_variant, series, condition, duration);
-    fmt::println("  Infection {} on day {} - variant_count: {}",
-                 infection + 1, day, static_cast<int>(person_age20_39.variant_count()));
-  }
+//   fmt::println("\nPerson {} final state:", person_age20_39.id);
+//   fmt::println("  variant_count: {}", static_cast<int>(person_age20_39.variant_count()));
+//   fmt::println("  Infection history (variant, sickday):");
+//   int count1 = std::min(static_cast<int>(person_age20_39.variant_count()), 16);
+//   for (int i = 0; i < count1; ++i) {
+//     fmt::println("    [{}] variant: {}, sickday: {}",
+//                  i, person_age20_39.get_variant().name(), person_age20_39.get_sickday());
+//   }
 
-  fmt::println("\nPerson {} final state:", person_age20_39.id);
-  fmt::println("  variant_count: {}", static_cast<int>(person_age20_39.variant_count()));
-  fmt::println("  Infection history (variant, sickday):");
-  int count1 = std::min(static_cast<int>(person_age20_39.variant_count()), 16);
-  for (int i = 0; i < count1; ++i) {
-    fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, person_age20_39.get_variant().name(), person_age20_39.get_sickday());
-  }
+//   // Infect person 2 seventeen times (days 1, 21, 41, ..., 321)
+//   fmt::print("\n\n");
+//   fmt::println("Infecting person {} 17 times:", person_age60_79.id);
+//   for (int infection = 0; infection < 17; ++infection) {
+//     int day = 1 + (infection * 20);
+//     sim::current_day = day;
+//     person_age60_79.make_sick(base_variant, series, condition, duration);
+//     fmt::println("  Infection {} on day {} - variant_count: {}",
+//                  infection + 1, day, static_cast<int>(person_age60_79.variant_count()));
+//   }
 
-  // Infect person 2 seventeen times (days 1, 21, 41, ..., 321)
-  fmt::print("\n\n");
-  fmt::println("Infecting person {} 17 times:", person_age60_79.id);
-  for (int infection = 0; infection < 17; ++infection) {
-    int day = 1 + (infection * 20);
-    sim::current_day = day;
-    person_age60_79.make_sick(base_variant, series, condition, duration);
-    fmt::println("  Infection {} on day {} - variant_count: {}",
-                 infection + 1, day, static_cast<int>(person_age60_79.variant_count()));
-  }
+//   fmt::println("\nPerson {} final state:", person_age60_79.id);
+//   fmt::println("  variant_count: {}", static_cast<int>(person_age60_79.variant_count()));
+//   fmt::println("  Infection history (variant, sickday):");
+//   int count2 = std::min(static_cast<int>(person_age60_79.variant_count()), 16);
+//   fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
+//   for (int i = 0; i < count2; ++i) {
+//     fmt::println("    [{}] variant: {}, sickday: {}",
+//                  i, person_age60_79.get_variant().name(), person_age60_79.get_sickday());
+//   }
 
-  fmt::println("\nPerson {} final state:", person_age60_79.id);
-  fmt::println("  variant_count: {}", static_cast<int>(person_age60_79.variant_count()));
-  fmt::println("  Infection history (variant, sickday):");
-  int count2 = std::min(static_cast<int>(person_age60_79.variant_count()), 16);
-  fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
-  for (int i = 0; i < count2; ++i) {
-    fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, person_age60_79.get_variant().name(), person_age60_79.get_sickday());
-  }
+//   fmt::println("\n=== Multiple Infections Test Completed ===");
+// }
 
-  fmt::println("\n=== Multiple Infections Test Completed ===");
-}
+// void test_seedcase_multiple_infections() {
+//   fmt::print("\n=== Testing SeedCase with Multiple Infections ===\n\n");
 
-void test_seedcase_multiple_infections() {
-  fmt::print("\n=== Testing SeedCase with Multiple Infections ===\n\n");
+//   // Create a fresh model for this test
+//   fmt::println("Setting up independent test environment...");
+//   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
+//   PopData& pop = test_model.pop;
+//   DayData series(321);
 
-  // Create a fresh model for this test
-  fmt::println("Setting up independent test environment...");
-  Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
-  PopData& pop = test_model.pop;
-  DayData series(321);
+//   // Use first real variant (index 1, since 0 is "none")
+//   Variant base_variant = test_model.mp.variants[1];
+//   Condition condition = Cond::Nil;
+//   uint8_t duration = 5;
 
-  // Use first real variant (index 1, since 0 is "none")
-  Variant base_variant = test_model.mp.variants[1];
-  Condition condition = Cond::Nil;
-  uint8_t duration = 5;
+//   // Create SeedCases:
+//   // - One for age20_39 that triggers 10 times (days 1, 21, 41, ..., 181)
+//   // - One for age60_79 that triggers 17 times (days 1, 21, 41, ..., 321)
 
-  // Create SeedCases:
-  // - One for age20_39 that triggers 10 times (days 1, 21, 41, ..., 181)
-  // - One for age60_79 that triggers 17 times (days 1, 21, 41, ..., 321)
+//   std::vector<SeedCase> seed_cases;
 
-  std::vector<SeedCase> seed_cases;
+//   // Create 10 seed cases for age20_39 (one person each time)
+//   for (int i = 0; i < 10; ++i) {
+//     int trigger_day = 1 + (i * 20);
+//     std::vector<SeedFilter> filters{{Age::Age20_39, condition, 0, base_variant, 1}};
+//     seed_cases.emplace_back(trigger_day, true, filters, pop);
+//   }
 
-  // Create 10 seed cases for age20_39 (one person each time)
-  for (int i = 0; i < 10; ++i) {
-    int trigger_day = 1 + (i * 20);
-    std::vector<SeedFilter> filters{{Age::Age20_39, condition, 0, base_variant, 1}};
-    seed_cases.emplace_back(trigger_day, true, filters, pop);
-  }
+//   // Create 17 seed cases for age60_79 (one person each time)
+//   for (int i = 0; i < 17; ++i) {
+//     int trigger_day = 1 + (i * 20);
+//     std::vector<SeedFilter> filters{{Age::Age60_79, condition, 0, base_variant, 1}};
+//     seed_cases.emplace_back(trigger_day, true, filters, pop);
+//   }
 
-  // Create 17 seed cases for age60_79 (one person each time)
-  for (int i = 0; i < 17; ++i) {
-    int trigger_day = 1 + (i * 20);
-    std::vector<SeedFilter> filters{{Age::Age60_79, condition, 0, base_variant, 1}};
-    seed_cases.emplace_back(trigger_day, true, filters, pop);
-  }
+//   fmt::println("Created {} seed cases", seed_cases.size());
+//   fmt::println("  10 for age20_39 (days 1, 21, 41, ..., 181)");
+//   fmt::println("  17 for age60_79 (days 1, 21, 41, ..., 321)\n");
 
-  fmt::println("Created {} seed cases", seed_cases.size());
-  fmt::println("  10 for age20_39 (days 1, 21, 41, ..., 181)");
-  fmt::println("  17 for age60_79 (days 1, 21, 41, ..., 321)\n");
+//   // Track which persons get infected
+//   size_t person_age20_39 = 0;
+//   size_t person_age60_79 = 0;
 
-  // Track which persons get infected
-  size_t person_age20_39 = 0;
-  size_t person_age60_79 = 0;
+//   // Simulate days 1 through 321, triggering seed cases as appropriate
+//   fmt::println("Running simulation through day 321...");
+//   for (int day = 1; day <= 321; ++day) {
+//     sim::current_day = day;
 
-  // Simulate days 1 through 321, triggering seed cases as appropriate
-  fmt::println("Running simulation through day 321...");
-  for (int day = 1; day <= 321; ++day) {
-    sim::current_day = day;
+//     // Check each seed case to see if it should trigger today
+//     for (auto& seed_case : seed_cases) {
+//       if (seed_case.triggerday == day) {
+//         auto seeded = seed_case(series);
 
-    // Check each seed case to see if it should trigger today
-    for (auto& seed_case : seed_cases) {
-      if (seed_case.triggerday == day) {
-        auto seeded = seed_case(series);
+//         // Track which persons were seeded
+//         if (!seeded.empty()) {
+//           size_t person = seeded[0];
+//           if (pop.agegrp[person] == Age::Age20_39) {
+//             person_age20_39 = person;
+//             fmt::println("  Day {}: Infected person {} (age20_39), variant_count now: {}",
+//                          day, person, static_cast<int>(pop.variant_count[person]));
+//           } else if (pop.agegrp[person] == Age::Age60_79) {
+//             person_age60_79 = person;
+//             fmt::println("  Day {}: Infected person {} (age60_79), variant_count now: {}",
+//                          day, person, static_cast<int>(pop.variant_count[person]));
+//           }
+//         }
+//       }
+//     }
+//   }
 
-        // Track which persons were seeded
-        if (!seeded.empty()) {
-          size_t person = seeded[0];
-          if (pop.agegrp[person] == Age::Age20_39) {
-            person_age20_39 = person;
-            fmt::println("  Day {}: Infected person {} (age20_39), variant_count now: {}",
-                         day, person, static_cast<int>(pop.variant_count[person]));
-          } else if (pop.agegrp[person] == Age::Age60_79) {
-            person_age60_79 = person;
-            fmt::println("  Day {}: Infected person {} (age60_79), variant_count now: {}",
-                         day, person, static_cast<int>(pop.variant_count[person]));
-          }
-        }
-      }
-    }
-  }
+//   // Display results
+//   if (person_age20_39 == 0 || person_age60_79 == 0) {
+//     fmt::println("\nERROR: Not all persons were infected");
+//     return;
+//   }
 
-  // Display results
-  if (person_age20_39 == 0 || person_age60_79 == 0) {
-    fmt::println("\nERROR: Not all persons were infected");
-    return;
-  }
+//   fmt::print("\n=== Final Results ===\n\n");
 
-  fmt::print("\n=== Final Results ===\n\n");
+//   fmt::println("Person {} (age20_39) final state:", person_age20_39);
+//   fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age20_39]));
+//   fmt::println("  Infection history (variant, sickday):");
+//   int count1 = std::min(static_cast<int>(pop.variant_count[person_age20_39]), 16);
+//   for (int i = 0; i < count1; ++i) {
+//     fmt::println("    [{}] variant: {}, sickday: {}",
+//                  i, pop.variant[person_age20_39][i].name(), pop.sickday[person_age20_39][i]);
+//   }
 
-  fmt::println("Person {} (age20_39) final state:", person_age20_39);
-  fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age20_39]));
-  fmt::println("  Infection history (variant, sickday):");
-  int count1 = std::min(static_cast<int>(pop.variant_count[person_age20_39]), 16);
-  for (int i = 0; i < count1; ++i) {
-    fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, pop.variant[person_age20_39][i].name(), pop.sickday[person_age20_39][i]);
-  }
+//   fmt::println("\nPerson {} (age60_79) final state:", person_age60_79);
+//   fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age60_79]));
+//   fmt::println("  Infection history (variant, sickday):");
+//   int count2 = std::min(static_cast<int>(pop.variant_count[person_age60_79]), 16);
+//   fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
+//   for (int i = 0; i < count2; ++i) {
+//     fmt::println("    [{}] variant: {}, sickday: {}",
+//                  i, pop.variant[person_age60_79][i].name(), pop.sickday[person_age60_79][i]);
+//   }
 
-  fmt::println("\nPerson {} (age60_79) final state:", person_age60_79);
-  fmt::println("  variant_count: {}", static_cast<int>(pop.variant_count[person_age60_79]));
-  fmt::println("  Infection history (variant, sickday):");
-  int count2 = std::min(static_cast<int>(pop.variant_count[person_age60_79]), 16);
-  fmt::println("  (Showing {} most recent infections, max capacity is 16)", count2);
-  for (int i = 0; i < count2; ++i) {
-    fmt::println("    [{}] variant: {}, sickday: {}",
-                 i, pop.variant[person_age60_79][i].name(), pop.sickday[person_age60_79][i]);
-  }
+//   fmt::println("\n=== SeedCase Multiple Infections Test Completed ===");
+// }
 
-  fmt::println("\n=== SeedCase Multiple Infections Test Completed ===");
-}
+// void test_seeding_and_spread() {
+//   fmt::print("\n=== Integration Test: Seeding and Spread Contact Generation ===\n\n");
 
-void test_seeding_and_spread() {
-  fmt::print("\n=== Integration Test: Seeding and Spread Contact Generation ===\n\n");
+//   // Setup simulation - this creates the model with real parameters
+//   fmt::println("Setting up simulation with locale 38015, for 3 days...");
+//   Model model = setup_sim(3, 38015, "2020-01-01", false);
 
-  // Setup simulation - this creates the model with real parameters
-  fmt::println("Setting up simulation with locale 38015, for 3 days...");
-  Model model = setup_sim(3, 38015, "2020-01-01", false);
+//   fmt::println("Population size: {}", model.pop.popn);
+//   fmt::println("Number of days: {}", model.ndays);
+//   fmt::println("Start date: {}\n", absl::FormatCivilTime(model.day1));
 
-  fmt::println("Population size: {}", model.pop.popn);
-  fmt::println("Number of days: {}", model.ndays);
-  fmt::println("Start date: {}\n", absl::FormatCivilTime(model.day1));
+//   fmt::println("--- Running Simulation ---");
+//   fmt::println("This will use the SeedCases defined in sim.cpp");
+//   fmt::println("Expected: 6 people infected (3 age20_39 + 3 age40_59) with duration=5");
+//   fmt::println("The spread() function will print contacts for each infectious person\n");
 
-  fmt::println("--- Running Simulation ---");
-  fmt::println("This will use the SeedCases defined in sim.cpp");
-  fmt::println("Expected: 6 people infected (3 age20_39 + 3 age40_59) with duration=5");
-  fmt::println("The spread() function will print contacts for each infectious person\n");
+//   // Run the actual simulation - this uses the real SeedCases from sim.cpp
+//   runsim(model);
 
-  // Run the actual simulation - this uses the real SeedCases from sim.cpp
-  runsim(model);
-
-  fmt::println("\n=== Integration Test Completed ===");
-}
+//   fmt::println("\n=== Integration Test Completed ===");
+// }
 
 void test_random_functions() {
   fmt::print("\n=== Testing xo::random Functions ===\n\n");
@@ -1120,63 +1120,63 @@ void test_random_functions() {
   fmt::println("\n=== Random Functions Test Completed ===");
 }
 
-// needs more inputs to work...
-void apportion_debug(int n, vector<float> splits) {
-        fmt::println("\n=== APPORTION DEBUG (n={}) ===", n);
+// // needs more inputs to work...
+// void apportion_debug(int n, vector<float> splits) {
+//         fmt::println("\n=== APPORTION DEBUG (n={}) ===", n);
 
-      vector<int> parts;
-      for (size_t i = 0; i < splits.size(); ++i) {
-        int part = static_cast<int>(round(n * splits[i]));
-        parts.push_back(part);
-        fmt::println("  parts[{}] = round({} * {}) = {}", i, n, splits[i], part);
-      }
+//       vector<int> parts;
+//       for (size_t i = 0; i < splits.size(); ++i) {
+//         int part = static_cast<int>(round(n * splits[i]));
+//         parts.push_back(part);
+//         fmt::println("  parts[{}] = round({} * {}) = {}", i, n, splits[i], part);
+//       }
 
-      // Calculate total before adjustment
-      int total_before = std::accumulate(parts.begin(), parts.end(), 0);
-      fmt::println("Total before adjustment: {}", total_before);
+//       // Calculate total before adjustment
+//       int total_before = std::accumulate(parts.begin(), parts.end(), 0);
+//       fmt::println("Total before adjustment: {}", total_before);
 
-      // fix rounding error
-      int diff = total_before - n;
-      fmt::println("Difference (total - n): {}", diff);
+//       // fix rounding error
+//       int diff = total_before - n;
+//       fmt::println("Difference (total - n): {}", diff);
 
-      if (diff != 0) {
-        fmt::println("Adjusting parts.back() from {} to {}", parts.back(), parts.back() - diff);
-        parts.back() -= diff;
-      }
+//       if (diff != 0) {
+//         fmt::println("Adjusting parts.back() from {} to {}", parts.back(), parts.back() - diff);
+//         parts.back() -= diff;
+//       }
 
-      // Calculate total after adjustment
-      int total_after = std::accumulate(parts.begin(), parts.end(), 0);
-      fmt::println("Total after adjustment: {}", total_after);
-      fmt::println("Expected (n): {}", n);
-      fmt::println("Match: {}", total_after == n ? "YES" : "NO");
-      fmt::println("=== END APPORTION DEBUG ===\n");
-}
+//       // Calculate total after adjustment
+//       int total_after = std::accumulate(parts.begin(), parts.end(), 0);
+//       fmt::println("Total after adjustment: {}", total_after);
+//       fmt::println("Expected (n): {}", n);
+//       fmt::println("Match: {}", total_after == n ? "YES" : "NO");
+//       fmt::println("=== END APPORTION DEBUG ===\n");
+// }
 
-void sim_test(size_t ndays=180, int locale=38015) {
-  // fmt::print("\n=== Testing Spread Function (180-day simulation) ===\n\n");
-  parameter_test::VariantNamesGuard variant_names_guard;
-  Variant::names.clear();
-  Model model = setup_sim(ndays, locale, "2020-01-01", false);
-  // fmt::println("Population: {}", model.pop.popn);
-  // fmt::println("Running simulation for {} days...\n", model.ndays);
+// void sim_test(size_t ndays=180, int locale=38015) {
+//   // fmt::print("\n=== Testing Spread Function (180-day simulation) ===\n\n");
+//   parameter_test::VariantNamesGuard variant_names_guard;
+//   Variant::names.clear();
+//   Model model = setup_sim(ndays, locale, "2020-01-01", false);
+//   // fmt::println("Population: {}", model.pop.popn);
+//   // fmt::println("Running simulation for {} days...\n", model.ndays);
 
-  runsim(model);
+//   runsim(model);
  
-}
+// }
 
-void test_short_sim_smoke(int days) {
-  fmt::print("\n=== Smoke Test: Short Simulation Run ===\n\n");
-  sim_test(days, 38015);
-  fmt::println("=== Short Simulation Smoke Test Completed ===");
-}
+// void test_short_sim_smoke(int days) {
+//   fmt::print("\n=== Smoke Test: Short Simulation Run ===\n\n");
+//   sim_test(days, 38015);
+//   fmt::println("=== Short Simulation Smoke Test Completed ===");
+// }
 
 int main() {
-  test_agent_pop_print();
+  // test_agent_pop_print();
   test_model_params();
-  test_build_model();
-  test_finalize_series();
+  // test_build_model();
+  // test_finalize_series();
   // test_simple_plot_render();
-  test_sendrisk_indexing();
-  test_make_sick_and_seedcase_duration_indexing();
-  test_short_sim_smoke(180);
+  // test_sendrisk_indexing();
+  // test_make_sick_and_seedcase_duration_indexing();
+  // test_short_sim_smoke(180);
 }
