@@ -1,5 +1,5 @@
 {
-    "days": 180,        // number of days the simulation runs
+    "days": 1269,        // number of days the simulation runs
     "locale": 38015,    // what cusip location for the population and other characteristics
     "calendar_start": "2020-01-01",    // day 1 of the simulation is set to this actual calendar date
     "dovax": false                    // adminster vaccines: true or false

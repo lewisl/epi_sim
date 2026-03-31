@@ -1,25 +1,24 @@
 [
     {
-        "triggerday" : 1,
-        "startofday"  : true,
-        "duration"   : 1,
-        "variant"    : "base",
-        "filtervec"  : 
-            [
-                {
-                    "agegrp" : "Age20_39",
-                    "condition" : "nil",
-                    "duration" : 1,
-                    "variant" : "base",
-                    "count"   : 3
-                },
-                {
-                    "agegrp" : "Age40_59",
-                    "condition" : "nil",
-                    "duration" : 1,
-                    "variant" : "base",
-                    "count"   : 3
-                }
-            ]
+        "triggerday": 1,      // what day are people made sick
+        "startofday": true,   // at start of day: true or false
+        "duration": 1,        // how many days have the seeded people been sick
+        "variant": "base",    // what variant do they have?
+        "filtervec": [        // filter for who can be seeded and how they will be infected
+            {                         // curly braces for each filter setting; many filters can be used
+                "agegrp": "Age20_39",
+                "condition": "nil",     // condition of the seeded person
+                "duration": 1,          // how many initial days sick
+                "variant": "base",      // variant of the virus people are infected with
+                "count": 3              // how many people
+            },
+            {
+                "agegrp": "Age40_59",
+                "condition": "nil",
+                "duration": 1,
+                "variant": "base",
+                "count": 3
+            }
+        ]
     }
 ]

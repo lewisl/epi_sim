@@ -140,17 +140,13 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
       recvrisk = raw_recvrisk;
     }
 
-
-
     infectparams.emplace_back(InfectParams{
         .sendrisk = std::move(sendrisk),
         .recvrisk = std::move(recvrisk),
         .recovery_immunity = std::move(recovery_immunity),
         .basemultiplier = variant.value()["spread"]["basemultiplier"].get<float>(),
         .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
-
   }
-
   return {variants, infectparams};
 }
 
@@ -169,8 +165,6 @@ to parse:
 
 if no tree apply riskadjust and vaxhalflifeadjust to base
 */
-
-
 
 
 std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
@@ -278,8 +272,6 @@ progression[0].tree[0][5][0][0]
 //
 // vaccine data
 //
-
-
 
 std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Variant> variants) {
   VaxSet vaxset{};

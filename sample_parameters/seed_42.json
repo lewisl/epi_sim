@@ -1,0 +1,118 @@
+[
+    {
+        "triggerday" : 1,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "base",
+                    "count"   : 3
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "base",
+                    "count"   : 3
+                }
+            ]
+    },
+    {
+        "triggerday" : 300,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "delta",
+                    "count"   : 3
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "delta",
+                    "count"   : 3
+                }
+            ]
+    },
+    {
+        "triggerday" : 640,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba1",
+                    "count"   : 3
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba1",
+                    "count"   : 3
+                }
+            ]
+    },
+    {
+        "triggerday" : 680,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba2",
+                    "count"   : 6
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba2",
+                    "count"   : 6
+                }
+            ]
+    },
+    {
+        "triggerday" : 740,
+        "startofday"  : true,
+        "duration"   : 1,
+        "variant"    : "base",
+        "filtervec"  : 
+            [
+                {
+                    "agegrp" : "Age20_39",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba4_5",
+                    "count"   : 6
+                },
+                {
+                    "agegrp" : "Age40_59",
+                    "condition" : "nil",
+                    "duration" : 1,
+                    "variant" : "omicron_ba4_5",
+                    "count"   : 6
+                }
+            ]
+    }
+
+]

@@ -1,9 +1,11 @@
 /* TODO items:
+put paths to parameters in config.json file or in separate file?
 vaccination
 vaccination series vectors
 use comments in json files!
 fix bug condition in progressiontree loading
 clean up test:  update for latest API changes.
+fix duplication of seed settings in seedcases and seedfilter
 
 Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
     only matters if we model viral load and if contact affects progression to more severe condition
@@ -17,38 +19,31 @@ simplify agetree by eliminating spurious struct container
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 
 // data structures
-// convert the yml files to json before loading with c++
-    // options:  tojson is a tiny (127 sloc), header only library to convert xml and
-      // yaml documents into nlohmann::json objects.
-    // website: https://jsonformatter.org/yaml-to-json
-//  geodata
-//  SocialParams
-//  simulation data per person: popdat
-//  history series
-//  geodata
-//  infectparams
-//  spreadparams
-//  SocialParams
-//  progression params
+// DONE:convert the yml files to json before loading with c++
+// DONE: geodata
+// DONE: SocialParams
+// DONE: simulation data per person: popdat
+// DONE: history series
+// DONE: infectparams
+// DONE: SocialParams
+// DONE: progression params
 //  vax
 //  test_and_trace
 
-// setup code
+// CLOSE: setup code
 
 // simulation code
 //  simulation runner
 //    browser support and commands
 //       cpp-httplib examples:  https://github.com/yhirose/cpp-httplib and
-//       nlohmann/json (most common C++ JSON library)
-//       plotly
-//  progression
-//  spread
-//  collect_history
-//    update_total_agegrps
-//    update totinfected_series
+//       DONE: nlohmann/json (most common C++ JSON library)
+//       DONE: plotly
+//  DONE: progression
+//  DONE: spread
+//  WORKING: collect_history
+//    DONE:update_total_agegrps
+//    DONE: update totinfected_series
 //    update totvaccinated series
 
-// plotting
-//   browser support
+// DONE: plotting via local browser
 // serialize
-//   plotly
