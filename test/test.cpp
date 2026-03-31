@@ -38,7 +38,7 @@ struct SampleParamPaths {
     string variants;
     string social;
     string vaccines;
-    string vax_sched;
+    string vax_sched_dir;
 };
 
 fs::path project_dir() {
@@ -56,7 +56,7 @@ SampleParamPaths sample_paths() {
         .variants = (root / "sample_parameters" / "variants.json").string(),
         .social = (root / "sample_parameters" / "socialparams.json").string(),
         .vaccines = (root / "sample_parameters" / "vaccines.json").string(),
-        .vax_sched = (root / "sample_parameters" / "vaccine_100k" / "loc38015_old.json").string(),
+        .vax_sched_dir = (root / "sample_parameters" / "vaccine_100k").string(),
     };
 }
 
@@ -78,6 +78,13 @@ const PerVaxSpec& require_sched_vax(const VaxSched& sched, string_view name) {
                                  [name](const auto& entry) { return entry.vax_name == name; });
     assert(it != sched.vaxesincluded.end());
     return *it;
+}
+
+const VaxSched& require_sched(const VaxSchedSet& schedset, string_view name) {
+    const auto it = std::find_if(schedset.schedules.begin(), schedset.schedules.end(),
+                                 [name](const auto& entry) { return entry.first == name; });
+    assert(it != schedset.schedules.end());
+    return it->second;
 }
 
 float require_named_factor(const vector<std::pair<string, float>>& entries, string_view name) {
@@ -698,21 +705,34 @@ void test_model_params() {
   assert(pfizer.effectiveness[1].first == "full");
   assert(approx_equal(parameter_test::require_named_factor(pfizer.effectiveness[1].second, "delta"), 0.8, 1e-9));
 
-  VaxSched vaxsched = load_vax_sched(paths.vax_sched, vaxlist);
-  assert(vaxsched.vaxesincluded.size() == 3);
-  const auto& jnj_sched = parameter_test::require_sched_vax(vaxsched, "JnJ");
+  VaxSchedSet vaxschedset = load_vax_sched_set(paths.vax_sched_dir, vaxlist);
+  assert(vaxschedset.size() == 2);
+
+  const auto& old_sched = parameter_test::require_sched(vaxschedset, "loc38015_old");
+  assert(old_sched.vaxesincluded.size() == 3);
+  const auto& jnj_sched = parameter_test::require_sched_vax(old_sched, "JnJ");
   assert(approx_equal(jnj_sched.mix, 0.05, 1e-9));
   assert(jnj_sched.starting_doses == 4000);
   assert(approx_equal(jnj_sched.pct2ndshot, 0.0, 1e-9));
   assert(approx_equal(jnj_sched.pctboost, 0.4, 1e-9));
-  assert(vaxsched.dayrange.first == 350);
-  assert(vaxsched.dayrange.second == 700);
-  assert(approx_equal(vaxsched.targetpct, 0.95, 1e-9));
-  assert((vaxsched.filtervec == vector<string>{"age80_up", "age60_79"}));
-  assert(vaxsched.shotmode == "all");
-  assert(vaxsched.pattern.size() == 12);
-  assert(approx_equal(vaxsched.pattern[3], 0.1, 1e-9));
-  assert(vaxsched.spreadfunc.empty());
+  assert(old_sched.dayrange.first == 350);
+  assert(old_sched.dayrange.second == 700);
+  assert(approx_equal(old_sched.targetpct, 0.95, 1e-9));
+  assert(old_sched.filtervec.size() == 2);
+  assert(old_sched.filtervec[0] == Age::Age80_up);
+  assert(old_sched.filtervec[1] == Age::Age60_79);
+  assert(old_sched.shotmode == "all");
+  assert(old_sched.pattern.size() == 12);
+  assert(approx_equal(old_sched.pattern[3], 0.1, 1e-9));
+  assert(static_cast<bool>(old_sched.spreadfunc));
+
+  const auto& young_sched = parameter_test::require_sched(vaxschedset, "loc38015_young");
+  assert(approx_equal(young_sched.targetpct, 0.65, 1e-9));
+  assert(young_sched.filtervec.size() == 3);
+  assert(young_sched.filtervec[0] == Age::Age0_19);
+  assert(young_sched.filtervec[1] == Age::Age20_39);
+  assert(young_sched.filtervec[2] == Age::Age40_59);
+  assert(static_cast<bool>(young_sched.spreadfunc));
 
   ModelParams mp{
       .geodata = std::move(geodata),
@@ -723,13 +743,13 @@ void test_model_params() {
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxset),
       .vaxlist = std::move(vaxlist),
-      .vaxsched = std::move(vaxsched),
+      .vaxschedset = std::move(vaxschedset),
   };
 
   assert(mp.geodata.pop[locale_idx] == 95626);
   assert(mp.variants[1].name() == "base");
   assert(mp.vaxset.vaxset.size() == 3);
-  assert(mp.vaxsched.dayrange.first == 350);
+  assert(mp.vaxschedset.size() == 2);
 
   fmt::println("==================== Model Parameters ==================");
   mp.geodata.print();
@@ -748,7 +768,7 @@ void test_model_params() {
   mp.vaxlist.print();
   fmt::println("============ End Vaxlist ==========");
   fmt::print("\n");
-  mp.vaxsched.print();
+  mp.vaxschedset.print();
   fmt::print("\n");
 
   fmt::println("=== ModelParams Loading Test Completed ===");

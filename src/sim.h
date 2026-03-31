@@ -6,6 +6,7 @@
 #include "parameters.h"
 #include "random.h"
 #include "series.h"
+namespace fs = std::filesystem;
 
 // Forward declaration
 struct Model;
@@ -16,12 +17,19 @@ struct Config {
   int locale {38015};
   string calendar_start {"2020-01-01"};
   bool dovax {false};
+  bool debug {false};
+  fs::path geodata {"geo2data.csv"};
+  fs::path variants {"variants.json"};
+  fs::path social {"socialparams.json"};
+  fs::path vaccines {"vaccines.json"};
+  fs::path vax_sched_dir {"vaccine_100k"};
 };
 
 // parameters used throughout the simulation that are better global
 //    than passed into every function
 namespace sim {
     inline int current_day = 0;
+    inline bool debug = false;
 
     inline int get_day() {
         return current_day;

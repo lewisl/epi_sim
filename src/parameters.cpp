@@ -295,11 +295,12 @@ std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Var
 
     // infectfactor vector
     for (const auto &variantname : Variant::names) {
-      if (body["infectfactor"].contains(variantname))
+      if (body["infectfactor"].contains(variantname) )
         vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
       else
-        fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
-            vaxname, variantname);
+        if (variantname != "none")
+          fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
+              vaxname, variantname);
     }
 
     // effectiveness vector of vector
@@ -309,8 +310,9 @@ std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Var
         if (body["effectiveness"][shot].contains(variantname))
           variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
         else 
-          fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
-              vaxname, shot, variantname);
+          if (variantname != "none")
+            fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
+                vaxname, shot, variantname);
       };
       vx.effectiveness.emplace_back(shot, variant_effectiveness);
     }
@@ -338,7 +340,7 @@ static Agegrp agegrp_from_string(const string& s) {
 }
 
 
-VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
+VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist) {
   json jdata = load_json_params(fname);
   
   VaxSched sched{};
@@ -361,20 +363,48 @@ VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist) {
   // other members
   sched.dayrange = {jdata["dayrange"][0], jdata["dayrange"][1]}; // vector of 2 set to pair
   sched.targetpct = jdata["targetpct"];
-  // sched.filtervec = jdata["filtervec"];    // PROBLEM HERE: not sure how to convert the vector<Agegrp>
-  for (const auto& f : jdata["filtervec"])
-    sched.filtervec.push_back(agegrp_from_string(f.get<string>()));  // PROBLEM. no such thing as f
-  sched.shotmode = jdata["shotmode"];
-  sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
-  // // Handle null spreadfunc
-  // if (!jdata["spreadfunc"].is_null()) {
-  //   sched.spreadfunc = jdata["spreadfunc"];
-  // 
   for (const auto& f : jdata["filtervec"])
     sched.filtervec.push_back(agegrp_from_string(f.get<string>()));
-
+  sched.shotmode = jdata["shotmode"];
+  sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
+  sched.init_spreadfunc();
+  sched.reset_doses();
 
   return sched;
+}
+
+VaxSchedSet load_vax_sched_set(const string &dirpath, const MapEnum<uint8_t>& vaxlist) {
+  namespace fs = std::filesystem;
+
+  VaxSchedSet schedset{};
+  vector<fs::path> schedule_files;
+
+  if (!fs::exists(dirpath)) {
+    throw std::runtime_error("Vaccine schedule directory does not exist: " + dirpath);
+  }
+  if (!fs::is_directory(dirpath)) {
+    throw std::runtime_error("Vaccine schedule path is not a directory: " + dirpath);
+  }
+
+  for (const auto& entry : fs::directory_iterator(dirpath)) {
+    if (entry.is_regular_file() && entry.path().extension() == ".json") {
+      schedule_files.push_back(entry.path());
+    }
+  }
+
+  std::sort(schedule_files.begin(), schedule_files.end());
+
+  for (const auto& path : schedule_files) {
+    string sched_name = path.stem().string();
+    auto it = std::find_if(schedset.schedules.begin(), schedset.schedules.end(),
+                           [&](const auto& entry) { return entry.first == sched_name; });
+    if (it != schedset.schedules.end()) {
+      throw std::runtime_error("Duplicate vaccine schedule name from filename stem: " + sched_name);
+    }
+    schedset.schedules.emplace_back(sched_name, load_vax_sched(path.string(), vaxlist));
+  }
+
+  return schedset;
 }
 
 

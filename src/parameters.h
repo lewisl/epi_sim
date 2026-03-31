@@ -236,6 +236,7 @@ struct MapEnum {
   void add_item(std::string newname) {
       if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
           names.push_back(newname);
+          valid_nums.push_back(nextnum);
           lookup[newname] = nextnum;
           if constexpr (std::is_enum_v<T>) {
             using U = std::underlying_type_t<T>;
@@ -671,6 +672,28 @@ struct VaxSched {
   }
 };
 
+struct VaxSchedSet {
+  vector<std::pair<string, VaxSched>> schedules {};
+
+  [[nodiscard]] bool empty() const { return schedules.empty(); }
+  [[nodiscard]] size_t size() const { return schedules.size(); }
+
+  void reset_doses() {
+    for (auto& [name, sched] : schedules)
+      sched.reset_doses();
+  }
+
+  void print() const {
+    fmt::println("\n=== VaxSchedSet ===");
+    fmt::println("Schedules loaded: {}", schedules.size());
+    for (const auto& [name, sched] : schedules) {
+      fmt::println("Schedule: {}", name);
+      sched.print();
+    }
+    fmt::println("=== End VaxSchedSet ===\n");
+  }
+};
+
 
 //
 // social params
@@ -756,7 +779,7 @@ struct ModelParams {
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
   MapEnum<uint8_t> vaxlist;
-  VaxSched vaxsched;  // Changed from json to VaxSched
+  VaxSchedSet vaxschedset;
 };
 
 // here we define all of the containers for the model parameters, load them,
@@ -786,7 +809,10 @@ std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant
 std::tuple<VaxSet, MapEnum<uint8_t>> load_vax_data(string fpath, vector<Variant>);
 
 
-VaxSched load_vax_sched(const string &fname, MapEnum<uint8_t> vaxlist);
+VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist);
+
+
+VaxSchedSet load_vax_sched_set(const string &dirpath, const MapEnum<uint8_t>& vaxlist);
 
 
 SocialParams load_social_params(string social_path);

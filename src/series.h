@@ -6,7 +6,9 @@
 
 
 enum class SeriesName : uint8_t { now_infected, now_unexposed, now_recovered, now_dead,
+                                  now_vaccinated,
                                   new_infected, new_recovered, net_infected, new_dead,
+                                  new_vaccinated,
                                   COUNT };
 
 enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, age80_up, COUNT };
@@ -15,8 +17,9 @@ using SeriesSelection = std::pair<string, string>;
 
 inline constexpr auto all_series_names = std::array{
     SeriesName::now_infected, SeriesName::now_unexposed, SeriesName::now_recovered,
-    SeriesName::now_dead, SeriesName::new_infected, SeriesName::new_recovered,
-    SeriesName::net_infected, SeriesName::new_dead};
+    SeriesName::now_dead, SeriesName::now_vaccinated,
+    SeriesName::new_infected, SeriesName::new_recovered,
+    SeriesName::net_infected, SeriesName::new_dead, SeriesName::new_vaccinated};
 
 inline constexpr auto all_age_buckets = std::array{
     AgeBucket::total, AgeBucket::age0_19, AgeBucket::age20_39,
@@ -27,8 +30,8 @@ inline constexpr auto age_only_buckets = std::array{
     AgeBucket::age60_79, AgeBucket::age80_up};
 
 inline constexpr auto series_name_labels = std::array{
-    "now_infected", "now_unexposed", "now_recovered", "now_dead",
-    "new_infected", "new_recovered", "net_infected", "new_dead"};
+    "now_infected", "now_unexposed", "now_recovered", "now_dead", "now_vaccinated",
+    "new_infected", "new_recovered", "net_infected", "new_dead", "new_vaccinated"};
 
 inline constexpr auto age_bucket_labels = std::array{
     "total", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};

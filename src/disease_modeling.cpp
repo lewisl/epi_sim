@@ -8,6 +8,41 @@
 #include <stdexcept>
 #include "disease_modeling.h"
 
+namespace {
+
+const VaxParams& require_vax_params(const VaxSet& vaxset, const string& name) {
+  for (const auto& [vax_name, params] : vaxset.vaxset) {
+    if (vax_name == name) return params;
+  }
+  throw std::runtime_error("Unknown vaccine in VaxSet: " + name);
+}
+
+float require_named_factor(const vector<std::pair<string, float>>& entries,
+                           const string& key,
+                           const string& context) {
+  const auto it = std::find_if(entries.begin(), entries.end(),
+                               [&](const auto& entry) { return entry.first == key; });
+  if (it == entries.end()) {
+    throw std::runtime_error(fmt::format("Missing {} factor for key '{}'", context, key));
+  }
+  return it->second;
+}
+
+float require_effectiveness(const VaxParams& params,
+                            const string& shot_name,
+                            const string& variant_name) {
+  const auto shot_it = std::find_if(params.effectiveness.begin(), params.effectiveness.end(),
+                                    [&](const auto& entry) { return entry.first == shot_name; });
+  if (shot_it == params.effectiveness.end()) {
+    throw std::runtime_error(fmt::format("Missing vaccine effectiveness for shot '{}'", shot_name));
+  }
+
+  return require_named_factor(shot_it->second, variant_name,
+                              fmt::format("effectiveness('{}')", shot_name));
+}
+
+} // namespace
+
 // make_sick: make one person sick
 // declaration is in population.h
 void PopData::AgentView::make_sick(Variant var,  DayData & series, Condition condition, uint8_t durationdays) {
@@ -30,9 +65,11 @@ void PopData::AgentView::make_sick(Variant var,  DayData & series, Condition con
       variant_vec.back() = var;
       sickday_vec.back() = sim::get_day();
       ++variant_cnt;
-      std::cerr << "Variant overflow for person " << id
-              << ". Oldest variant lost.\n";
-      std::cerr << "variant_count increased to " << variant_cnt << "\n";  
+      if (sim::debug) {
+        std::cerr << "Variant overflow for person " << id
+                << ". Oldest variant lost.\n";
+        std::cerr << "variant_count increased to " << variant_cnt << "\n";
+      }
   }
 }
 
@@ -54,9 +91,11 @@ void PopData::AgentView::make_well(DayData & series) {    // the object is perso
   } else {
       std::shift_left(all_recovdays().begin(), all_recovdays().end(), 1);
       all_recovdays().back() = sim::get_day();
-      std::cerr << "Recovday overflow for person " << i
-              << ". Oldest recovday lost.\n";
-      std::cerr << "  Recovday_count increased to " << recovday_count() << "\n";  
+      if (sim::debug) {
+        std::cerr << "Recovday overflow for person " << i
+                << ". Oldest recovday lost.\n";
+        std::cerr << "  Recovday_count increased to " << recovday_count() << "\n";
+      }
   }
   ++recovday_count();
 }
@@ -103,23 +142,22 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
     // contact person characteristics
     auto recvrisk = infectparams[spr_variant].recvrisk[zidx(contact_agegrp)];
 
-    // vax_recov is meant to be a function for separation of concerns, but it is just minimum for now
-    auto vax_recov = std::min(vaxfactor, recovfactor);
+    auto combined_immunity = vax_recov(vaxfactor, recovfactor);
 
-    // fmt::println("================= vax_recov {}", vax_recov);
-
-    auto combinedfactor = recvrisk * sendrisk * vax_recov;
+    auto combinedfactor = recvrisk * sendrisk * combined_immunity;
     auto risk = std::clamp(combinedfactor, 0.0f, 1.0f);    // required because combinedfactor could exceed 1.0
 
   return risk;
 }
                   
-
-bool isinfected(PopData::AgentView contact, PopData::AgentView spreader, vector<InfectParams> &infectparams, int thisday) {
+bool isinfected(PopData::AgentView contact, PopData::AgentView spreader,
+                vector<InfectParams> &infectparams, const VaxSet& vaxset,
+                bool dovax, int thisday) {
     uint8_t spr_variant = spreader.get_variant();
     float recovfactor = recoveffect(contact, thisday, spr_variant, infectparams);
+    float vaxfactor = dovax ? vaxeffect(thisday, contact, vaxset, spr_variant) : 1.0f;
     float risk = infectrisk(infectparams, spr_variant, spreader.duration(),
-                            contact.agegrp(), recovfactor);
+                            contact.agegrp(), recovfactor, vaxfactor);
     return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
 }
 
@@ -159,6 +197,43 @@ float recoveffect(PopData::AgentView contact, size_t thisday,  uint8_t spr_varia
         }
     }
   return factor;
+}
+
+float vaxeffect(size_t thisday, PopData::AgentView person, const VaxSet& vaxset,
+                uint8_t target_variant, float csig, float decay_lower) {
+  if (person.vaxstatus() == Vaxstat::none || person.vax_count() == 0) return 1.0f;
+
+  const uint8_t vax_count = person.vax_count();
+  const uint8_t vax_idx = person.vaxrcvd()[zidx(vax_count)];
+  const int16_t vaxday = person.vaxday()[zidx(vax_count)];
+  const string vax_name = person.vax_labels().to_str(vax_idx);
+  const auto& params = require_vax_params(vaxset, vax_name);
+
+  if (target_variant >= Variant::names.size()) {
+    throw std::runtime_error(fmt::format("Invalid variant index in vaxeffect: {}", target_variant));
+  }
+
+  const string variant_name = Variant::names[target_variant];
+  const string shot_name = person.vaxstatus().name();
+  const float infectfactor = require_named_factor(params.infectfactor, variant_name, "infectfactor");
+  const float vaccine_effect = require_effectiveness(params, shot_name, variant_name);
+
+  const int days_after_vax = std::max<int>(static_cast<int>(thisday) - static_cast<int>(vaxday), 0);
+  const int days_after_full_effect = std::max(days_after_vax - params.full_effect_days, 0);
+  const float rise = effect_rise(static_cast<size_t>(days_after_vax),
+                                 params.day1_effect,
+                                 static_cast<float>(params.full_effect_days));
+  const float decay = sigdecay(static_cast<size_t>(days_after_full_effect),
+                               static_cast<float>(params.halflife),
+                               csig,
+                               decay_lower);
+  const float time_mod = rise * decay;
+
+  return std::max(1.0f - (time_mod * vaccine_effect * infectfactor), 0.0f);
+}
+
+float vax_recov(float vaxfactor, float recovfactor) {
+  return std::min(vaxfactor, recovfactor);
 }
 
 // gradual decay of vaccine effectiveness or recovery immunity based on assumed half-life

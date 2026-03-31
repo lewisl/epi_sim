@@ -2,6 +2,8 @@
 #include "parameters.h"
 #include "population.h"
 
+struct DayData;
+
 // helpers
 static const VaxParams& vax_params(const VaxSet& vaxset, const string& name);
 
@@ -16,10 +18,12 @@ static void doshots(
         const absl::flat_hash_map<string, int>& delay2ndshot,
         const absl::flat_hash_map<string, int>& delaybooster,
         vector<size_t>& eligible,
-        PopData& pop);
+        PopData& pop,
+        DayData& series);
 
 void vaccinate(int today,
-               VaxSched& sched,
+               VaxSchedSet& schedset,
                const VaxSet& vaxset,
                const MapEnum<uint8_t>& vaxlist,
-               PopData& pop);
+               PopData& pop,
+               DayData& series);

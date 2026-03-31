@@ -34,7 +34,12 @@ void progression(PopData::AgentView person, DayData & series, ProgressionSet &pr
 
     recoveff = recoveffect(person, today, p_variant, infectparams);                            
                                                     
-    float vaxeff = 1.0f; // TODO more to do!
+    float vaxeff = 1.0f;
+
+    risk = riskfactor(recoveff, vaxeff);
+    if (dovax && p_vaxstatus != Vaxstat::none) {
+      vaxeff = vaxeffect(today, person, vaxset, p_variant);
+    }
 
     risk = riskfactor(recoveff, vaxeff);
     redistribute_probability(probvec, risk, person.duration());  // update probvec in place

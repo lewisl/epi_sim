@@ -16,7 +16,7 @@ Overall TODO
 
 
 
-ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_path)
+ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir)
 {
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
@@ -26,11 +26,11 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
     MapEnum<uint8_t> vaxlist;
-    VaxSched vaxsched;
+    VaxSchedSet vaxschedset;
     if (dovax) {
       fmt::println("we got here to load valid vax parameters...");
       std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); 
-      vaxsched = load_vax_sched(vaxsched_path, vaxlist);
+      vaxschedset = load_vax_sched_set(vaxsched_dir, vaxlist);
     }
   auto socialdata = load_social_params(social_path);
 
@@ -46,7 +46,7 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxdata),
       .vaxlist = std::move(vaxlist),
-      .vaxsched = std::move(vaxsched),
+      .vaxschedset = std::move(vaxschedset),
   };
 }
 
@@ -115,33 +115,21 @@ vector<float> build_indoor_seq(int ndays, int locale, GeoData geodata,
 // Model setup_sim(int ndays, int locale,  // require inputs
 //     string date,   // all the rest have defaults...
 //     bool dovax,
-Model setup_sim(Config config,    
-    const fs::path& project_dir,
-    const fs::path& paramdir,
-    const fs::path& geodata_fname,
-    const fs::path& param_dir,
-    const fs::path& variants_fname,
-    const fs::path& social_fname,
-    const fs::path& vax_fname,
-    const fs::path& vax_sched_dir,
-    const fs::path& vax_sched_fname)
+Model setup_sim(Config config)
 {
-    // Full paths to parameter files
-    const string variants_path = (project_dir / param_dir / variants_fname).string();
-    const string geodata_path = (project_dir / param_dir / geodata_fname).string();
-    const string social_path = (project_dir / param_dir / social_fname).string();
-    const string vax_path = (project_dir / param_dir / vax_fname).string();
-    const string vax_sched_path = (project_dir / param_dir / vax_sched_dir / vax_sched_fname).string();
-
     //extract values from Config struct
       int ndays = config.days;
       int locale = config.locale;
       string date = config.calendar_start;
       bool dovax = config.dovax;
+      bool debug = config.debug;
 
-
-    ModelParams mp = setup_model_params(dovax, geodata_path, variants_path, social_path,
-        vax_path, vax_sched_path);
+    ModelParams mp = setup_model_params(dovax,
+        config.geodata.string(),  // convert filesystem::path objects to string
+        config.variants.string(),
+        config.social.string(),
+        config.vaccines.string(),
+        config.vax_sched_dir.string());
 
     // access population of chosen locale or error
     auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), locale);
@@ -167,6 +155,7 @@ Model setup_sim(Config config,
       .indoor_seq = indoor_seq,
       .locale = locale,
       .dovax = dovax,
+      .debug = debug,
       .mp = std::move(mp),
       .pop = std::move(pop)};
 }

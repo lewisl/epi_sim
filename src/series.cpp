@@ -81,6 +81,10 @@ void update_series(const PopData & pop, DayData & series) {
       default:
         break;
     }
+
+    if (pop.vaxstatus[i] != Vaxstat::none) {
+      increment_series(series, SeriesName::now_vaccinated, agegrp, d);
+    }
   }
 }
 

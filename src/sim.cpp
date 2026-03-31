@@ -65,6 +65,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   // reset day counter to zero
   sim::reset_day();
+  sim::debug = model.debug;
 
   // setup timers for performance metering
   Timing spread_timing;
@@ -78,7 +79,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   // override dovax=true if any vax parameters within ModelParameters instance mp are empty
     if (model.dovax) { 
-      if ( (mp.vaxlist.size() == 0) | (mp.vaxset.vaxset.size() == 0) | (mp.vaxsched.vaxesincluded.size() == 0))
+      if ( (mp.vaxlist.size() == 0) | (mp.vaxset.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
             model.dovax = false;
     }
 
@@ -109,10 +110,11 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
     if (model.dovax) {
       vax_timing.start();
       vaccinate(sim::get_day(),
-               mp.vaxsched,
+               mp.vaxschedset,
                mp.vaxset,
                mp.vaxlist,
-               pop);
+               pop,
+               series);
       vax_timing.cum();
     }
 
@@ -131,7 +133,8 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
         sim::ds.starting_spreaders++;
-        spread(pop, series, person, mp.socialdata, mp.infectparams, contacts, density_factor, model.indoor_seq);
+        spread(pop, series, person, mp.socialdata, mp.infectparams, mp.vaxset,
+               model.dovax, contacts, density_factor, model.indoor_seq);
       }
       spread_timing.cum();
 
@@ -180,22 +183,30 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
 
   // print some series and a summary
-  print_selected_series({ {"now_infected", "total"},
-                          {"new_infected", "total"},
-                          {"new_recovered", "total"},
-                          {"new_dead", "total"} },
-                        series);
+  // print_selected_series({ {"now_infected", "total"},
+  //                         {"new_infected", "total"},
+  //                         {"new_recovered", "total"},
+  //                         {"new_dead", "total"} },
+  //                       series);
 
   SummaryData sumstruct = print_summary(pop);
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());
 
-  seriesplot({{"now_infected", "total"},
-            {"now_unexposed", "total"}, 
-            {"now_recovered", "total"}, 
-            {"now_dead", "total"}}, 
-            series, model.caldays, sumstruct, "Cumulative Covid Outcome");
+  if (!model.dovax) 
+    seriesplot({{"now_infected", "total"},
+              {"now_unexposed", "total"}, 
+              {"now_recovered", "total"}, 
+              {"now_dead", "total"}}, 
+              series, model.caldays, sumstruct, "Cumulative Covid Outcome");
+  else
+      seriesplot({{"now_infected", "total"},
+              {"now_unexposed", "total"}, 
+              {"now_recovered", "total"}, 
+              {"now_dead", "total"}, 
+              {"now_vaccinated", "total"}},
+              series, model.caldays, sumstruct, "Cumulative Covid Outcome");
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

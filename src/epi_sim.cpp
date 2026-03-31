@@ -4,6 +4,16 @@
 #include "sim.h"
 #include "parameters.h"
 
+namespace {
+
+fs::path resolve_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
+  fs::path path = config_json[key].get<string>();
+  if (path.is_absolute()) return path;
+  return config_dir / path;
+}
+
+} // namespace
+
 
 int main(int argc, char** argv) {
   fmt::println("Deeply Under Construction.");
@@ -30,7 +40,20 @@ int main(int argc, char** argv) {
   json config_json = load_json_params(config_path);
   json seed_json   = load_json_params(seed_path);
 
-  Config config{config_json["days"], config_json["locale"], config_json["calendar_start"], config_json["dovax"]};
+  const fs::path config_dir = fs::path(config_path).parent_path();
+
+  Config config{
+      .days = config_json["days"],
+      .locale = config_json["locale"],
+      .calendar_start = config_json["calendar_start"],
+      .dovax = config_json["dovax"],
+      .debug = config_json.value("debug", false),
+      .geodata = resolve_config_path(config_dir, config_json, "geodata"),
+      .variants = resolve_config_path(config_dir, config_json, "variants"),
+      .social = resolve_config_path(config_dir, config_json, "social"),
+      .vaccines = resolve_config_path(config_dir, config_json, "vaccines"),
+      .vax_sched_dir = resolve_config_path(config_dir, config_json, "vax_sched_dir"),
+  };
 
   Model model = setup_sim(config);
 

@@ -6,6 +6,7 @@
 #include "parameters.h"
 #include "population.h"
 #include "random.h"
+#include "series.h"
 
 // ---------------------------------------------------------------
 // internal helpers
@@ -37,7 +38,8 @@ static void doshots(
         const absl::flat_hash_map<string, int>& delay2ndshot,
         const absl::flat_hash_map<string, int>& delaybooster,
         vector<size_t>& eligible,
-        PopData& pop)
+        PopData& pop,
+        DayData& series)
 {
     auto& specs = sched.vaxesincluded;
 
@@ -92,6 +94,7 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
+            increment_series(series, SeriesName::new_vaccinated, agent.agegrp(), today);
 
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
@@ -145,15 +148,12 @@ static void doshots(
     }
 }
 
-// ---------------------------------------------------------------
-// vaccinate  (called once per simulation day)
-// ---------------------------------------------------------------
-
-void vaccinate(int today,
-               VaxSched& sched,
-               const VaxSet& vaxset,
-               const MapEnum<uint8_t>& vaxlist,
-               PopData& pop)
+static void vaccinate_sched(int today,
+                            VaxSched& sched,
+                            const VaxSet& vaxset,
+                            const MapEnum<uint8_t>& vaxlist,
+                            PopData& pop,
+                            DayData& series)
 {
     auto& specs    = sched.vaxesincluded;
     auto& dayrange = sched.dayrange;
@@ -203,5 +203,22 @@ void vaccinate(int today,
 
     doshots(today, sched, vaxset, vaxlist,
             doses_today, delay2ndshot, delaybooster,
-            eligible, pop);
+            eligible, pop, series);
+}
+
+// ---------------------------------------------------------------
+// vaccinate  (called once per simulation day)
+// ---------------------------------------------------------------
+
+void vaccinate(int today,
+               VaxSchedSet& schedset,
+               const VaxSet& vaxset,
+               const MapEnum<uint8_t>& vaxlist,
+               PopData& pop,
+               DayData& series)
+{
+    for (auto& [name, sched] : schedset.schedules) {
+        (void)name;
+        vaccinate_sched(today, sched, vaxset, vaxlist, pop, series);
+    }
 }

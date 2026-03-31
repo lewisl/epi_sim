@@ -1,7 +1,4 @@
 /* TODO items:
-put paths to parameters in config.json file or in separate file?
-vaccination
-vaccination series vectors
 use comments in json files!
 fix bug condition in progressiontree loading
 clean up test:  update for latest API changes.

@@ -7,7 +7,8 @@
 
   // simplified early version of spread  TODO need vaxset, dovax sdcases
   void spread(PopData &pop, DayData & series, PopData::AgentView person, SocialParams &social,
-              vector<InfectParams> &infectparams, vector<size_t> &contacts, float density_factor,
+              vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
+              vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq) {
 
   auto thisday = sim::get_day();
@@ -48,7 +49,7 @@
     if (touchprob > 0.0f && xo::bernoulli(touchprob) == 1.0f) { //short circuit the bernoulli RNG draw
       sim::ds.num_touched++;  // daily summary stat
 
-      if (isinfected(contact, person, infectparams, thisday)) {  // TODO need vaxset, dovax
+      if (isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
         sim::ds.num_new_infected++;
         contact.make_sick(spr_variant, series); // contact is pop.agent(c) from above
       }
