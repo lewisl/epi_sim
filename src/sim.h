@@ -61,43 +61,42 @@ namespace sim {
     inline daystats ds{};
 }
 
-struct SeedFilter {
-  Agegrp agegrp;     //filter criterion
-  Condition condition;  // update value
-  uint8_t duration;   // update value
-  Variant variant;    // update value
-  int8_t count;       // number of people to update
+// A single trait column reference + its expected or new value.
+// trait is the AgentView accessor name (e.g. "status", "agegrp", "cond", "variant").
+// val is the integer representation of the value, parsed at load time.
+struct Term {
+  string trait;
+  int32_t val;
+};
+
+// Filter: all terms must match (AND semantics) for a person to be a candidate.
+// Allowed traits: "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested"
+struct Filter {
+  vector<Term> terms;
+};
+
+// Change: the trait values to set on each matched candidate, and how many to affect.
+// Allowed traits: "status", "cond", "duration", "variant", "vaxstatus", "quar"
+// When "status"="infectious" is present, make_sick is called (preserving all invariants).
+// Guard: only Stat::Unexposed and Stat::Recovered persons may be made sick.
+struct Change {
+  vector<Term> terms;
+  int count{0};
 };
 
 struct SeedCase {
   PopData& pop;
-  int triggerday{0};  // day that seeding happens
-  bool startofday{true}; //is it beginning of the day
-  // agegrp, number of people, initial condition, initial duration, variant
-  std::vector<SeedFilter> filtervec{};
+  int triggerday{0};    // simulation day the changes are applied
+  bool startofday{true}; // true = beginning of day, false = end of day
+  Filter filter;
+  Change change;
 
-  SeedCase(int triggerday, bool startofday, vector<SeedFilter> filt, PopData& pop)
-      : triggerday(triggerday), startofday(startofday), filtervec(filt), pop(pop) {}
-  SeedCase() = delete; // default constructor not allowed
+  SeedCase(int triggerday, bool startofday, Filter filt, Change chg, PopData& pop)
+      : triggerday(triggerday), startofday(startofday),
+        filter(std::move(filt)), change(std::move(chg)), pop(pop) {}
+  SeedCase() = delete;
 
-  vector<size_t> operator()(DayData & series) {
-    vector<size_t> seeded_persons;
-    size_t count_of_seeds = 0;
-    for (auto filt : filtervec) {
-      count_of_seeds = 0;
-      for (int i = 1; count_of_seeds < filt.count && i <= pop.popn; ++i) {
-        auto seed_person = pop.agent(i);
-        if (seed_person.agegrp() == filt.agegrp) {
-          seed_person.make_sick(filt.variant, series, filt.condition, filt.duration );
-          seeded_persons.push_back(i);
-          ++count_of_seeds;
-        }
-      }
-    }
-    if (seeded_persons.empty())
-      std::cerr << "No row found matching filter criteria\n";
-    return seeded_persons;
-  }
+  vector<size_t> operator()(DayData& series);
 };
 
 struct SummaryData {
@@ -112,5 +111,5 @@ struct SummaryData {
 // Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
 vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp);
 
-// Simulation runner function
+// Simulation runner
 void runsim(Model& model, vector<SeedCase> seedcases);
