@@ -38,30 +38,19 @@ std::string html_template = R"TAG(<!doctype html>
 */
 
 
+/*
+const std::filesystem::path& output_path = 
+    std::filesystem::path(std::getenv("HOME")) / "code" / "epi_sim" / "plot_output"
+    */
 
-std::string make_timestamped_filename(std::string plotname = "") {
-    if (plotname.empty()) {
-        plotname = "plot";
+
+std::filesystem::path write_file(const std::string& content, std::string filename,
+  std::vector<string> path_steps) {
+
+    std::filesystem::path output_path = std::getenv("HOME");
+    for (auto step : path_steps) {
+      output_path /= step;
     }
-
-    const auto now = std::chrono::system_clock::now();
-    const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-    const std::tm local_tm = *std::localtime(&now_time);
-
-    return fmt::format("{}_{:02}_{:02}_{:04}_{:02}_{:02}_{:02}",
-                       plotname,
-                       local_tm.tm_mon + 1,
-                       local_tm.tm_mday,
-                       local_tm.tm_year + 1900,
-                       local_tm.tm_hour,
-                       local_tm.tm_min,
-                       local_tm.tm_sec);
-}
-
-
-std::filesystem::path write_plot_html_file(const std::string& html, std::string filename,
-  const std::filesystem::path& output_path = 
-    std::filesystem::path(std::getenv("HOME")) / "code" / "epi_sim" / "plot_output" ) {
 
     filename.append(".html");
     std::ofstream out(output_path / filename);
@@ -70,7 +59,7 @@ std::filesystem::path write_plot_html_file(const std::string& html, std::string 
             fmt::format("Could not write rendered plot to '{}'", output_path.string()));
     }
 
-    out << html;
+    out << content;
 
     return output_path / filename;
 }
@@ -104,7 +93,7 @@ void produce_plot(std::string base_fname, std::string end_message, json data, js
   std::string cum_plot_html = render_plot_html(html_template, fname, end_message, data, layout);
 
   // output the finished html file
-  std::filesystem::path fpath = write_plot_html_file(cum_plot_html, fname);
+  std::filesystem::path fpath = write_file(cum_plot_html, fname, {"code", "epi_sim", "plot_output"});
 
   // open in browser
   open_plot_in_browser(fpath);

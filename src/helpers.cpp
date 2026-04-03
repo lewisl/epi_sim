@@ -38,7 +38,6 @@ absl::CivilDay parse_date(const std::string& s) {
 }
 
 
-
 double mean(const std::vector<double>& values) {
     return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 }
@@ -62,4 +61,22 @@ void replace_all(std::string& s, const std::string& from, const std::string& to)
         s.replace(pos, from.size(), to);
         pos += to.size();
     }
+}
+
+
+
+std::string make_timestamped_filename(std::string basename) {
+
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    const std::tm local_tm = *std::localtime(&now_time);
+
+    return fmt::format("{}_{:02}_{:02}_{:04}_{:02}_{:02}_{:02}",
+                       basename,
+                       local_tm.tm_mon + 1,
+                       local_tm.tm_mday,
+                       local_tm.tm_year + 1900,
+                       local_tm.tm_hour,
+                       local_tm.tm_min,
+                       local_tm.tm_sec);
 }

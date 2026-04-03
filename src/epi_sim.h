@@ -1,19 +1,4 @@
-/* TODO items:
-use comments in json files!
-remove debug counter in hotloop or comment out or use debug switch
-serialization of series
-serialization of popdata
-fix bug condition in progressiontree loading
-clean up test:  update for latest API changes.
 
-Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
-    only matters if we model viral load and if contact affects progression to more severe condition
-*/
-
-/* commit items
-add dummy 0th entry to ProgressionSet so that "base" is item 1
-simplify agetree by eliminating spurious struct container
-*/
 
 // all of the uses of lazytables or typedtables in Julia will be structs of vectors in c++
 

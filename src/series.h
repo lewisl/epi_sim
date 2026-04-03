@@ -7,36 +7,25 @@
 
 enum class SeriesName : uint8_t { now_infected, now_unexposed, now_recovered, now_dead,
                                   now_vaccinated,
-                                  new_infected, new_recovered, net_infected, new_dead,
-                                  new_vaccinated,
+                                  new_infected, new_recovered, new_dead, new_vaccinated,
+                                  net_infected, 
                                   COUNT };
 
 enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, age80_up, COUNT };
 
 using SeriesSelection = std::pair<string, string>;
 
-inline constexpr auto all_series_names = std::array{
-    SeriesName::now_infected, SeriesName::now_unexposed, SeriesName::now_recovered,
-    SeriesName::now_dead, SeriesName::now_vaccinated,
-    SeriesName::new_infected, SeriesName::new_recovered,
-    SeriesName::net_infected, SeriesName::new_dead, SeriesName::new_vaccinated};
-
 inline constexpr auto all_age_buckets = std::array{
     AgeBucket::total, AgeBucket::age0_19, AgeBucket::age20_39,
     AgeBucket::age40_59, AgeBucket::age60_79, AgeBucket::age80_up};
 
-inline constexpr auto age_only_buckets = std::array{
-    AgeBucket::age0_19, AgeBucket::age20_39, AgeBucket::age40_59,
-    AgeBucket::age60_79, AgeBucket::age80_up};
-
 inline constexpr auto series_name_labels = std::array{
     "now_infected", "now_unexposed", "now_recovered", "now_dead", "now_vaccinated",
-    "new_infected", "new_recovered", "net_infected", "new_dead", "new_vaccinated"};
+    "new_infected", "new_recovered", "new_dead", "new_vaccinated", "net_infected"};
 
 inline constexpr auto age_bucket_labels = std::array{
     "total", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
 
-static_assert(all_series_names.size() == size_t(SeriesName::COUNT));
 static_assert(all_age_buckets.size() == size_t(AgeBucket::COUNT));
 static_assert(series_name_labels.size() == size_t(SeriesName::COUNT));
 static_assert(age_bucket_labels.size() == size_t(AgeBucket::COUNT));
@@ -101,18 +90,21 @@ struct HistorySeries {
 
     auto& group(SeriesName name) { return cols[size_t(name)]; }
     auto const& group(SeriesName name) const { return cols[size_t(name)]; }
+
+    // externally defined functions
+    void finalize_series();
+    void init_history_series(size_t day);
+    void delta_series(SeriesName name, Agegrp agegrp, size_t day, int change);
+
 };
 
 
-
 AgeBucket bucket_from_age(Agegrp agegrp);
-void init_history_series(HistorySeries & series, size_t day);
-void delta_series(HistorySeries& series, SeriesName name, Agegrp agegrp, size_t day, int change);
-void update_series(const PopData & pop, HistorySeries & series);
-void finalize_series(HistorySeries& series);
 void write_daily_trace_csv(const std::filesystem::path& output_path,
                            const std::vector<absl::CivilDay>& caldays,
                            const HistorySeries& series);
 void print_total_status_series(const HistorySeries& series, size_t days_per_block = 15);
 void print_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
                            size_t days_per_block = 15);
+void serialize_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
+                           string base_fname, vector<string> path_steps={});

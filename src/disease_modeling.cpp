@@ -47,14 +47,14 @@ float require_effectiveness(const VaxParams& params,
 // declaration is in population.h
 void PopData::AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t durationdays) {
   auto today = sim::get_day();
-  delta_series(series, SeriesName::new_infected, agegrp(), today, 1);
-  delta_series(series, SeriesName::now_infected, agegrp(), today, 1);
+  series.delta_series(SeriesName::new_infected, agegrp(), today, 1);
+  series.delta_series(SeriesName::now_infected, agegrp(), today, 1);
 
   if (status() == Stat::Recovered) {
-    delta_series(series, SeriesName::now_recovered, agegrp(), today, -1);
+    series.delta_series(SeriesName::now_recovered, agegrp(), today, -1);
   } else {
     if (status() == Stat::Unexposed) {
-      delta_series(series, SeriesName::now_unexposed, agegrp(), today, -1);
+      series.delta_series(SeriesName::now_unexposed, agegrp(), today, -1);
     }
   }
   cond() = condition;
@@ -93,9 +93,9 @@ as a method of AgentView, the instance variable is not used to apply methods or 
 */
 void PopData::AgentView::make_well(HistorySeries & series) {    // the object is person--the implied argument
   auto today = sim::get_day();
-  delta_series(series, SeriesName::now_recovered, agegrp(), today, 1);
-  delta_series(series, SeriesName::new_recovered, agegrp(), today, 1);
-  delta_series(series, SeriesName::now_infected, agegrp(), today, -1);
+  series.delta_series(SeriesName::now_recovered, agegrp(), today, 1);
+  series.delta_series(SeriesName::new_recovered, agegrp(), today, 1);
+  series.delta_series(SeriesName::now_infected, agegrp(), today, -1);
 
   cond() = Cond::Uninfected; // equivalent to person.cond() in other functions where person defined
   status() = Stat::Recovered; 
@@ -119,9 +119,9 @@ void PopData::AgentView::make_well(HistorySeries & series) {    // the object is
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
 void PopData::AgentView::make_dead(HistorySeries & series) {
     auto today = sim::get_day();
-    delta_series(series, SeriesName::now_dead, agegrp(), today, 1);
-    delta_series(series, SeriesName::new_dead, agegrp(), today, 1);
-    delta_series(series, SeriesName::now_infected, agegrp(), today, -1);
+    series.delta_series(SeriesName::now_dead, agegrp(), today, 1);
+    series.delta_series(SeriesName::new_dead, agegrp(), today, 1);
+    series.delta_series(SeriesName::now_infected, agegrp(), today, -1);
 
   // update the person: update deadday and status for the person
   deadday() = today;   

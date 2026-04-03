@@ -227,7 +227,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
     // start a new day
     sim::incr_day();
     sim::ds.day = sim::get_day();
-    init_history_series(series, d_i);
+    series.init_history_series(d_i);
 
     // run beginning of day seed cases
     for (auto& sc : seedcases)
@@ -304,7 +304,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   } // day loop
 
   history_timing.start();
-  finalize_series(series);
+  series.finalize_series();
   history_timing.cum();
 
   //
@@ -318,6 +318,12 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   //                         {"new_recovered", "total"},
   //                         {"new_dead", "total"} },
   //                       series);
+
+  // write the some series columns to csv
+  serialize_selected_series(
+    { {"now_unexposed", "total"}, {"now_infected","total"},{"now_recovered", "total"},{"now_dead","total"},
+                                  {"new_infected","total"},{"new_recovered", "total"},{"new_dead","total"}}, 
+    series, "test_series", {"code", "epi_sim", "series_output"});
 
   SummaryData sumstruct = print_summary(pop);
 

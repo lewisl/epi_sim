@@ -39,75 +39,23 @@ AgeBucket bucket_from_age(Agegrp agegrp) {
   }
 }
 
-void init_history_series(HistorySeries & series, size_t day) {
+void HistorySeries::init_history_series(size_t day) {
     if (day <= 1) return;
     for (auto bucket : all_age_buckets) {
-        series.at(SeriesName::now_infected,  bucket)[day] = series.at(SeriesName::now_infected,  bucket)[day-1];
-        series.at(SeriesName::now_unexposed, bucket)[day] = series.at(SeriesName::now_unexposed, bucket)[day-1];
-        series.at(SeriesName::now_recovered, bucket)[day] = series.at(SeriesName::now_recovered, bucket)[day-1];
-        series.at(SeriesName::now_dead,      bucket)[day] = series.at(SeriesName::now_dead,      bucket)[day-1];
-        series.at(SeriesName::now_vaccinated,bucket)[day] = series.at(SeriesName::now_vaccinated,bucket)[day-1];
+        at(SeriesName::now_infected,  bucket)[day] = at(SeriesName::now_infected,  bucket)[day-1];
+        at(SeriesName::now_unexposed, bucket)[day] = at(SeriesName::now_unexposed, bucket)[day-1];
+        at(SeriesName::now_recovered, bucket)[day] = at(SeriesName::now_recovered, bucket)[day-1];
+        at(SeriesName::now_dead,      bucket)[day] = at(SeriesName::now_dead,      bucket)[day-1];
+        at(SeriesName::now_vaccinated,bucket)[day] = at(SeriesName::now_vaccinated,bucket)[day-1];
     }
 }
 
 
-void delta_series(HistorySeries& series, SeriesName name, Agegrp agegrp, size_t day, int change) {
-  series.at(name, AgeBucket::total)[day] += change;
-  series.at(name, bucket_from_age(agegrp))[day] += change;
+void HistorySeries::delta_series(SeriesName name, Agegrp agegrp, size_t day, int change) {
+  at(name, AgeBucket::total)[day] += change;
+  at(name, bucket_from_age(agegrp))[day] += change;
 }
 
-/*
-Adds one day of simulation outcomes to the history series.
-Very hardwired to the columns in PopData and HistorySeries.
-*/
-// void old_update_series(const PopData & pop, HistorySeries & series) {
-//   auto d = sim::ds.day;
-//   for (size_t i = 1; i <= pop.popn; ++i) {
-//     const auto status = pop.status[i];  // person i's status
-//     const auto agegrp = pop.agegrp[i];  // person i's agegrp
-
-//     switch (status.v) {
-//       case Stat::Infectious.v:
-//         increment_series(series, SeriesName::now_infected, agegrp, d);
-//         break;
-//       case Stat::Unexposed.v:
-//         increment_series(series, SeriesName::now_unexposed, agegrp, d);
-//         break;
-//       case Stat::Recovered.v:
-//         increment_series(series, SeriesName::now_recovered, agegrp, d);
-//         break;
-//       case Stat::Dead.v:
-//         increment_series(series, SeriesName::now_dead, agegrp, d);
-//         break;
-//       default:
-//         break;
-//     }
-
-//     if (pop.vaxstatus[i] != Vaxstat::none) {
-//       increment_series(series, SeriesName::now_vaccinated, agegrp, d);
-//     }
-//   }
-// }
-
-// void update_series(const PopData & pop, HistorySeries & series, size_t day) {
-//   for (auto agegrp : all_age_buckets){
-//     if (day == 1) {
-
-//     } else {
-//       series.at(SeriesName::now_infected, agegrp)[day] = series.at(SeriesName::now_infected, agegrp)[day -1] +
-//         series.at(SeriesName::new_infected, agegrp)[day] - series.at(SeriesName::new_dead, agegrp)[day] 
-//         - series.at(SeriesName::new_recovered, agegrp)[day];
-//       series.at(SeriesName::now_unexposed, agegrp)[day] = series.at(SeriesName::now_unexposed, agegrp)[day-1]
-//         - series.at(SeriesName::new_infected, agegrp)[day];
-//       series.at(SeriesName::now_dead, agegrp)[day] = series.at(SeriesName::now_dead, agegrp)[day-1]
-//         + series.at(SeriesName::new_dead, agegrp)[day];
-//       // this one is wrong!  we need to know who of yesterday's recovered became infected  
-//       series.at(SeriesName::now_recovered, agegrp)[day] = series.at(SeriesName::now_recovered, agegrp)[day-1]
-//         + series.at(SeriesName::new_recovered, agegrp)[day];
-//     }
-
-//   }
-// }
 
 void diff_from_cumulative(std::span<int> src, std::span<int> dest) {
   assert(src.size() == dest.size());
@@ -120,10 +68,10 @@ void diff_from_cumulative(std::span<int> src, std::span<int> dest) {
   }
 }
 
-void finalize_series(HistorySeries& series) {
+void HistorySeries::finalize_series() {
   for (auto bucket : all_age_buckets) {
-    diff_from_cumulative(std::span<int>(series.at(SeriesName::now_infected, bucket)),
-                         std::span<int>(series.at(SeriesName::net_infected, bucket)));
+    diff_from_cumulative(std::span<int>(at(SeriesName::now_infected, bucket)),
+                         std::span<int>(at(SeriesName::net_infected, bucket)));
   }
 }
 
@@ -244,7 +192,80 @@ void print_selected_series(std::vector<SeriesSelection> selections, const Histor
       for (size_t day = block_start; day <= block_end; ++day) {
         fmt::print("{:>8}", series.at(name, bucket)[day]);
       }
-      fmt::println("");
+      fmt::println(""); 
     }
   }
+}
+
+
+void serialize_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
+                           string base_fname, vector<string> path_steps) {
+  if (series.day_cnt == 0) {
+    fmt::println("\nNo day series to output.");
+    return;
+  }
+
+  if (selections.empty()) {
+    fmt::println("\nNo series selected.");
+    return;
+  }
+
+  // setup the columns to be written to file with labels for the header row
+  vector<string> invalid_selections;
+  vector<std::pair<SeriesName, AgeBucket>> cols;
+  cols.reserve(selections.size());
+  for (const auto& [name_text, bucket_text] : selections) {
+    auto name = series_name_from_string(name_text);
+    auto bucket = age_bucket_from_string(bucket_text);
+    if (!name || !bucket) {
+      invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text));
+      continue;
+    }
+    cols.emplace_back(*name, *bucket);
+  }
+
+  if (!invalid_selections.empty()) {
+    fmt::println("\nSkipping unknown series selections: {}", invalid_selections);
+  }
+
+  if (cols.empty()) {
+    fmt::println("\nNo valid series selected.");
+    return;
+  }
+
+  vector<string> selected_labels;
+  selected_labels.reserve(cols.size());
+  for (const auto& [name, bucket] : cols) {
+    selected_labels.push_back(fmt::format("{}:{}", to_string(name), to_string(bucket)));
+  }
+
+  // create and test file name
+      const char* home = std::getenv("HOME");
+      if (!home) throw std::runtime_error("HOME not set");
+      std::filesystem::path fpath{home};  // fs::path accepts const char* directly
+      if (path_steps.empty()) path_steps = {"code", "epi_sim", "series_output"};  // TODO: this doesn't make sense on anyone else's machine
+      for (auto step : path_steps) fpath /= step;
+      fpath /= make_timestamped_filename(base_fname) + ".csv";
+      ensure_parent_dir(fpath);  // create dir if it doesn't exist
+
+      std::ofstream out(fpath);
+      if (!out) {
+        throw std::runtime_error(
+            fmt::format("Could not write rendered plot to '{}'", fpath.string()));
+      }
+
+  // write rows to csv file
+  fmt::println(out, "{}", fmt::join(selected_labels, ","));
+
+  std::vector<int> row;
+  row.reserve(cols.size()); // allocate needed memory once
+  for (auto i = 1; i <= series.day_cnt; ++i) {
+    for (auto [name, bucket] : cols) {
+      row.push_back(series.at(name, bucket)[i]);  // no allocations here
+    }
+    fmt::println(out, "{}", fmt::join(row, ","));
+    row.clear();
+  }
+
+  fmt::println("Wrote selected series CSV to '{}'", fpath.string());
 }
