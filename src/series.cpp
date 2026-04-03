@@ -10,17 +10,6 @@ auto total_status_names = std::array{
     SeriesName::now_infected, SeriesName::now_unexposed,
     SeriesName::now_recovered, SeriesName::now_dead};
 
-void diff_from_cumulative(std::span<int> src, std::span<int> dest) {
-  assert(src.size() == dest.size());
-  if (src.size() <= 1) return;  // only the unused 0 slot exists
-
-  // Day series are 1-indexed: day 1 copies through, later days subtract previous from current.
-  dest[1] = src[1];
-  for (size_t day = 2; day < src.size(); ++day) {
-    dest[day] = src[day] - src[day - 1];
-  }
-}
-
 std::string format_civil_day(absl::CivilDay day) {
   return fmt::format("{:04d}-{:02d}-{:02d}", day.year(), unsigned(day.month()), day.day());
 }
@@ -50,54 +39,98 @@ AgeBucket bucket_from_age(Agegrp agegrp) {
   }
 }
 
-void increment_series(DayData& series, SeriesName name, Agegrp agegrp, size_t day) {
-  series.at(name, AgeBucket::total)[day]++;
-  series.at(name, bucket_from_age(agegrp))[day]++;
+void init_history_series(HistorySeries & series, size_t day) {
+    if (day <= 1) return;
+    for (auto bucket : all_age_buckets) {
+        series.at(SeriesName::now_infected,  bucket)[day] = series.at(SeriesName::now_infected,  bucket)[day-1];
+        series.at(SeriesName::now_unexposed, bucket)[day] = series.at(SeriesName::now_unexposed, bucket)[day-1];
+        series.at(SeriesName::now_recovered, bucket)[day] = series.at(SeriesName::now_recovered, bucket)[day-1];
+        series.at(SeriesName::now_dead,      bucket)[day] = series.at(SeriesName::now_dead,      bucket)[day-1];
+        series.at(SeriesName::now_vaccinated,bucket)[day] = series.at(SeriesName::now_vaccinated,bucket)[day-1];
+    }
+}
+
+
+void delta_series(HistorySeries& series, SeriesName name, Agegrp agegrp, size_t day, int change) {
+  series.at(name, AgeBucket::total)[day] += change;
+  series.at(name, bucket_from_age(agegrp))[day] += change;
 }
 
 /*
 Adds one day of simulation outcomes to the history series.
-Very hardwired to the columns in PopData and DayData.
+Very hardwired to the columns in PopData and HistorySeries.
 */
-void update_series(const PopData & pop, DayData & series) {
-  auto d = sim::ds.day;
-  for (size_t i = 1; i <= pop.popn; ++i) {
-    const auto status = pop.status[i];  // person i's status
-    const auto agegrp = pop.agegrp[i];  // person i's agegrp
+// void old_update_series(const PopData & pop, HistorySeries & series) {
+//   auto d = sim::ds.day;
+//   for (size_t i = 1; i <= pop.popn; ++i) {
+//     const auto status = pop.status[i];  // person i's status
+//     const auto agegrp = pop.agegrp[i];  // person i's agegrp
 
-    switch (status.v) {
-      case Stat::Infectious.v:
-        increment_series(series, SeriesName::now_infected, agegrp, d);
-        break;
-      case Stat::Unexposed.v:
-        increment_series(series, SeriesName::now_unexposed, agegrp, d);
-        break;
-      case Stat::Recovered.v:
-        increment_series(series, SeriesName::now_recovered, agegrp, d);
-        break;
-      case Stat::Dead.v:
-        increment_series(series, SeriesName::now_dead, agegrp, d);
-        break;
-      default:
-        break;
-    }
+//     switch (status.v) {
+//       case Stat::Infectious.v:
+//         increment_series(series, SeriesName::now_infected, agegrp, d);
+//         break;
+//       case Stat::Unexposed.v:
+//         increment_series(series, SeriesName::now_unexposed, agegrp, d);
+//         break;
+//       case Stat::Recovered.v:
+//         increment_series(series, SeriesName::now_recovered, agegrp, d);
+//         break;
+//       case Stat::Dead.v:
+//         increment_series(series, SeriesName::now_dead, agegrp, d);
+//         break;
+//       default:
+//         break;
+//     }
 
-    if (pop.vaxstatus[i] != Vaxstat::none) {
-      increment_series(series, SeriesName::now_vaccinated, agegrp, d);
-    }
+//     if (pop.vaxstatus[i] != Vaxstat::none) {
+//       increment_series(series, SeriesName::now_vaccinated, agegrp, d);
+//     }
+//   }
+// }
+
+// void update_series(const PopData & pop, HistorySeries & series, size_t day) {
+//   for (auto agegrp : all_age_buckets){
+//     if (day == 1) {
+
+//     } else {
+//       series.at(SeriesName::now_infected, agegrp)[day] = series.at(SeriesName::now_infected, agegrp)[day -1] +
+//         series.at(SeriesName::new_infected, agegrp)[day] - series.at(SeriesName::new_dead, agegrp)[day] 
+//         - series.at(SeriesName::new_recovered, agegrp)[day];
+//       series.at(SeriesName::now_unexposed, agegrp)[day] = series.at(SeriesName::now_unexposed, agegrp)[day-1]
+//         - series.at(SeriesName::new_infected, agegrp)[day];
+//       series.at(SeriesName::now_dead, agegrp)[day] = series.at(SeriesName::now_dead, agegrp)[day-1]
+//         + series.at(SeriesName::new_dead, agegrp)[day];
+//       // this one is wrong!  we need to know who of yesterday's recovered became infected  
+//       series.at(SeriesName::now_recovered, agegrp)[day] = series.at(SeriesName::now_recovered, agegrp)[day-1]
+//         + series.at(SeriesName::new_recovered, agegrp)[day];
+//     }
+
+//   }
+// }
+
+void diff_from_cumulative(std::span<int> src, std::span<int> dest) {
+  assert(src.size() == dest.size());
+  if (src.size() <= 1) return;  // only the unused 0 slot exists
+
+  // Day series are 1-indexed: day 1 copies through, later days subtract previous from current.
+  dest[1] = src[1];
+  for (size_t day = 2; day < src.size(); ++day) {
+    dest[day] = src[day] - src[day - 1];
   }
 }
 
-void finalize_series(DayData& series) {
+void finalize_series(HistorySeries& series) {
   for (auto bucket : all_age_buckets) {
     diff_from_cumulative(std::span<int>(series.at(SeriesName::now_infected, bucket)),
                          std::span<int>(series.at(SeriesName::net_infected, bucket)));
   }
 }
 
+// debug code currently not called
 void write_daily_trace_csv(const std::filesystem::path& output_path,
                            const std::vector<absl::CivilDay>& caldays,
-                           const DayData& series) {
+                           const HistorySeries& series) {
   if (caldays.size() != series.day_cnt) {
     throw std::runtime_error("caldays length did not match series.day_cnt");
   }
@@ -127,7 +160,7 @@ void write_daily_trace_csv(const std::filesystem::path& output_path,
   }
 }
 
-void print_total_status_series(const DayData& series, size_t days_per_block) {
+void print_total_status_series(const HistorySeries& series, size_t days_per_block) {
   if (series.day_cnt == 0) {
     fmt::println("\nNo day series to print.");
     return;
@@ -154,7 +187,7 @@ void print_total_status_series(const DayData& series, size_t days_per_block) {
   }
 }
 
-void print_selected_series(std::vector<SeriesSelection> selections, const DayData& series,
+void print_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
                            size_t days_per_block) {
   if (series.day_cnt == 0) {
     fmt::println("\nNo day series to print.");

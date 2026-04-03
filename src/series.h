@@ -66,22 +66,31 @@ inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
 
 /*
 Use as follows:
-create instance variable:         DayData series(day_count);   // pass actual simulated days; storage adds index 0 for 1-indexing
+create instance variable:         HistorySeries series(day_count, pop);   // seeds day-1 now_unexposed from PopData age buckets
 update a specific vector and day: series.at(SeriesName::now_infected, AgeBucket::total)[12]++;
 read a value:                     series.at(SeriesName::now_infected, AgeBucket::total)[12]
 
 `new_*` series are transition-time flows, while `now_*` series are end-of-day stocks.
-`DayData` stores them by semantic name first, then by age bucket.
+`HistorySeries` stores them by semantic name first, then by age bucket.
 */
-struct DayData {
+struct HistorySeries {
     using BucketSeries = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;
 
     size_t day_cnt;  // actual simulated day count; vectors allocate one extra slot for unused index 0
     std::array<BucketSeries, size_t(SeriesName::COUNT)> cols;
 
-    DayData(size_t day_cnt) : day_cnt(day_cnt) {
+    HistorySeries(size_t day_cnt) : day_cnt(day_cnt) {
         for (auto& group : cols) {
             for (auto& v : group) v.assign(day_cnt + 1, 0);  // days are 1 indexed
+        }
+    }
+
+    HistorySeries(size_t day_cnt, const PopData& pop) : HistorySeries(day_cnt) {
+        if (day_cnt == 0) return;
+
+        cols[size_t(SeriesName::now_unexposed)][size_t(AgeBucket::total)][1] = static_cast<int>(pop.popn);
+        for (size_t i = 0; i < pop.agegrp_parts.size(); ++i) {
+            cols[size_t(SeriesName::now_unexposed)][i + 1][1] = pop.agegrp_parts[i];
         }
     }
 
@@ -97,12 +106,13 @@ struct DayData {
 
 
 AgeBucket bucket_from_age(Agegrp agegrp);
-void increment_series(DayData& series, SeriesName name, Agegrp agegrp, size_t day);
-void update_series(const PopData & pop, DayData & series);
-void finalize_series(DayData& series);
+void init_history_series(HistorySeries & series, size_t day);
+void delta_series(HistorySeries& series, SeriesName name, Agegrp agegrp, size_t day, int change);
+void update_series(const PopData & pop, HistorySeries & series);
+void finalize_series(HistorySeries& series);
 void write_daily_trace_csv(const std::filesystem::path& output_path,
                            const std::vector<absl::CivilDay>& caldays,
-                           const DayData& series);
-void print_total_status_series(const DayData& series, size_t days_per_block = 15);
-void print_selected_series(std::vector<SeriesSelection> selections, const DayData& series,
+                           const HistorySeries& series);
+void print_total_status_series(const HistorySeries& series, size_t days_per_block = 15);
+void print_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
                            size_t days_per_block = 15);

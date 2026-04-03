@@ -83,7 +83,7 @@ bool matches_filter(PopData::AgentView person, const Filter& filt) {
 // Apply change terms to a person via AgentView, routing status changes through
 // make_sick / make_well / make_dead to preserve all invariants.
 // Guard: make_sick is only applied to Unexposed or Recovered persons.
-void apply_change(PopData::AgentView person, const Change& chg, DayData& series) {
+void apply_change(PopData::AgentView person, const Change& chg, HistorySeries& series) {
   // Find a status term if present
   auto status_it = std::find_if(chg.terms.begin(), chg.terms.end(),
                                 [](const Term& t) { return t.trait == "status"; });
@@ -133,7 +133,7 @@ void apply_change(PopData::AgentView person, const Change& chg, DayData& series)
 
 
 // SeedCase::operator(): find candidates via filter, apply change to up to change.count of them.
-vector<size_t> SeedCase::operator()(DayData& series) {
+vector<size_t> SeedCase::operator()(HistorySeries& series) {
   vector<size_t> seeded;
   int matched = 0;
   for (size_t i = 1; i <= pop.popn && matched < change.count; ++i) {
@@ -188,7 +188,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   xo::seed(99999);  // have used 12345
 
   // create vector set for series statistics
-  DayData series(model.ndays);
+  HistorySeries series(model.ndays, pop);
 
   // reset day counter to zero
   sim::reset_day();
@@ -227,6 +227,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
     // start a new day
     sim::incr_day();
     sim::ds.day = sim::get_day();
+    init_history_series(series, d_i);
 
     // run beginning of day seed cases
     for (auto& sc : seedcases)
@@ -259,7 +260,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       auto spr_variant = person.get_variant();    
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
-        sim::ds.starting_spreaders++;
+        // sim::ds.starting_spreaders++;
         spread(pop, series, person, mp.socialdata, mp.infectparams, mp.vaxset,
                model.dovax, contacts, density_factor, model.indoor_seq);
       }
@@ -273,9 +274,9 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
     } // end persons loop
 
     // update history series
-    history_timing.start();
-    update_series(pop, series);
-    history_timing.cum();
+    // history_timing.start();
+    // update_series(pop, series);
+    // history_timing.cum();
 
     if (d_i == 90) {
       std::vector<size_t> rows;
@@ -293,17 +294,19 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
     // Print daily outcomes
     // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
     //              sim::ds.day, sim::ds.starting_spreaders, sim::ds.num_contacts, sim::ds.num_touched,
-    //              sim::ds.num_new_infected, sim::ds.num_recovered, sim::ds.num_died);
+    //              sim::ds.num_new_infected, sim::ds.num_new_recovered, sim::ds.num_died);
 
     // run end of day cases
 
     // cleanup sim::ds
-    sim::ds.reset();
+    // sim::ds.reset();
 
   } // day loop
 
+  history_timing.start();
   finalize_series(series);
- 
+  history_timing.cum();
+
   //
   // at end of simulation
   // 

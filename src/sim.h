@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 
 // Forward declaration
 struct Model;
-struct DayData;
+struct HistorySeries;
 
 struct Config {
   int days {180};
@@ -46,7 +46,7 @@ namespace sim {
       int num_touched{};
       int num_new_infected{};
       int num_died{};
-      int num_recovered{};
+      int num_new_recovered{};
 
       void reset() {
         starting_spreaders = 0;
@@ -54,7 +54,7 @@ namespace sim {
         num_touched = 0;
         num_new_infected = 0;
         num_died = 0;
-        num_recovered = 0;
+        num_new_recovered = 0;
       }
     };
 
@@ -96,7 +96,7 @@ struct SeedCase {
         filter(std::move(filt)), change(std::move(chg)), pop(pop) {}
   SeedCase() = delete;
 
-  vector<size_t> operator()(DayData& series);
+  vector<size_t> operator()(HistorySeries& series);
 };
 
 struct SummaryData {

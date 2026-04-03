@@ -45,11 +45,22 @@ float require_effectiveness(const VaxParams& params,
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::AgentView::make_sick(Variant var,  DayData & series, Condition condition, uint8_t durationdays) {
+void PopData::AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t durationdays) {
+  auto today = sim::get_day();
+  delta_series(series, SeriesName::new_infected, agegrp(), today, 1);
+  delta_series(series, SeriesName::now_infected, agegrp(), today, 1);
+
+  if (status() == Stat::Recovered) {
+    delta_series(series, SeriesName::now_recovered, agegrp(), today, -1);
+  } else {
+    if (status() == Stat::Unexposed) {
+      delta_series(series, SeriesName::now_unexposed, agegrp(), today, -1);
+    }
+  }
   cond() = condition;
   duration() = durationdays;
   status() = Stat::Infectious;
-  increment_series(series, SeriesName::new_infected, agegrp(), sim::get_day());
+  // increment_series(series, SeriesName::new_infected, agegrp(), sim::get_day());
 
   auto &variant_vec = all_variants();
   auto &variant_cnt = variant_count();
@@ -80,10 +91,15 @@ declaration is in population.h PopData::AgentView
 method applied to an AgentView instance:  person.make_well()
 as a method of AgentView, the instance variable is not used to apply methods or access members 
 */
-void PopData::AgentView::make_well(DayData & series) {    // the object is person--the implied argument
+void PopData::AgentView::make_well(HistorySeries & series) {    // the object is person--the implied argument
+  auto today = sim::get_day();
+  delta_series(series, SeriesName::now_recovered, agegrp(), today, 1);
+  delta_series(series, SeriesName::new_recovered, agegrp(), today, 1);
+  delta_series(series, SeriesName::now_infected, agegrp(), today, -1);
+
   cond() = Cond::Uninfected; // equivalent to person.cond() in other functions where person defined
   status() = Stat::Recovered; 
-  increment_series(series, SeriesName::new_recovered, agegrp(), sim::get_day());
+  // increment_series(series, SeriesName::new_recovered, agegrp(), sim::get_day());
   duration() = 0; 
   // update recovday
   if (recovday_count() < 16) {
@@ -101,13 +117,15 @@ void PopData::AgentView::make_well(DayData & series) {    // the object is perso
 }
 
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
-void PopData::AgentView::make_dead(DayData & series) {
+void PopData::AgentView::make_dead(HistorySeries & series) {
+    auto today = sim::get_day();
+    delta_series(series, SeriesName::now_dead, agegrp(), today, 1);
+    delta_series(series, SeriesName::new_dead, agegrp(), today, 1);
+    delta_series(series, SeriesName::now_infected, agegrp(), today, -1);
+
   // update the person: update deadday and status for the person
-  deadday() = sim::get_day();   
+  deadday() = today;   
   status() = Stat::Dead; // TODO will we need to set cond to uninfected for any other logic?
-  // update the history of the simulation
-  sim::ds.num_died++;
-  increment_series(series, SeriesName::new_dead, agegrp(), deadday());
 }
 
 

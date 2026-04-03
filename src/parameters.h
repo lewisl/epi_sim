@@ -31,8 +31,9 @@ struct Agegrp {
       "Unknown", "Age0_19", "Age20_39", "Age40_59", "Age60_79", "Age80_Up"};
 
   std::string name() const noexcept { return names[v]; }
-    
+  // constructor  
   constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
+  
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Agegrp &) const = default;
 };

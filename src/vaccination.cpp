@@ -39,7 +39,7 @@ static void doshots(
         const absl::flat_hash_map<string, int>& delaybooster,
         vector<size_t>& eligible,
         PopData& pop,
-        DayData& series)
+        HistorySeries& series)
 {
     auto& specs = sched.vaxesincluded;
 
@@ -94,7 +94,8 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
-            increment_series(series, SeriesName::new_vaccinated, agent.agegrp(), today);
+            delta_series(series, SeriesName::new_vaccinated, agent.agegrp(), today, 1);
+            delta_series(series, SeriesName::now_vaccinated, agent.agegrp(), today, 1);
 
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
@@ -153,7 +154,7 @@ static void vaccinate_sched(int today,
                             const VaxSet& vaxset,
                             const MapEnum<uint8_t>& vaxlist,
                             PopData& pop,
-                            DayData& series)
+                            HistorySeries& series)
 {
     auto& specs    = sched.vaxesincluded;
     auto& dayrange = sched.dayrange;
@@ -215,7 +216,7 @@ void vaccinate(int today,
                const VaxSet& vaxset,
                const MapEnum<uint8_t>& vaxlist,
                PopData& pop,
-               DayData& series)
+               HistorySeries& series)
 {
     for (auto& [name, sched] : schedset.schedules) {
         (void)name;

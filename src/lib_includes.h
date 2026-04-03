@@ -8,12 +8,14 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <csv2/reader.hpp>
 #include <filesystem>
 #include <fmt/base.h>
 #include <fmt/format.h> // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h> // for printing containers like vector
+#include <fmt/ostream.h> // to use ostream file handles and << >> operators
 #include <fstream>
 #include <functional>
 #include <iomanip>

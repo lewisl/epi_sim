@@ -3,7 +3,7 @@ add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg
 set_languages("c++23")
 set_toolchains("llvm")
 set_optimize("fastest")
-set_pcxxheader("src/lib_includes.h") -- put all includes for stdlib, stl, external packages here
+-- set_pcxxheader("src/lib_includes.h") -- put all includes for stdlib, stl, external packages here
 
 target("epi_sim")
     set_kind("binary")
@@ -21,7 +21,8 @@ target("test")
 target("this")
     set_kind("binary")
     set_default("false")
-    add_files("scratch/fake_enums.cpp")  -- or any other cpp file in scratch dir
+    add_packages("vcpkg::fmt")
+    add_files("scratch/print_vector.cpp")  
 
 target("randstuff")
     set_kind("binary")

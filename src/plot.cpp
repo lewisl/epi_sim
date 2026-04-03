@@ -113,7 +113,7 @@ void produce_plot(std::string base_fname, std::string end_message, json data, js
 //
 // standard plot types for simulation history output
 //
-void seriesplot(std::vector<SeriesSelection> selections, const DayData& series,
+void seriesplot(std::vector<SeriesSelection> selections, const HistorySeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack) {
 

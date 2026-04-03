@@ -10,7 +10,7 @@
 #include "parameters.h"
 
 // forward declarations
-struct DayData;
+struct HistorySeries;
 
 using std::array;
 using std::string;
@@ -26,14 +26,17 @@ class PopData {
   public:
     std::size_t popn; // actual population size
     std::size_t popz; // popn+1: array sizing for 1 indexing all vectors
+    vector<int> agegrp_parts; // apportioned population counts for Age0_19..Age80_up
 
       // constructor
       // clang-format off
   PopData(size_t n, MapEnum<uint8_t> vax_lbl, 
           MapEnum<uint8_t> true_false, MapEnum<int> Justint,
           const vector<double>& age_dist=AGE_DIST)  
-      : popn(n), popz(n+1), status(n+1, Stat::Unexposed),
-        agegrp(age_distribution(n, age_dist)), // does not create a vector: splits pop into agegrps
+      : popn(n), popz(n+1),
+        agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
+        status(n+1, Stat::Unexposed),
+        agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
         cond(n+1, Cond::Uninfected), duration(n+1, 0),
         variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
         recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
@@ -155,9 +158,9 @@ at one index value.  No row is materialized. We only pay when we access somethin
       //
       // methods defined in disease_modeling.cpp as PopData::AgentView::make_well,etc.
       // change status of 1 person, keeping all traits consistent. the person is the object: person.make_well(series)
-      void make_sick(Variant var, DayData & series, Condition condition = Cond::Nil, uint8_t durationdays = 1);
-      void make_well(DayData & series);
-      void make_dead(DayData & series);  
+      void make_sick(Variant var, HistorySeries & series, Condition condition = Cond::Nil, uint8_t durationdays = 1);
+      void make_well(HistorySeries & series);
+      void make_dead(HistorySeries & series);  
       
   };  // end of struct AgentView
 
@@ -174,12 +177,8 @@ at one index value.  No row is materialized. We only pay when we access somethin
   MapEnum<int> Justint;
   MapEnum<uint8_t> true_false;
 
-    vector<Agegrp> age_distribution(int popn, const auto &age_parts) {
-      assert(age_parts.size() == 5);
-
-      // Convert proportions to counts using apportion
-      vector<float> proportions(age_parts.begin(), age_parts.end());
-      vector<int> counts = apportion(popn, proportions);  // distribute popn people
+    vector<Agegrp> age_distribution(int popn, const vector<int>& counts) {
+      assert(counts.size() == 5);
 
       // +1 for 1-based indexing: index 0 stays Age::Unknown (unused)
       vector<Agegrp> agegrp(popn + 1, Age::Unknown);

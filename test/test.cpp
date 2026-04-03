@@ -404,7 +404,7 @@ void test_agent_pop_print() {
 void test_finalize_series() {
     fmt::print("\n=== Testing Finalize Series ===\n\n");
 
-    DayData series(4);
+    HistorySeries series(4);
     auto& now_infected_total = series.at(SeriesName::now_infected, AgeBucket::total);
     auto& net_infected_total = series.at(SeriesName::net_infected, AgeBucket::total);
     auto& now_infected_40_59 = series.at(SeriesName::now_infected, AgeBucket::age40_59);
@@ -434,7 +434,7 @@ void test_finalize_series() {
     assert(now_infected_total[0] == 99);
     assert(now_infected_40_59[0] == 42);
 
-    DayData single_day_series(1);
+    HistorySeries single_day_series(1);
     auto& single_now_infected_total = single_day_series.at(SeriesName::now_infected, AgeBucket::total);
     auto& single_net_infected_total = single_day_series.at(SeriesName::net_infected, AgeBucket::total);
     single_now_infected_total[0] = 11;
@@ -562,7 +562,7 @@ void test_make_sick_and_seedcase_duration_indexing() {
     Variant::names = {"none", "base"};
 
     PopData pop(4, vax_lbl, true_false, justint);
-    DayData series(5);
+    HistorySeries series(5);
 
     sim::reset_day();
     sim::incr_day();
@@ -864,7 +864,7 @@ void test_model_params() {
 
 //   // Reset sim day to 1
 //   sim::current_day = 1;
-//   DayData series(400);
+//   HistorySeries series(400);
 
 //   // Infect person 1 ten times (days 1, 21, 41, 61, 81, 101, 121, 141, 161, 181)
 //   fmt::println("Infecting person {} 10 times:", person_age20_39.id);
@@ -916,7 +916,7 @@ void test_model_params() {
 //   fmt::println("Setting up independent test environment...");
 //   Model test_model = setup_sim(1000, 38015, "2020-01-01", false);
 //   PopData& pop = test_model.pop;
-//   DayData series(321);
+//   HistorySeries series(321);
 
 //   // Use first real variant (index 1, since 0 is "none")
 //   Variant base_variant = test_model.mp.variants[1];

@@ -1,8 +1,10 @@
 /* TODO items:
 use comments in json files!
+remove debug counter in hotloop or comment out or use debug switch
+serialization of series
+serialization of popdata
 fix bug condition in progressiontree loading
 clean up test:  update for latest API changes.
-fix duplication of seed settings in seedcases and seedfilter
 
 Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again--this
     only matters if we model viral load and if contact affects progression to more severe condition
