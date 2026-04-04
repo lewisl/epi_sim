@@ -50,17 +50,6 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   };
 }
 
-series_type build_series(int n_days, absl::CivilDay day1,
-                         vector<string> series_colnames) {
-
-  // series container
-  series_type series {};
-  /*
-  TODO build it here
-  */
-  return series;
-};
-
 vector <absl::CivilDay> build_caldays(int n_days, absl::CivilDay day1) {
   // vector of all calendar dates in the simulation
   vector<absl::CivilDay> caldays{};
@@ -142,7 +131,7 @@ Model setup_sim(Config config)
     PopData pop(popn, mp.vaxlist, Trait::true_false, Trait::Justint);
     auto day1 = parse_date(date);
 
-    series_type series = build_series(ndays, day1, std::vector<std::string>{});
+    // series_type series = build_series(ndays, day1, std::vector<std::string>{});
     vector<absl::CivilDay> caldays = build_caldays(ndays, day1);
 
     vector<float> indoor_seq = build_indoor_seq(ndays, locale, mp.geodata, caldays, mp.socialdata.indoor_uplift);
@@ -151,7 +140,6 @@ Model setup_sim(Config config)
       .ndays = ndays, 
       .day1 = day1, 
       .caldays = caldays, 
-      .series = series,
       .indoor_seq = indoor_seq,
       .locale = locale,
       .dovax = dovax,

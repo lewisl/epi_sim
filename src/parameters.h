@@ -145,14 +145,13 @@ namespace Vaxstat {
 // Variant -- create instances at runtime
   // call site creates the names for the instances and the container
 struct Variant {
-    uint8_t v{};
-
+  uint8_t v{};
   inline static std::vector<std::string> names;
 
-  std::string name() const noexcept { return names[v]; }
-
-  constexpr Variant() noexcept = default;  // required for array<Variant,16> initialization
   constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
+  constexpr Variant() noexcept = default;  // required for array<Variant,16> initialization
+
+  std::string name() const noexcept { return names[v]; }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Variant &) const = default;
 };

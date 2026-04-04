@@ -21,6 +21,26 @@ const vector<double> AGE_DIST = {0.251, 0.271, 0.255, 0.184, 0.039};
 const uint8_t DURATIONLIM { 25 };   // maximum length of illness in days for anyone
 const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 
+// setup for numeric and string access to PopData columns
+// sickday_count is intentionally omitted from the public column registry because
+// the current model treats variant_count as the authoritative infection-history count.
+enum class ColumnName : uint8_t {
+  status, agegrp, cond, duration, variant, variant_count,
+  sickday, recovday, recovday_count, deadday,
+  ring, sdcase, tested, tested_count, testday,
+  quar, quarday, vaxstatus, vaxrcvd, vax_count, vaxday,
+  COUNT
+};
+
+inline constexpr std::array<std::string_view, size_t(ColumnName::COUNT)> column_name_labels{
+    "status", "agegrp", "cond", "duration", "variant", "variant_count",
+    "sickday", "recovday", "recovday_count", "deadday",
+    "ring", "sdcase", "tested", "tested_count", "testday",
+    "quar", "quarday", "vaxstatus", "vaxrcvd", "vax_count", "vaxday"};
+
+constexpr std::string_view to_string(ColumnName name) {
+  return column_name_labels[size_t(name)];
+}
 
 class PopData {
   public:
@@ -28,22 +48,22 @@ class PopData {
     std::size_t popz; // popn+1: array sizing for 1 indexing all vectors
     vector<int> agegrp_parts; // apportioned population counts for Age0_19..Age80_up
 
-      // constructor
-      // clang-format off
-  PopData(size_t n, MapEnum<uint8_t> vax_lbl, 
+    // constructor
+    // clang-format off
+    PopData(size_t n, MapEnum<uint8_t> vax_lbl, 
           MapEnum<uint8_t> true_false, MapEnum<int> Justint,
           const vector<double>& age_dist=AGE_DIST)  
-      : popn(n), popz(n+1),
-        agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
-        status(n+1, Stat::Unexposed),
-        agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
-        cond(n+1, Cond::Uninfected), duration(n+1, 0),
-        variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
-        recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
-        sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
-        vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
-        vax_lbl(vax_lbl),  true_false(true_false), Justint(Justint) // vaxstatus_lbl(vaxstatus_lbl),
-        // clang-format on
+          : popn(n), popz(n+1),
+            agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
+            status(n+1, Stat::Unexposed),
+            agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
+            cond(n+1, Cond::Uninfected), duration(n+1, 0),
+            variant(n+1), variant_count(n+1), sickday(n+1), sickday_count(n+1),
+            recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
+            sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
+            vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
+            vax_lbl(vax_lbl),  true_false(true_false), Justint(Justint) // vaxstatus_lbl(vaxstatus_lbl),
+            // clang-format on
       {
           if (n <= 0) {
               throw std::invalid_argument(
@@ -51,7 +71,7 @@ class PopData {
           }
       }
 
-
+  // THE VECTORS
   // vectors of pseudo enums as uint8_t or trait classes or
   // vectors of vector for repeating count happening to a person
   vector<Status> status; // default unexposed = 1
@@ -77,30 +97,30 @@ class PopData {
   vector<std::uint8_t> vax_count;
   vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
 
-/* 
-lazy access to "rows" across the vectors.  AgentView is a reference to vector/columns
-at one index value.  No row is materialized. We only pay when we access something:
-  create: auto a = pop.agent(i)
-  use:   if (a.status() == Stat::Unexposed) ...
+  /* 
+  lazy access to "rows" across the vectors.  AgentView is a reference to vector/columns
+  at one index value.  No row is materialized. We only pay when we access something:
+    create: auto a = pop.agent(i)
+    use:   if (a.status() == Stat::Unexposed) ...
 
-  to define a function that takes a "row" as its argument: 
-        `float risk(PopData::AgentView agent) {
-            if (agent.agegrp() == Agegrp::Age80_up) ...;
-          }`
-  to call this function:
-    auto a = pop.agent(i);
-    float risk_factor = risk(a); 
+    to define a function that takes a "row" as its argument: 
+          `float risk(PopData::AgentView agent) {
+              if (agent.agegrp() == Agegrp::Age80_up) ...;
+            }`
+    to call this function:
+      auto a = pop.agent(i);
+      float risk_factor = risk(a); 
 
   A nested struct definition is implicitly a friend class:  needs to be passed pop in the constructor.
-*/
+  */
   struct AgentView {
     private:
       PopData& pop;
-      std::size_t i;
-      friend class PopData;
+      std::size_t i;  // the index to semantic rows and elements of the vectors
+      friend class PopData;  // allows PopData methods to access private members and methods
       // Private constructor
       AgentView(PopData &p, std::size_t index) : pop(p), i(index) {
-        if (i < 1 && i > pop.popn) throw std::runtime_error("Input i must be > 1 and less than number of people.");
+        if (i < 1 || i > pop.popn) throw std::runtime_error("Input i must be > 1 and less than number of people.");
         }
 
     public:  //must have a function for every vector in PopData
@@ -162,7 +182,15 @@ at one index value.  No row is materialized. We only pay when we access somethin
       void make_well(HistorySeries & series);
       void make_dead(HistorySeries & series);  
       
-  };  // end of struct AgentView
+	  };  // end of struct AgentView
+
+  struct PopColumnSpec {
+    ColumnName name;
+    std::string_view key;
+    std::string (*to_txt_cell)(AgentView person);
+  };
+
+  using PopColumnMap = absl::flat_hash_map<std::string_view, PopColumnSpec>;
 
   //
   // enables easy use of AgentView with any instance variable of class PopData
@@ -176,6 +204,16 @@ at one index value.  No row is materialized. We only pay when we access somethin
   MapEnum<uint8_t> vax_lbl;
   MapEnum<int> Justint;
   MapEnum<uint8_t> true_false;
+
+  static std::optional<ColumnName> column_name_from_string(std::string_view text);
+  static const PopColumnMap& column_map();
+  static const PopColumnSpec* find_column(ColumnName name);
+  static const PopColumnSpec* find_column(std::string_view key);
+  static std::vector<const PopColumnSpec*> resolve_columns(std::span<const std::string_view> col_names);
+  static std::vector<const PopColumnSpec*> resolve_columns(const std::vector<std::string>& col_names);
+  static std::vector<const PopColumnSpec*> resolve_columns(std::initializer_list<std::string_view> col_names);
+  void serialize_selected_columns(std::vector<string> selections, string base_fname,
+                                  vector<string> path_steps = {});
 
     vector<Agegrp> age_distribution(int popn, const vector<int>& counts) {
       assert(counts.size() == 5);
@@ -249,6 +287,5 @@ at one index value.  No row is materialized. We only pay when we access somethin
     }
 
 };
-
 
 #endif

@@ -10,10 +10,6 @@ auto total_status_names = std::array{
     SeriesName::now_infected, SeriesName::now_unexposed,
     SeriesName::now_recovered, SeriesName::now_dead};
 
-std::string format_civil_day(absl::CivilDay day) {
-  return fmt::format("{:04d}-{:02d}-{:02d}", day.year(), unsigned(day.month()), day.day());
-}
-
 void ensure_parent_dir(const std::filesystem::path& output_path) {
   auto parent = output_path.parent_path();
   if (!parent.empty()) {
@@ -72,39 +68,6 @@ void HistorySeries::finalize_series() {
   for (auto bucket : all_age_buckets) {
     diff_from_cumulative(std::span<int>(at(SeriesName::now_infected, bucket)),
                          std::span<int>(at(SeriesName::net_infected, bucket)));
-  }
-}
-
-// debug code currently not called
-void write_daily_trace_csv(const std::filesystem::path& output_path,
-                           const std::vector<absl::CivilDay>& caldays,
-                           const HistorySeries& series) {
-  if (caldays.size() != series.day_cnt) {
-    throw std::runtime_error("caldays length did not match series.day_cnt");
-  }
-
-  ensure_parent_dir(output_path);
-  std::ofstream out(output_path);
-  if (!out) {
-    throw std::runtime_error(fmt::format("Could not open daily trace file '{}'", output_path.string()));
-  }
-
-  out << "day,calday,contacts,touched,new_infected,spread_new_infected,recovered,dead,"
-         "new_infected_age60_79,recovered_age60_79,dead_age60_79,"
-         "new_infected_age80_up,recovered_age80_up,dead_age80_up\n";
-
-  for (size_t day = 1; day <= series.day_cnt; ++day) {
-    out << day << ','
-        << format_civil_day(caldays[day - 1]) << ','
-        << series.at(SeriesName::new_infected, AgeBucket::total)[day] << ','
-        << series.at(SeriesName::new_recovered, AgeBucket::total)[day] << ','
-        << series.at(SeriesName::new_dead, AgeBucket::total)[day] << ','
-        << series.at(SeriesName::new_infected, AgeBucket::age60_79)[day] << ','
-        << series.at(SeriesName::new_recovered, AgeBucket::age60_79)[day] << ','
-        << series.at(SeriesName::new_dead, AgeBucket::age60_79)[day] << ','
-        << series.at(SeriesName::new_infected, AgeBucket::age80_up)[day] << ','
-        << series.at(SeriesName::new_recovered, AgeBucket::age80_up)[day] << ','
-        << series.at(SeriesName::new_dead, AgeBucket::age80_up)[day] << '\n';
   }
 }
 

@@ -22,7 +22,7 @@ target("this")
     set_kind("binary")
     set_default("false")
     add_packages("vcpkg::fmt")
-    add_files("scratch/print_vector.cpp")  
+    add_files("scratch/new-parameters.cpp")  
 
 target("randstuff")
     set_kind("binary")

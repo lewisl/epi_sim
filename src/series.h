@@ -74,6 +74,7 @@ struct HistorySeries {
         }
     }
 
+    // this is the constructor--there aren't normal names for the columns--just an array of columns
     HistorySeries(size_t day_cnt, const PopData& pop) : HistorySeries(day_cnt) {
         if (day_cnt == 0) return;
 
@@ -100,9 +101,6 @@ struct HistorySeries {
 
 
 AgeBucket bucket_from_age(Agegrp agegrp);
-void write_daily_trace_csv(const std::filesystem::path& output_path,
-                           const std::vector<absl::CivilDay>& caldays,
-                           const HistorySeries& series);
 void print_total_status_series(const HistorySeries& series, size_t days_per_block = 15);
 void print_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
                            size_t days_per_block = 15);

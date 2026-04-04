@@ -401,6 +401,80 @@ void test_agent_pop_print() {
     fmt::println("=== Agent Pop Printer Test Completed ===");
 }
 
+void test_pop_column_registry() {
+    fmt::print("\n=== Testing Pop Column Registry ===\n\n");
+
+    PopData pop = poptable_test::make_popdata_print_fixture();
+
+    assert(PopData::column_map().size() == size_t(ColumnName::COUNT));
+    for (const auto& [key, spec] : PopData::column_map()) {
+        assert(key == spec.key);
+        assert(spec.key == to_string(spec.name));
+        assert(PopData::find_column(spec.name) != nullptr);
+        assert(PopData::find_column(spec.name)->key == spec.key);
+        assert(PopData::find_column(spec.key) != nullptr);
+        assert(PopData::find_column(spec.key)->name == spec.name);
+    }
+
+    assert(PopData::column_name_from_string("status") == ColumnName::status);
+    assert(PopData::column_name_from_string("testday") == ColumnName::testday);
+    assert(PopData::column_name_from_string("vaxrcvd") == ColumnName::vaxrcvd);
+    assert(!PopData::column_name_from_string("sickday_count").has_value());
+    assert(!PopData::column_name_from_string("does_not_exist").has_value());
+
+    const auto selected = PopData::resolve_columns({"status", "variant", "tested", "vaxrcvd"});
+    assert(selected.size() == 4);
+    assert(selected[0]->name == ColumnName::status);
+    assert(selected[1]->name == ColumnName::variant);
+    assert(selected[2]->name == ColumnName::tested);
+    assert(selected[3]->name == ColumnName::vaxrcvd);
+
+    bool bad_column_threw = false;
+    try {
+        PopData::resolve_columns({"status", "sickday_count"});
+    } catch (const std::invalid_argument&) {
+        bad_column_threw = true;
+    }
+    assert(bad_column_threw);
+
+    const auto row1 = pop.agent(1);
+    const auto row2 = pop.agent(2);
+    const auto row3 = pop.agent(3);
+
+    assert(PopData::find_column("status")->to_txt_cell(row2) == "Infectious");
+    assert(PopData::find_column("agegrp")->to_txt_cell(row2) == "Age40_59");
+    assert(PopData::find_column("cond")->to_txt_cell(row2) == "Mild");
+    assert(PopData::find_column("duration")->to_txt_cell(row2) == "5");
+    assert(PopData::find_column("ring")->to_txt_cell(row2) == "3");
+    assert(PopData::find_column("sdcase")->to_txt_cell(row2) == "false");
+    assert(PopData::find_column("quar")->to_txt_cell(row2) == "true");
+    assert(PopData::find_column("quarday")->to_txt_cell(row2) == "8");
+    assert(PopData::find_column("vaxstatus")->to_txt_cell(row2) == "booster");
+
+    assert(PopData::find_column("variant")->to_txt_cell(row1) == "alpha");
+    assert(PopData::find_column("variant")->to_txt_cell(row2) == "alpha|delta");
+    assert(PopData::find_column("variant")->to_txt_cell(row3).empty());
+    assert(PopData::find_column("variant_count")->to_txt_cell(row2) == "2");
+
+    assert(PopData::find_column("sickday")->to_txt_cell(row1) == "2");
+    assert(PopData::find_column("sickday")->to_txt_cell(row2) == "4|11");
+    assert(PopData::find_column("recovday")->to_txt_cell(row1) == "9");
+    assert(PopData::find_column("recovday")->to_txt_cell(row2).empty());
+    assert(PopData::find_column("recovday_count")->to_txt_cell(row1) == "1");
+
+    assert(PopData::find_column("tested")->to_txt_cell(row2) == "false|true");
+    assert(PopData::find_column("tested")->to_txt_cell(row3).empty());
+    assert(PopData::find_column("tested_count")->to_txt_cell(row2) == "2");
+    assert(PopData::find_column("testday")->to_txt_cell(row2) == "6|12");
+
+    assert(PopData::find_column("vaxrcvd")->to_txt_cell(row2) == "pfizer|moderna");
+    assert(PopData::find_column("vaxrcvd")->to_txt_cell(row3).empty());
+    assert(PopData::find_column("vax_count")->to_txt_cell(row2) == "2");
+    assert(PopData::find_column("vaxday")->to_txt_cell(row2) == "5|14");
+
+    fmt::println("=== Pop Column Registry Test Completed ===");
+}
+
 void test_finalize_series() {
     fmt::print("\n=== Testing Finalize Series ===\n\n");
 
@@ -424,7 +498,7 @@ void test_finalize_series() {
     now_infected_40_59[3] = 0;
     now_infected_40_59[4] = 4;
 
-    finalize_series(series);
+    series.finalize_series();
 
     const vector<int> expected_total = {77, 3, 2, -1, 5};
     const vector<int> expected_age = {24, 1, 0, -1, 4};
@@ -441,7 +515,7 @@ void test_finalize_series() {
     single_net_infected_total[0] = 22;
     single_now_infected_total[1] = 6;
 
-    finalize_series(single_day_series);
+    single_day_series.finalize_series();
 
     assert(single_net_infected_total[0] == 22);
     assert(single_net_infected_total[1] == 6);
@@ -578,8 +652,13 @@ void test_make_sick_and_seedcase_duration_indexing() {
     assert(first_person.get_variant() == Variant{1});
     assert(first_person.get_sickday() == 1);
 
-    vector<SeedFilter> filters{{Age::Age20_39, Cond::Mild, 3, Variant{1}, 1}};
-    SeedCase seed_case(2, true, filters, pop);
+    Filter filter{{{"agegrp", int32_t(uint8_t(Age::Age20_39))}}};
+    Change change{{{"status", int32_t(uint8_t(Stat::Infectious))},
+                   {"cond", int32_t(uint8_t(Cond::Mild))},
+                   {"duration", 3},
+                   {"variant", 1}},
+                  1};
+    SeedCase seed_case(2, true, filter, change, pop);
 
     sim::incr_day();
     sim::ds.day = sim::get_day();
@@ -1191,6 +1270,7 @@ void test_random_functions() {
 // }
 
 int main() {
+  test_pop_column_registry();
   // test_agent_pop_print();
   test_model_params();
   // test_build_model();

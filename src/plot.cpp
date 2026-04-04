@@ -7,7 +7,7 @@
 #include <ctime>
 
 namespace {
-
+// {{NAME}} denotes a template slug that should be replaced
 std::string html_template = R"TAG(<!doctype html>
 <html>
 <head>
