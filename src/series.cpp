@@ -20,15 +20,15 @@ void ensure_parent_dir(const std::filesystem::path& output_path) {
 
 AgeBucket bucket_from_age(Agegrp agegrp) {
   switch (agegrp.v) {
-    case Age::Age0_19.v:
+    case AGE0_19.v:
       return AgeBucket::age0_19;
-    case Age::Age20_39.v:
+    case AGE20_39.v:
       return AgeBucket::age20_39;
-    case Age::Age40_59.v:
+    case AGE40_59.v:
       return AgeBucket::age40_59;
-    case Age::Age60_79.v:
+    case AGE60_79.v:
       return AgeBucket::age60_79;
-    case Age::Age80_up.v:
+    case AGE80_UP.v:
       return AgeBucket::age80_up;
     default:
       throw std::runtime_error("Unknown age group for series bucket mapping");

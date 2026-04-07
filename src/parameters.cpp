@@ -84,19 +84,15 @@ GeoData load_geodata_csv(const std::string& filename) {
 
 std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata) {
 
-  uint8_t vnum{0};
+  Variant::names.clear();
   vector<Variant> variants;
-  variants.emplace_back(Variant{vnum});
-  Variant::names.push_back("none");
+  variants.emplace_back(Variant{"none"});
 
   for (auto variant : jdata.items()) {
-    ++vnum;
-    variants.emplace_back(Variant{vnum});
-    Variant::names.push_back(variant.key());
-    // variants.add_item(variant.key());
+    variants.emplace_back(Variant{variant.key()});
   }
 
-  if (vnum < 1) {
+  if (variants.size() < 2) {
     throw std::runtime_error("No variants loaded from json file of variants. Can't run simulation.");
   }
 
@@ -336,7 +332,7 @@ static Agegrp agegrp_from_string(const string& s) {
         if (sl == nl) return Agegrp{static_cast<uint8_t>(i)};
     }
     fmt::println("WARNING: unknown agegrp filter string: {}", s);
-    return Age::Unknown;
+    return UNKNOWN;
 }
 
 
@@ -440,7 +436,7 @@ SocialParams load_social_params(string social_path) {
 void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant> & variants) {
   fmt::println("========== InfectParams =============");
   for (size_t i = 0; i < infectparams.size(); ++i) {
-    fmt::println(" ==== infectparams of variant {} ====", variants[i].name());
+    fmt::println(" ==== infectparams of variant {} ====", variants[i].show());
     fmt::print("  sendrisk={},\n  recvrisk={},\n  basemultiplier={:.2f},   halflife={}\n",
                infectparams[i].sendrisk,
                infectparams[i].recvrisk,

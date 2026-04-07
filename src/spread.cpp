@@ -6,7 +6,7 @@
 #include "sim.h"
 
   // simplified early version of spread  TODO need vaxset, dovax sdcases
-  void spread(PopData &pop, HistorySeries & series, PopData::AgentView person, SocialParams &social,
+  void spread(PopData &pop, HistorySeries & series, AgentView person, SocialParams &social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq) {
@@ -17,7 +17,7 @@
   const auto& contactfactors = social.contactfactors;
   const auto& touchfactors = social.touchfactors;
   auto gammashape = social.gammashape;
-  auto spr_variant = person.get_variant();
+  auto spr_variant = person.variant();
   auto spr_agegrp = person.agegrp();
   auto spr_cond = person.cond();
   auto indoor_factor = indoor_seq[zidx(thisday)];
@@ -36,7 +36,7 @@
     float touchprob {0.0};
 
     // determine touchprob
-    if ((c_status == Stat::Unexposed) || (c_status == Stat::Recovered)) {
+    if ((c_status == UNEXPOSED) || (c_status == RECOVERED)) {
       uint8_t target_touchmap = touch_map(c_status, contact.cond());
       auto baseprob = touchfactors[idx(target_touchmap)][zidx(contact.agegrp())];
       if (indoor_factor == 1.0f) {

@@ -6,22 +6,22 @@
 
 uint8_t touch_map(Status target_status, Condition target_cond);
 
-float touch_probability(PopData::AgentView contact,
+float touch_probability(AgentView contact,
                         const array<array<float, 5>, 6> &touchfactors,
                         float indoor_factor);
-bool istouched(PopData::AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor);
+bool istouched(AgentView contact, const array<array<float, 5>, 6> &touchfactors, float indoor_factor);
 
 float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
                  uint8_t spr_duration, uint8_t contact_agegrp, float recovfactor= 1.0, float vaxfactor= 1.0);
 
-bool isinfected(PopData::AgentView contact, PopData::AgentView spreader,
+bool isinfected(AgentView contact, AgentView spreader,
                 vector<InfectParams> &infectparams, const VaxSet& vaxset,
                 bool dovax, int thisday);
 
-float recoveffect(PopData::AgentView person, size_t thisday, uint8_t spr_variant, vector<InfectParams> &infectparams,
+float recoveffect(AgentView person, size_t thisday, uint8_t spr_variant, vector<InfectParams> &infectparams,
                   float csig = 6.0, float decay_lower = 0.15);
 
-float vaxeffect(size_t thisday, PopData::AgentView person, const VaxSet& vaxset,
+float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
                 uint8_t target_variant, float csig = 6.0, float decay_lower = 0.15);
 
 float vax_recov(float vaxfactor, float recovfactor);

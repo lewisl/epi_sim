@@ -15,11 +15,11 @@ nil (asymptomatic) to mild to sick to severe, depending on their
 agegroup, days of being exposed, and some probability. Finally,  
 they move to recovered or dead. Note: p is the contacted person.
 */ 
-void progression(PopData::AgentView person, HistorySeries & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
+void progression(AgentView person, HistorySeries & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
                  array<float, 6> &probvec, bool dovax, VaxSet &vaxset) {
   auto today = sim::get_day();
   // extract traits for current person -- won't update these
-  const auto p_variant = person.get_variant();   
+  const auto p_variant = person.variant();   
   const auto p_vaxstatus = person.vaxstatus();  
 
   // set scope to function level
@@ -81,7 +81,7 @@ Progress an infected person to a new condition or status if called
 with a progression array (trvec) or increment
 the number of days the person has been sick.
 */
-void do_progression(PopData::AgentView person, HistorySeries & series, const array<float,6> &probvec, size_t today) {  // PopData &pop, size_t p
+void do_progression(AgentView person, HistorySeries & series, const array<float,6> &probvec, size_t today) {  // PopData &pop, size_t p
 
   uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
 

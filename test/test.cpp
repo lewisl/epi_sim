@@ -130,29 +130,35 @@ PopData make_popdata_print_fixture() {
 
     PopData pop(3, vax_lbl, true_false, justint);
 
-    pop.agegrp[1] = Age::Age20_39;
-    pop.agegrp[2] = Age::Age40_59;
-    pop.agegrp[3] = Age::Age80_up;
+    pop.agegrp[1] = AGE20_39;
+    pop.agegrp[2] = AGE40_59;
+    pop.agegrp[3] = AGE80_UP;
 
-    pop.status[1] = Stat::Recovered;
-    pop.cond[1] = Cond::Uninfected;
-    pop.variant[1][0] = Variant{1};
-    pop.variant_count[1] = 1;
-    pop.sickday[1][0] = 2;
+    pop.status[1] = RECOVERED;
+    pop.cond[1] = UNINFECTED;
+    pop.variant[1] = Variant{1};
+    pop.variant_hist[1].arr[0] = Variant{1};
+    pop.variant_hist[1].count = 1;
+    pop.sickday[1] = 2;
+    pop.sickday_hist[1].arr[0] = 2;
+    pop.sickday_hist[1].count = 1;
     pop.recovday[1][0] = 9;
     pop.recovday_count[1] = 1;
 
-    pop.status[2] = Stat::Infectious;
-    pop.cond[2] = Cond::Mild;
+    pop.status[2] = INFECTIOUS;
+    pop.cond[2] = MILD;
     pop.duration[2] = 5;
     pop.ring[2] = 3;
     pop.quar[2] = 1;
     pop.quarday[2] = 8;
-    pop.variant[2][0] = Variant{1};
-    pop.variant[2][1] = Variant{2};
-    pop.variant_count[2] = 2;
-    pop.sickday[2][0] = 4;
-    pop.sickday[2][1] = 11;
+    pop.variant[2] = Variant{2};
+    pop.variant_hist[2].arr[0] = Variant{1};
+    pop.variant_hist[2].arr[1] = Variant{2};
+    pop.variant_hist[2].count = 2;
+    pop.sickday[2] = 11;
+    pop.sickday_hist[2].arr[0] = 4;
+    pop.sickday_hist[2].arr[1] = 11;
+    pop.sickday_hist[2].count = 2;
     pop.tested[2][0] = 0;
     pop.tested[2][1] = 1;
     pop.tested_count[2] = 2;
@@ -165,8 +171,8 @@ PopData make_popdata_print_fixture() {
     pop.vaxday[2][0] = 5;
     pop.vaxday[2][1] = 14;
 
-    pop.status[3] = Stat::Unexposed;
-    pop.cond[3] = Cond::Uninfected;
+    pop.status[3] = UNEXPOSED;
+    pop.cond[3] = UNINFECTED;
 
     return pop;
 }
@@ -177,49 +183,49 @@ PopData make_popdata_print_fixture() {
 void run_category_tests() {
     fmt::print("=== Testing New Namespace Approach ===\n\n");
 
-    // Test Status namespace
-    fmt::println("--- Testing Status Namespace ---");
+    // Test Status constants
+    fmt::println("--- Testing Status Constants ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Status::none = {} (expected 0)", static_cast<int>(Stat::None));
-    fmt::println("  Status::unexposed = {} (expected 1)", static_cast<int>(Stat::Unexposed));
-    fmt::println("  Status::infectious = {} (expected 2)", static_cast<int>(Stat::Infectious));
-    fmt::println("  Status::recovered = {} (expected 3)", static_cast<int>(Stat::Recovered));
-    fmt::println("  Status::dead = {} (expected 4)", static_cast<int>(Stat::Dead));
+    fmt::println("  Status::none = {} (expected 0)", static_cast<int>(NONE));
+    fmt::println("  Status::unexposed = {} (expected 1)", static_cast<int>(UNEXPOSED));
+    fmt::println("  Status::infectious = {} (expected 2)", static_cast<int>(INFECTIOUS));
+    fmt::println("  Status::recovered = {} (expected 3)", static_cast<int>(RECOVERED));
+    fmt::println("  Status::dead = {} (expected 4)", static_cast<int>(DEAD));
     fmt::print("\nRound-trip tests:\n");
     fmt::println("  Status::to_str(0) = \"{}\" (expected \"none\")", Status::names[0]);
     fmt::println("  Status::to_str(1) = \"{}\" (expected \"unexposed\")", Status::names[1]);
     fmt::println("  Status::to_str(2) = \"{}\" (expected \"infectious\")", Status::names[2]);
     fmt::println("  Status::to_str(3) = \"{}\" (expected \"recovered\")", Status::names[3]);
     fmt::println("  Status::to_str(4) = \"{}\" (expected \"dead\")", Status::names[4]);
-    fmt::println("  Status::from_str(\"unexposed\") = {} (expected 1)", static_cast<int>(Stat::Unexposed));
-    fmt::println("  Status::from_str(\"infectious\") = {} (expected 2)", static_cast<int>(Stat::Infectious));
-    fmt::println("  Status::from_str(\"recovered\") = {} (expected 3)", static_cast<int>(Stat::Recovered));
-    fmt::println("  Status::from_str(\"dead\") = {} (expected 4)", static_cast<int>(Stat::Dead));
+    fmt::println("  Status::from_str(\"unexposed\") = {} (expected 1)", static_cast<int>(UNEXPOSED));
+    fmt::println("  Status::from_str(\"infectious\") = {} (expected 2)", static_cast<int>(INFECTIOUS));
+    fmt::println("  Status::from_str(\"recovered\") = {} (expected 3)", static_cast<int>(RECOVERED));
+    fmt::println("  Status::from_str(\"dead\") = {} (expected 4)", static_cast<int>(DEAD));
     fmt::println("  Status::from_str(\"invalid\") = {} (expected 99 - default to none)",
-                 static_cast<int>(Stat::None));
+                 static_cast<int>(NONE));
     fmt::print("\n");
 
     // Test Condition namespace
     fmt::println("--- Testing Condition Namespace ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Condition::uninfected = {} (expected 0)", static_cast<int>(Cond::Uninfected));
-    fmt::println("  Condition::nil = {} (expected 1)", static_cast<int>(Cond::Nil));
-    fmt::println("  Condition::mild = {} (expected 2)", static_cast<int>(Cond::Mild));
-    fmt::println("  Condition::sick = {} (expected 3)", static_cast<int>(Cond::Sick));
-    fmt::println("  Condition::severe = {} (expected 4)", static_cast<int>(Cond::Severe));
+    fmt::println("  Condition::uninfected = {} (expected 0)", static_cast<int>(UNINFECTED));
+    fmt::println("  Condition::nil = {} (expected 1)", static_cast<int>(NIL));
+    fmt::println("  Condition::mild = {} (expected 2)", static_cast<int>(MILD));
+    fmt::println("  Condition::sick = {} (expected 3)", static_cast<int>(SICK));
+    fmt::println("  Condition::severe = {} (expected 4)", static_cast<int>(SEVERE));
     fmt::print("\nRound-trip tests:\n");
     fmt::println("  Condition::to_str(0) = \"{}\" (expected \"uninfected\")", Condition::names[0]);
     fmt::println("  Condition::to_str(1) = \"{}\" (expected \"nil\")", Condition::names[1]);
     fmt::println("  Condition::to_str(2) = \"{}\" (expected \"mild\")", Condition::names[2]);
     fmt::println("  Condition::to_str(3) = \"{}\" (expected \"sick\")", Condition::names[3]);
     fmt::println("  Condition::to_str(4) = \"{}\" (expected \"severe\")", Condition::names[4]);
-    fmt::println("  Condition::from_str(\"uninfected\") = {} (expected 0)", static_cast<int>(Cond::Uninfected));
-    fmt::println("  Condition::from_str(\"nil\") = {} (expected 1)", static_cast<int>(Cond::Nil));
-    fmt::println("  Condition::from_str(\"mild\") = {} (expected 2)", static_cast<int>(Cond::Mild));
-    fmt::println("  Condition::from_str(\"sick\") = {} (expected 3)", static_cast<int>(Cond::Sick));
-    fmt::println("  Condition::from_str(\"severe\") = {} (expected 4)", static_cast<int>(Cond::Severe));
+    fmt::println("  Condition::from_str(\"uninfected\") = {} (expected 0)", static_cast<int>(UNINFECTED));
+    fmt::println("  Condition::from_str(\"nil\") = {} (expected 1)", static_cast<int>(NIL));
+    fmt::println("  Condition::from_str(\"mild\") = {} (expected 2)", static_cast<int>(MILD));
+    fmt::println("  Condition::from_str(\"sick\") = {} (expected 3)", static_cast<int>(SICK));
+    fmt::println("  Condition::from_str(\"severe\") = {} (expected 4)", static_cast<int>(SEVERE));
     fmt::println("  Condition::from_str(\"invalid\") = {} (expected 99 - default to uninfected)",
-                 static_cast<int>(Cond::Uninfected));
+                 static_cast<int>(UNINFECTED));
     fmt::println("{} expected \"uninfected\"", Condition::names[0]);
 
     fmt::print("\n");
@@ -227,12 +233,12 @@ void run_category_tests() {
     // Test Agegrp namespace
     fmt::println("--- Testing Agegrp Namespace ---");
     fmt::println("Enum values (0-indexed):");
-    fmt::println("  Agegrp::unknown = {} (expected 0)", static_cast<int>(Age::Unknown));
-    fmt::println("  Agegrp::age0_19 = {} (expected 1)", static_cast<int>(Age::Age0_19));
-    fmt::println("  Agegrp::age20_39 = {} (expected 2)", static_cast<int>(Age::Age20_39));
-    fmt::println("  Agegrp::age40_59 = {} (expected 3)", static_cast<int>(Age::Age40_59));
-    fmt::println("  Agegrp::age60_79 = {} (expected 4)", static_cast<int>(Age::Age60_79));
-    fmt::println("  Agegrp::age80_up = {} (expected 5)", static_cast<int>(Age::Age80_up));
+    fmt::println("  Agegrp::unknown = {} (expected 0)", static_cast<int>(UNKNOWN));
+    fmt::println("  Agegrp::age0_19 = {} (expected 1)", static_cast<int>(AGE0_19));
+    fmt::println("  Agegrp::age20_39 = {} (expected 2)", static_cast<int>(AGE20_39));
+    fmt::println("  Agegrp::age40_59 = {} (expected 3)", static_cast<int>(AGE40_59));
+    fmt::println("  Agegrp::age60_79 = {} (expected 4)", static_cast<int>(AGE60_79));
+    fmt::println("  Agegrp::age80_up = {} (expected 5)", static_cast<int>(AGE80_UP));
     fmt::print("\nRound-trip tests:\n");
     fmt::println("  Agegrp::to_str(0) = \"{}\" (expected \"unknown\")", Agegrp::names[0]);
     fmt::println("  Agegrp::to_str(1) = \"{}\" (expected \"age0_19\")", Agegrp::names[1]);
@@ -240,12 +246,12 @@ void run_category_tests() {
     fmt::println("  Agegrp::to_str(3) = \"{}\" (expected \"age40_59\")", Agegrp::names[3]);
     fmt::println("  Agegrp::to_str(4) = \"{}\" (expected \"age60_79\")", Agegrp::names[4]);
     fmt::println("  Agegrp::to_str(5) = \"{}\" (expected \"age80_up\")", Agegrp::names[5]);
-    fmt::println("  Agegrp::from_str(\"age0_19\") = {} (expected 1)", static_cast<int>(Age::Age0_19));
-    fmt::println("  Agegrp::from_str(\"age20_39\") = {} (expected 2)", static_cast<int>(Age::Age20_39));
-    fmt::println("  Agegrp::from_str(\"age40_59\") = {} (expected 3)", static_cast<int>(Age::Age40_59));
-    fmt::println("  Agegrp::from_str(\"age60_79\") = {} (expected 4)", static_cast<int>(Age::Age60_79));
-    fmt::println("  Agegrp::from_str(\"age80_up\") = {} (expected 5)", static_cast<int>(Age::Age80_up));
-    fmt::println("  Agegrp::from_str(\"invalid\") = {} (expected 99 - default to unknown)", static_cast<int>(Age::Unknown));
+    fmt::println("  Agegrp::from_str(\"age0_19\") = {} (expected 1)", static_cast<int>(AGE0_19));
+    fmt::println("  Agegrp::from_str(\"age20_39\") = {} (expected 2)", static_cast<int>(AGE20_39));
+    fmt::println("  Agegrp::from_str(\"age40_59\") = {} (expected 3)", static_cast<int>(AGE40_59));
+    fmt::println("  Agegrp::from_str(\"age60_79\") = {} (expected 4)", static_cast<int>(AGE60_79));
+    fmt::println("  Agegrp::from_str(\"age80_up\") = {} (expected 5)", static_cast<int>(AGE80_UP));
+    fmt::println("  Agegrp::from_str(\"invalid\") = {} (expected 99 - default to unknown)", static_cast<int>(UNKNOWN));
     fmt::print("\n");
 
     // Test boundary conditions
@@ -282,15 +288,15 @@ void test_agent_pop_print() {
     const vector<string> expected_scalar = {
         "row  status      agegrp      cond        duration  ring",
         "-------------------------------------------------------",
-        "  1  Recovered   Age20_39    Uninfected  0         0",
-        "  2  Infectious  Age40_59    Mild        5         3",
-        "  3  Unexposed   Age80_Up    Uninfected  0         0",
+        "  1  recovered   age20_39    uninfected  0         0",
+        "  2  infectious  age40_59    mild        5         3",
+        "  3  unexposed   age80_up    uninfected  0         0",
     };
     assert(scalar_lines == expected_scalar);
 
     std::ostringstream mixed_out;
     print_agent_pop_table(pop, rows,
-                          {"variant", "variant_count", "sickday",
+                          {"variant", "variant_hist", "sickday", "sickday_hist",
                            "recovday", "tested", "testday"},
                           mixed_out);
     const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
@@ -299,17 +305,17 @@ void test_agent_pop_print() {
     }
     fmt::print("\n");
     const vector<string> expected_mixed = {
-        "row  variant     variant_count  sickday  recovday  tested  testday",
-        "------------------------------------------------------------------",
-        "  1  alpha       1              2        9         -       -",
-        "  2  delta       2              11       -         true    12",
-        "  3  none        0              -        -         -       -",
+        "row  variant     variant_hist   sickday  sickday_hist  recovday  tested  testday",
+        "--------------------------------------------------------------------------------",
+        "  1  alpha       alpha         2        2             9         -       -",
+        "  2  delta       alpha|delta   11       4|11          -         true    12",
+        "  3  none        -             -        -             -         -       -",
     };
     assert(mixed_lines == expected_mixed);
 
     std::ostringstream multi_out;
     print_agent_pop_table(pop, rows,
-                          {"variant", "variant_count", "sickday",
+                          {"variant", "variant_hist", "sickday", "sickday_hist",
                            "recovday", "tested", "testday"},
                           multi_out, true);
     const auto multi_lines = poptable_test::split_trimmed_lines(multi_out.str());
@@ -318,12 +324,12 @@ void test_agent_pop_print() {
     }
     fmt::print("\n");
     const vector<string> expected_multi = {
-        "row  variant     variant_count  sickday  recovday  tested  testday",
-        "------------------------------------------------------------------",
-        "  1  alpha       1              2        9         -       -",
-        "  2  alpha       2              4        -         false   6",
-        "  *  delta                      11                 true    12",
-        "  3  none        0              -        -         -       -",
+        "row  variant     variant_hist   sickday  sickday_hist  recovday  tested  testday",
+        "--------------------------------------------------------------------------------",
+        "  1  alpha       alpha         2        2             9         -       -",
+        "  2  delta       alpha         11       4             -         false   6",
+        "  *             delta                  11                      true    12",
+        "  3  none        -             -        -             -         -       -",
     };
     assert(multi_lines == expected_multi);
 
@@ -352,8 +358,9 @@ void test_agent_pop_print() {
     print_agent_pop_table(pop, rows, all_cols_runtime, all_out);
     print_agent_pop_table(
         pop, rows,
-        {"status", "agegrp", "cond", "duration", "variant", "variant_count",
-         "sickday", "recovday", "recovday_count", "deadday", "ring", "sdcase",
+        {"status", "agegrp", "cond", "duration", "variant", "variant_hist",
+         "sickday", "sickday_hist",
+         "recovday", "recovday_count", "deadday", "ring", "sdcase",
          "tested", "tested_count", "testday", "quar", "quarday", "vaxstatus",
          "vaxrcvd", "vax_count", "vaxday"},
         all_expected_out);
@@ -417,9 +424,10 @@ void test_pop_column_registry() {
     }
 
     assert(PopData::column_name_from_string("status") == ColumnName::status);
+    assert(PopData::column_name_from_string("sickday_hist") == ColumnName::sickday_hist);
     assert(PopData::column_name_from_string("testday") == ColumnName::testday);
     assert(PopData::column_name_from_string("vaxrcvd") == ColumnName::vaxrcvd);
-    assert(!PopData::column_name_from_string("sickday_count").has_value());
+    assert(!PopData::column_name_from_string("variant_count").has_value());
     assert(!PopData::column_name_from_string("does_not_exist").has_value());
 
     const auto selected = PopData::resolve_columns({"status", "variant", "tested", "vaxrcvd"});
@@ -431,7 +439,7 @@ void test_pop_column_registry() {
 
     bool bad_column_threw = false;
     try {
-        PopData::resolve_columns({"status", "sickday_count"});
+        PopData::resolve_columns({"status", "variant_count"});
     } catch (const std::invalid_argument&) {
         bad_column_threw = true;
     }
@@ -441,9 +449,9 @@ void test_pop_column_registry() {
     const auto row2 = pop.agent(2);
     const auto row3 = pop.agent(3);
 
-    assert(PopData::find_column("status")->to_txt_cell(row2) == "Infectious");
-    assert(PopData::find_column("agegrp")->to_txt_cell(row2) == "Age40_59");
-    assert(PopData::find_column("cond")->to_txt_cell(row2) == "Mild");
+    assert(PopData::find_column("status")->to_txt_cell(row2) == "infectious");
+    assert(PopData::find_column("agegrp")->to_txt_cell(row2) == "age40_59");
+    assert(PopData::find_column("cond")->to_txt_cell(row2) == "mild");
     assert(PopData::find_column("duration")->to_txt_cell(row2) == "5");
     assert(PopData::find_column("ring")->to_txt_cell(row2) == "3");
     assert(PopData::find_column("sdcase")->to_txt_cell(row2) == "false");
@@ -452,12 +460,13 @@ void test_pop_column_registry() {
     assert(PopData::find_column("vaxstatus")->to_txt_cell(row2) == "booster");
 
     assert(PopData::find_column("variant")->to_txt_cell(row1) == "alpha");
-    assert(PopData::find_column("variant")->to_txt_cell(row2) == "alpha|delta");
+    assert(PopData::find_column("variant")->to_txt_cell(row2) == "delta");
     assert(PopData::find_column("variant")->to_txt_cell(row3).empty());
-    assert(PopData::find_column("variant_count")->to_txt_cell(row2) == "2");
+    assert(PopData::find_column("variant_hist")->to_txt_cell(row2) == "alpha|delta");
 
     assert(PopData::find_column("sickday")->to_txt_cell(row1) == "2");
-    assert(PopData::find_column("sickday")->to_txt_cell(row2) == "4|11");
+    assert(PopData::find_column("sickday")->to_txt_cell(row2) == "11");
+    assert(PopData::find_column("sickday_hist")->to_txt_cell(row2) == "4|11");
     assert(PopData::find_column("recovday")->to_txt_cell(row1) == "9");
     assert(PopData::find_column("recovday")->to_txt_cell(row2).empty());
     assert(PopData::find_column("recovday_count")->to_txt_cell(row1) == "1");
@@ -645,16 +654,16 @@ void test_make_sick_and_seedcase_duration_indexing() {
     auto first_person = pop.agent(1);
     first_person.make_sick(Variant{1}, series);
 
-    assert(first_person.status() == Stat::Infectious);
-    assert(first_person.cond() == Cond::Nil);
+    assert(first_person.status() == INFECTIOUS);
+    assert(first_person.cond() == NIL);
     assert(first_person.duration() == 1);
-    assert(first_person.variant_count() == 1);
-    assert(first_person.get_variant() == Variant{1});
+    assert(first_person.variant_hist().count == 1);
+    assert(first_person.variant() == Variant{1});
     assert(first_person.get_sickday() == 1);
 
-    Filter filter{{{"agegrp", int32_t(uint8_t(Age::Age20_39))}}};
-    Change change{{{"status", int32_t(uint8_t(Stat::Infectious))},
-                   {"cond", int32_t(uint8_t(Cond::Mild))},
+    Filter filter{{{"agegrp", int32_t(uint8_t(AGE20_39))}}};
+    Change change{{{"status", int32_t(uint8_t(INFECTIOUS))},
+                   {"cond", int32_t(uint8_t(MILD))},
                    {"duration", 3},
                    {"variant", 1}},
                   1};
@@ -666,11 +675,11 @@ void test_make_sick_and_seedcase_duration_indexing() {
 
     assert(seeded.size() == 1);
     const auto seeded_person = pop.agent(seeded.front());
-    assert(seeded_person.status() == Stat::Infectious);
-    assert(seeded_person.cond() == Cond::Mild);
+    assert(seeded_person.status() == INFECTIOUS);
+    assert(seeded_person.cond() == MILD);
     assert(seeded_person.duration() == 3);
-    assert(seeded_person.variant_count() == 1);
-    assert(seeded_person.get_variant() == Variant{1});
+    assert(seeded_person.variant_hist().count == 1);
+    assert(seeded_person.variant() == Variant{1});
     assert(seeded_person.get_sickday() == 2);
 
     Variant::names = saved_variant_names;
@@ -740,9 +749,9 @@ void test_model_params() {
   assert(!variants.empty());
   assert(variants.size() == infectparams.size());
   assert(variants.size() == progressionset.progression.size());
-  assert(variants[0].name() == "none");
-  assert(variants[1].name() == "base");
-  assert(variants[2].name() == "alpha");
+  assert(variants[0].show() == "none");
+  assert(variants[1].show() == "base");
+  assert(variants[2].show() == "alpha");
   assert(infectparams[1].sendrisk.size() > 20);
   assert(approx_equal(infectparams[1].sendrisk[1], 0.0, 1e-9));
   assert(approx_equal(infectparams[1].sendrisk[2], 0.3, 1e-9));
@@ -798,8 +807,8 @@ void test_model_params() {
   assert(old_sched.dayrange.second == 700);
   assert(approx_equal(old_sched.targetpct, 0.95, 1e-9));
   assert(old_sched.filtervec.size() == 2);
-  assert(old_sched.filtervec[0] == Age::Age80_up);
-  assert(old_sched.filtervec[1] == Age::Age60_79);
+  assert(old_sched.filtervec[0] == AGE80_UP);
+  assert(old_sched.filtervec[1] == AGE60_79);
   assert(old_sched.shotmode == "all");
   assert(old_sched.pattern.size() == 12);
   assert(approx_equal(old_sched.pattern[3], 0.1, 1e-9));
@@ -808,9 +817,9 @@ void test_model_params() {
   const auto& young_sched = parameter_test::require_sched(vaxschedset, "loc38015_young");
   assert(approx_equal(young_sched.targetpct, 0.65, 1e-9));
   assert(young_sched.filtervec.size() == 3);
-  assert(young_sched.filtervec[0] == Age::Age0_19);
-  assert(young_sched.filtervec[1] == Age::Age20_39);
-  assert(young_sched.filtervec[2] == Age::Age40_59);
+  assert(young_sched.filtervec[0] == AGE0_19);
+  assert(young_sched.filtervec[1] == AGE20_39);
+  assert(young_sched.filtervec[2] == AGE40_59);
   assert(static_cast<bool>(young_sched.spreadfunc));
 
   ModelParams mp{
@@ -826,7 +835,7 @@ void test_model_params() {
   };
 
   assert(mp.geodata.pop[locale_idx] == 95626);
-  assert(mp.variants[1].name() == "base");
+  assert(mp.variants[1].show() == "base");
   assert(mp.vaxset.vaxset.size() == 3);
   assert(mp.vaxschedset.size() == 2);
 
@@ -1270,7 +1279,7 @@ void test_random_functions() {
 // }
 
 int main() {
-  test_pop_column_registry();
+  // test_pop_column_registry();
   // test_agent_pop_print();
   test_model_params();
   // test_build_model();

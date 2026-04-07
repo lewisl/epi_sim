@@ -17,9 +17,9 @@ using std::vector;
 /*
 use as:
 
-Status person_status = Stat::Unexposed;
-person_status = Stat::Infectious;    // fine
-person_status = Stat::Recovered;   // fine
+Status person_status = UNEXPOSED;
+person_status = INFECTIOUS;    // fine
+person_status = RECOVERED;   // fine
 
 */
 
@@ -28,69 +28,101 @@ struct Agegrp {
   uint8_t v{};
 
   static constexpr std::array<std::string, 6> names{
-      "Unknown", "Age0_19", "Age20_39", "Age40_59", "Age60_79", "Age80_Up"};
+      "unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
 
-  std::string name() const noexcept { return names[v]; }
-  // constructor  
+  Agegrp() = default;
   constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
-  
+  constexpr Agegrp(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  Agegrp(std::string name) : v(resolve_name(std::move(name))) {}
+
+  static uint8_t resolve_name(std::string name) {
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    if (name == "unknown") return 0;
+    if (name == "age0_19") return 1;
+    if (name == "age20_39") return 2;
+    if (name == "age40_59") return 3;
+    if (name == "age60_79") return 4;
+    if (name == "age80_up") return 5;
+    return 0;
+  }
+
+  std::string show() const { return names[v]; }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Agegrp &) const = default;
 };
 
-namespace Age {
-  inline constexpr Agegrp Unknown{0};
-  inline constexpr Agegrp Age0_19{1};
-  inline constexpr Agegrp Age20_39{2};
-  inline constexpr Agegrp Age40_59{3};
-  inline constexpr Agegrp Age60_79{4};
-  inline constexpr Agegrp Age80_up{5};
-}
+inline constexpr Agegrp UNKNOWN{0};
+inline constexpr Agegrp AGE0_19{1};
+inline constexpr Agegrp AGE20_39{2};
+inline constexpr Agegrp AGE40_59{3};
+inline constexpr Agegrp AGE60_79{4};
+inline constexpr Agegrp AGE80_UP{5};
 
 // Status
 struct Status {
   uint8_t v{};
 
-  // takes up no space in an instance of Status
   static constexpr std::array<std::string, 5> names{
-      "None", "Unexposed", "Infectious", "Recovered", "Dead"};
+      "none", "unexposed", "infectious", "recovered", "dead"};
 
-  std::string name() const noexcept { return names[v]; }
-    
+  Status() = default;
   constexpr explicit Status(uint8_t v) noexcept : v(v) {}
+  constexpr Status(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  Status(std::string name) : v(resolve_name(std::move(name))) {}
+
+  static uint8_t resolve_name(std::string name) {
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    if (name == "none") return 0;
+    if (name == "unexposed") return 1;
+    if (name == "infectious") return 2;
+    if (name == "recovered") return 3;
+    if (name == "dead") return 4;
+    return 0;
+  }
+
+  std::string show() const { return names[v]; }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Status &) const = default;
 };
 
-namespace Stat {
-  inline constexpr Status None{0};
-  inline constexpr Status Unexposed{1};
-  inline constexpr Status Infectious{2};
-  inline constexpr Status Recovered{3};
-  inline constexpr Status Dead{4};
-  }
+inline constexpr Status NONE{0};
+inline constexpr Status UNEXPOSED{1};
+inline constexpr Status INFECTIOUS{2};
+inline constexpr Status RECOVERED{3};
+inline constexpr Status DEAD{4};
 
 // Condition
 struct Condition {
   uint8_t v{};
 
   static constexpr std::array<std::string, 5> names{
-      "Uninfected", "Nil", "Mild", "Sick", "Severe"};
+      "uninfected", "nil", "mild", "sick", "severe"};
 
-  std::string name() const noexcept { return names[v]; }
-
+  Condition() = default;
   constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
+  constexpr Condition(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  Condition(std::string name) : v(resolve_name(std::move(name))) {}
+
+  static uint8_t resolve_name(std::string name) {
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    if (name == "uninfected") return 0;
+    if (name == "nil") return 1;
+    if (name == "mild") return 2;
+    if (name == "sick") return 3;
+    if (name == "severe") return 4;
+    return 0;
+  }
+
+  std::string show() const { return names[v]; }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Condition &) const = default;
 };
 
-namespace Cond {
-  inline constexpr Condition Uninfected{0};
-  inline constexpr Condition Nil{1};
-  inline constexpr Condition Mild{2};
-  inline constexpr Condition Sick{3};
-  inline constexpr Condition Severe{4};
-}
+inline constexpr Condition UNINFECTED{0};
+inline constexpr Condition NIL{1};
+inline constexpr Condition MILD{2};
+inline constexpr Condition SICK{3};
+inline constexpr Condition SEVERE{4};
 
 // Progressionmap
 struct Progressionmap {
@@ -143,25 +175,104 @@ namespace Vaxstat {
 //
 
 // Variant -- create instances at runtime
-  // call site creates the names for the instances and the container
 struct Variant {
   uint8_t v{};
   inline static std::vector<std::string> names;
 
+  Variant() = default;
   constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
-  constexpr Variant() noexcept = default;  // required for array<Variant,16> initialization
+  constexpr Variant(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  explicit Variant(std::string_view name) {
+    if (names.empty()) {
+      assert(name == "none" && "First Variant constructed must be \"none\"");
+    } else {
+      assert(name != "none" && "\"none\" variant already exists");
+    }
+    names.push_back(std::string{name});
+    v = static_cast<uint8_t>(names.size() - 1);
+  }
 
-  std::string name() const noexcept { return names[v]; }
+  std::string show() const noexcept {
+    if (static_cast<size_t>(v) >= names.size()) return "";
+    return names[v];
+  }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Variant &) const = default;
 };
 
-// print any vector of trait class instances (types with .name() method)
+struct VariantHist {
+  std::array<Variant, 16> arr{};
+  uint8_t count{};
+
+  void set(Variant variant) {
+    if (count < arr.size()) {
+      arr[count] = variant;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = variant;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  Variant latest() const {
+    if (count == 0) return Variant{};
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+
+    std::vector<std::string> rendered;
+    rendered.reserve(entry_count);
+    for (size_t idx = 0; idx < entry_count; ++idx) {
+      rendered.push_back(arr[idx].show());
+    }
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
+struct SickdayHist {
+  std::array<int16_t, 16> arr{};
+  uint8_t count{};
+
+  void set(int16_t day) {
+    if (count < arr.size()) {
+      arr[count] = day;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = day;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  int16_t latest() const {
+    if (count == 0) return 0;
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+    std::vector<int16_t> rendered(arr.begin(), arr.begin() + entry_count);
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
+// print any vector of trait class instances (types with .show() method)
 template<typename T>
-  requires requires(const T& t) { { t.name() } -> std::convertible_to<std::string>; }
+  requires requires(const T& t) { { t.show() } -> std::convertible_to<std::string>; }
 void print_trait_vector(const vector<T>& vec) {
   for (size_t i = 0; i < vec.size(); ++i) {
-    fmt::print("{:>2}: {}\n", i, vec[i].name());
+    fmt::print("{:>2}: {}\n", i, vec[i].show());
   }
 }
 
@@ -182,7 +293,7 @@ struct fmt::formatter<T> : fmt::formatter<uint8_t> {
    T must be a TraitType (Agegrp, Status, Condition, etc.).
    Returns std::nullopt if s is not found in T::names.
    Usage:
-     auto ret = trait_from_string<Agegrp>("Age20_39");
+     auto ret = trait_from_string<Agegrp>("age20_39");
      if (!ret) { // handle bad input }
      Agegrp ag = *ret;
 */
@@ -459,7 +570,7 @@ struct ProgressionSet {  // collection of all variants
     fmt::println("Total variants: {}", progression.size());
 
     for (size_t i = 0; i < progression.size(); ++i) {
-      std::string variant_name = variants[i].name();
+      std::string variant_name = variants[i].show();
       progression[i].print(variant_name);
     }
     fmt::println("\n=== End ProgressionSet ===\n");

@@ -1,6 +1,9 @@
 ## TODO
-- use comments in json files!
+
 - serialization of popdata
+- add variant and vax columns to HistorySeries
+- fix cumbersome seedcase code
+- use comments in json files!
 - test and trace
 - social distancing cases
 - r0 calculations

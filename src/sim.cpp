@@ -65,13 +65,13 @@ int32_t parse_term_val(const string& trait, const json& jval, const ModelParams&
 }
 
 // Returns true if all filter terms match the person (AND semantics).
-bool matches_filter(PopData::AgentView person, const Filter& filt) {
+bool matches_filter(AgentView person, const Filter& filt) {
   for (const auto& f : filt.terms) {
     int32_t pval{};
     if      (f.trait == "status")    pval = int32_t(uint8_t(person.status()));
     else if (f.trait == "agegrp")    pval = int32_t(uint8_t(person.agegrp()));
     else if (f.trait == "cond")      pval = int32_t(uint8_t(person.cond()));
-    else if (f.trait == "variant")   pval = int32_t(uint8_t(person.get_variant()));
+    else if (f.trait == "variant")   pval = int32_t(uint8_t(person.variant()));
     else if (f.trait == "vaxstatus") pval = int32_t(uint8_t(person.vaxstatus()));
     else if (f.trait == "quar")      pval = int32_t(person.quar());
     else if (f.trait == "tested")    pval = int32_t(person.tested_count() > 0 ? 1 : 0);
@@ -82,8 +82,8 @@ bool matches_filter(PopData::AgentView person, const Filter& filt) {
 
 // Apply change terms to a person via AgentView, routing status changes through
 // make_sick / make_well / make_dead to preserve all invariants.
-// Guard: make_sick is only applied to Unexposed or Recovered persons.
-void apply_change(PopData::AgentView person, const Change& chg, HistorySeries& series) {
+// Guard: make_sick is only applied to unexposed or recovered persons.
+void apply_change(AgentView person, const Change& chg, HistorySeries& series) {
   // Find a status term if present
   auto status_it = std::find_if(chg.terms.begin(), chg.terms.end(),
                                 [](const Term& t) { return t.trait == "status"; });
@@ -91,14 +91,14 @@ void apply_change(PopData::AgentView person, const Change& chg, HistorySeries& s
   if (status_it != chg.terms.end()) {
     Status new_status{static_cast<uint8_t>(status_it->val)};
 
-    if (new_status == Stat::Infectious) {
-      if (person.status() != Stat::Unexposed && person.status() != Stat::Recovered) {
+    if (new_status == INFECTIOUS) {
+      if (person.status() != UNEXPOSED && person.status() != RECOVERED) {
         fmt::println("WARNING: skipping make_sick for person {}: status is '{}', must be unexposed or recovered",
-                     person.id, person.status().name());
+                     person.id, person.status().show());
         return;
       }
       Variant  var{1};        // default: base (index 1)
-      Condition cond = Cond::Nil;
+      Condition cond = NIL;
       uint8_t   dur  = 1;
       for (const auto& t : chg.terms) {
         if      (t.trait == "variant")  var  = Variant{static_cast<uint8_t>(t.val)};
@@ -116,8 +116,8 @@ void apply_change(PopData::AgentView person, const Change& chg, HistorySeries& s
       return;
     }
 
-    if (new_status == Stat::Recovered) { person.make_well(series);  return; }
-    if (new_status == Stat::Dead)      { person.make_dead(series);   return; }
+    if (new_status == RECOVERED) { person.make_well(series);  return; }
+    if (new_status == DEAD)      { person.make_dead(series);   return; }
   }
 
   // No status routing: apply all terms directly
@@ -252,12 +252,12 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
       // get an agent at index p
       auto person = pop.agent(p);
-      if (person.status() != Stat::Infectious || person.get_sickday() >= sim::ds.day) continue;
+      if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day) continue;
 
       spread_timing.start();
       // spread kernel
       auto spr_duration = person.duration();      
-      auto spr_variant = person.get_variant();    
+      auto spr_variant = person.variant();    
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
@@ -282,7 +282,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       std::vector<size_t> rows;
       for (size_t p = 1; p <= pop.popn; ++p) {
         auto person = pop.agent(p);
-        if (person.status() == Stat::Infectious && person.agegrp() == Age::Age80_up) {
+        if (person.status() == INFECTIOUS && person.agegrp() == AGE80_UP) {
           rows.push_back(p);
           if (rows.size() == 20) break;
         }
@@ -310,6 +310,12 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   //
   // at end of simulation
   // 
+
+  std::vector<size_t> reinfected_rows;
+  for (size_t p = 1; p <= pop.popn; ++p) {
+    if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
+  }
+  print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist"});
 
 
   // print some series and a summary
@@ -393,11 +399,11 @@ SummaryData print_summary(PopData & pop)
     // no sorting or filtering needed
     for (size_t p = 1; p <= pop.popn; ++p) {
       uint8_t ag = pop.agegrp[p];
-      if (pop.status[p] == Stat::Unexposed) sd.unexposed[ag]++;
-      if (pop.variant_count[p] > 0)  sd.infected[ag]++;
-      if (pop.variant_count[p] > 1)  sd.reinfected[ag]++;
-      if (pop.status[p] == Stat::Dead) sd.dead[ag]++;
-      if (pop.status[p] == Stat::Recovered) sd.recovered[ag]++;
+      if (pop.status[p] == UNEXPOSED) sd.unexposed[ag]++;
+      if (pop.variant_hist[p].count > 0)  sd.infected[ag]++;
+      if (pop.variant_hist[p].count > 1)  sd.reinfected[ag]++;
+      if (pop.status[p] == DEAD) sd.dead[ag]++;
+      if (pop.status[p] == RECOVERED) sd.recovered[ag]++;
     }
 
     auto ages = [](auto& arr) { return std::span(arr).subspan(1, 5); };
@@ -421,6 +427,6 @@ SummaryData print_summary(PopData & pop)
                  sd.unexposed[6], sd.infected[6], sd.reinfected[6], sd.recovered[6], sd.dead[6], total_death_pct);
     fmt::println("(Note: Remaining still infected across all ages: {})",
                  std::count_if(pop.status.begin(), pop.status.end(),
-                              [](auto s) { return s == Stat::Infectious; }));
+                              [](auto s) { return s == INFECTIOUS; }));
     return sd;
 }

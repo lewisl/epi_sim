@@ -191,8 +191,8 @@ static void vaccinate_sched(int today,
             if (pop.agegrp[p] == fg) { in_filter = true; break; }
         if (!in_filter) continue;
 
-        bool unexposed = (pop.status[p] == Stat::Unexposed);
-        bool recovered = (pop.status[p] == Stat::Recovered)
+        bool unexposed = (pop.status[p] == UNEXPOSED);
+        bool recovered = (pop.status[p] == RECOVERED)
                       && (pop.recovday_count[p] > 0)
                       && (pop.recovday[p][zidx(pop.recovday_count[p])] < today - 14);
 

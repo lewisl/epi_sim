@@ -78,7 +78,7 @@ struct Filter {
 // Change: the trait values to set on each matched candidate, and how many to affect.
 // Allowed traits: "status", "cond", "duration", "variant", "vaxstatus", "quar"
 // When "status"="infectious" is present, make_sick is called (preserving all invariants).
-// Guard: only Stat::Unexposed and Stat::Recovered persons may be made sick.
+// Guard: only UNEXPOSED and RECOVERED persons may be made sick.
 struct Change {
   vector<Term> terms;
   int count{0};

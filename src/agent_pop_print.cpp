@@ -10,7 +10,7 @@
 
 namespace {
 
-using RowView = PopData::AgentView;
+using RowView = AgentView;
 using RenderLines = std::vector<std::string>;
 using RenderFn = RenderLines (*)(RowView, bool);
 
@@ -56,40 +56,46 @@ RenderLines render_history(const std::array<T, N> &values, uint8_t count,
 }
 
 std::string format_variant_name(Variant value) {
-  const auto idx_value = idx(value);
-  if (!Variant::names.empty() && idx_value < Variant::names.size()) {
-    return Variant::names[idx_value];
-  }
-  return fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
+  const auto rendered = value.show();
+  if (!rendered.empty()) return rendered;
+  return idx(value) == 0 ? std::string{"none"} :
+                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
-RenderLines render_status(RowView person, bool) { return {person.status().name()}; }
+RenderLines render_status(RowView person, bool) { return {person.status().show()}; }
 
-RenderLines render_agegrp(RowView person, bool) { return {person.agegrp().name()}; }
+RenderLines render_agegrp(RowView person, bool) { return {person.agegrp().show()}; }
 
-RenderLines render_cond(RowView person, bool) { return {person.cond().name()}; }
+RenderLines render_cond(RowView person, bool) { return {person.cond().show()}; }
 
 RenderLines render_duration(RowView person, bool) {
   return {fmt::format("{}", static_cast<unsigned int>(person.duration()))};
 }
 
-RenderLines render_variant(RowView person, bool multi_values) {
+RenderLines render_variant(RowView person, bool) {
+  return {format_variant_name(person.variant())};
+}
+
+RenderLines render_variant_hist(RowView person, bool multi_values) {
+  const auto& history = person.variant_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
   return render_history(
-      person.all_variants(), person.variant_count(), multi_values,
+      history.arr, history.count, multi_values,
       [](Variant value) { return format_variant_name(value); },
-      format_variant_name(person.get_variant()));
+      scalar_value);
 }
 
-RenderLines render_variant_count(RowView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.variant_count()))};
+RenderLines render_sickday(RowView person, bool) {
+  return {person.sickday() == 0 ? std::string{"-"} : fmt::format("{}", person.sickday())};
 }
 
-RenderLines render_sickday(RowView person, bool multi_values) {
+RenderLines render_sickday_hist(RowView person, bool multi_values) {
+  const auto& history = person.sickday_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
   return render_history(
-      person.all_sickdays(), person.variant_count(), multi_values,
+      history.arr, history.count, multi_values,
       [](int16_t value) { return fmt::format("{}", value); },
-      latest_or_dash(person.all_sickdays(), person.variant_count(),
-                     [](int16_t value) { return fmt::format("{}", value); }));
+      scalar_value);
 }
 
 RenderLines render_recovday(RowView person, bool multi_values) {
@@ -166,14 +172,15 @@ RenderLines render_vaxday(RowView person, bool multi_values) {
                      [](int16_t value) { return fmt::format("{}", value); }));
 }
 
-constexpr std::array<ColumnSpec, 21> COLUMN_SPECS{{
+constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {"status", 10, render_status},
     {"agegrp", 10, render_agegrp},
     {"cond", 10, render_cond},
     {"duration", 8, render_duration},
     {"variant", 10, render_variant},
-    {"variant_count", 13, render_variant_count},
+    {"variant_hist", 12, render_variant_hist},
     {"sickday", 7, render_sickday},
+    {"sickday_hist", 11, render_sickday_hist},
     {"recovday", 8, render_recovday},
     {"recovday_count", 14, render_recovday_count},
     {"deadday", 7, render_deadday},

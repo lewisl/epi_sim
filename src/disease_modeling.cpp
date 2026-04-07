@@ -45,60 +45,55 @@ float require_effectiveness(const VaxParams& params,
 
 // make_sick: make one person sick
 // declaration is in population.h
-void PopData::AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t durationdays) {
+void AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t durationdays) {
   auto today = sim::get_day();
   series.delta_series(SeriesName::new_infected, agegrp(), today, 1);
   series.delta_series(SeriesName::now_infected, agegrp(), today, 1);
 
-  if (status() == Stat::Recovered) {
+  if (status() == RECOVERED) {
     series.delta_series(SeriesName::now_recovered, agegrp(), today, -1);
   } else {
-    if (status() == Stat::Unexposed) {
+    if (status() == UNEXPOSED) {
       series.delta_series(SeriesName::now_unexposed, agegrp(), today, -1);
     }
   }
   cond() = condition;
   duration() = durationdays;
-  status() = Stat::Infectious;
+  status() = INFECTIOUS;
+  variant() = var;
+  sickday() = sim::get_day();
   // increment_series(series, SeriesName::new_infected, agegrp(), sim::get_day());
 
-  auto &variant_vec = all_variants();
-  auto &variant_cnt = variant_count();
-  auto &sickday_vec = all_sickdays();
-  
-  if (variant_cnt < 16) {
-    variant_vec[variant_cnt] = var;
-    sickday_vec[variant_cnt] = sim::get_day();
-    variant_cnt++;   // there is no sickday_count; it's the same as variant_count
-  } else {
-      std::shift_left(variant_vec.begin(), variant_vec.end(), 1);
-      std::shift_left(sickday_vec.begin(), sickday_vec.end(), 1);
-      variant_vec.back() = var;
-      sickday_vec.back() = sim::get_day();
-      ++variant_cnt;
-      if (sim::debug) {
-        std::cerr << "Variant overflow for person " << id
-                << ". Oldest variant lost.\n";
-        std::cerr << "variant_count increased to " << variant_cnt << "\n";
-      }
+  auto &history = variant_hist();
+  auto &day_history = sickday_hist();
+  const bool history_overflow = history.count >= 16;
+
+  history.set(var);
+  day_history.set(sim::get_day());
+
+  if (history_overflow && sim::debug) {
+    std::cerr << "Variant and sickday overflow for person " << id
+              << ". Oldest history entries lost.\n";
+    std::cerr << "variant_hist.count increased to " << static_cast<int>(history.count)
+              << ", sickday_hist.count increased to " << static_cast<int>(day_history.count) << "\n";
   }
 }
 
 
 /* 
   make_well: make one person better->recovered and uninfected
-declaration is in population.h PopData::AgentView
+declaration is in population.h AgentView
 method applied to an AgentView instance:  person.make_well()
 as a method of AgentView, the instance variable is not used to apply methods or access members 
 */
-void PopData::AgentView::make_well(HistorySeries & series) {    // the object is person--the implied argument
+void AgentView::make_well(HistorySeries & series) {    // the object is person--the implied argument
   auto today = sim::get_day();
   series.delta_series(SeriesName::now_recovered, agegrp(), today, 1);
   series.delta_series(SeriesName::new_recovered, agegrp(), today, 1);
   series.delta_series(SeriesName::now_infected, agegrp(), today, -1);
 
-  cond() = Cond::Uninfected; // equivalent to person.cond() in other functions where person defined
-  status() = Stat::Recovered; 
+  cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
+  status() = RECOVERED; 
   // increment_series(series, SeriesName::new_recovered, agegrp(), sim::get_day());
   duration() = 0; 
   // update recovday
@@ -117,7 +112,7 @@ void PopData::AgentView::make_well(HistorySeries & series) {    // the object is
 }
 
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
-void PopData::AgentView::make_dead(HistorySeries & series) {
+void AgentView::make_dead(HistorySeries & series) {
     auto today = sim::get_day();
     series.delta_series(SeriesName::now_dead, agegrp(), today, 1);
     series.delta_series(SeriesName::new_dead, agegrp(), today, 1);
@@ -125,7 +120,7 @@ void PopData::AgentView::make_dead(HistorySeries & series) {
 
   // update the person: update deadday and status for the person
   deadday() = today;   
-  status() = Stat::Dead; // TODO will we need to set cond to uninfected for any other logic?
+  status() = DEAD; // TODO will we need to set cond to uninfected for any other logic?
 }
 
 
@@ -133,15 +128,15 @@ void PopData::AgentView::make_dead(HistorySeries & series) {
 uint8_t touch_map(Status target_status, Condition target_cond) {
   switch (target_status)
   {
-  case Stat::Unexposed:     return uint8_t{0};
-  case Stat::Recovered:     return uint8_t{1};
-  case Stat::Infectious:
+  case UNEXPOSED:           return uint8_t{0};
+  case RECOVERED:           return uint8_t{1};
+  case INFECTIOUS:
     switch (target_cond)
     {
-    case Cond::Nil:         return uint8_t{2};
-    case Cond::Mild:        return uint8_t{3};
-    case Cond::Sick:        return uint8_t{4};  
-    case Cond::Severe:      return uint8_t{5};
+    case NIL:               return uint8_t{2};
+    case MILD:              return uint8_t{3};
+    case SICK:              return uint8_t{4};  
+    case SEVERE:            return uint8_t{5};
     default:
       throw std::runtime_error("Invalid condition input for touch_map");
     }
@@ -168,10 +163,10 @@ float infectrisk(vector<InfectParams> &infectparams, uint8_t spr_variant,
   return risk;
 }
                   
-bool isinfected(PopData::AgentView contact, PopData::AgentView spreader,
+bool isinfected(AgentView contact, AgentView spreader,
                 vector<InfectParams> &infectparams, const VaxSet& vaxset,
                 bool dovax, int thisday) {
-    uint8_t spr_variant = spreader.get_variant();
+    uint8_t spr_variant = spreader.variant();
     float recovfactor = recoveffect(contact, thisday, spr_variant, infectparams);
     float vaxfactor = dovax ? vaxeffect(thisday, contact, vaxset, spr_variant) : 1.0f;
     float risk = infectrisk(infectparams, spr_variant, spreader.duration(),
@@ -187,7 +182,7 @@ bool isinfected(PopData::AgentView contact, PopData::AgentView spreader,
 Immunity from recovery for a single person.
 defaults: csig = 6.0, decay_lower = 0.15
 */
-float recoveffect(PopData::AgentView contact, size_t thisday,  uint8_t spr_variant,
+float recoveffect(AgentView contact, size_t thisday,  uint8_t spr_variant,
                   vector<InfectParams> &infectparams, float csig, float decay_lower) {
 
     float factor = 1.0f; // return value
@@ -198,7 +193,7 @@ float recoveffect(PopData::AgentView contact, size_t thisday,  uint8_t spr_varia
         size_t days_post_recov = thisday - recovday;
 
         if (days_post_recov >= 0) {
-            uint8_t contact_variant = contact.get_variant();
+            uint8_t contact_variant = contact.variant();
 
             // get the max immunity for the variant that target recovered from against the variant of the spreader
             float immstrength = infectparams[contact_variant].recovery_immunity[spr_variant];
@@ -217,7 +212,7 @@ float recoveffect(PopData::AgentView contact, size_t thisday,  uint8_t spr_varia
   return factor;
 }
 
-float vaxeffect(size_t thisday, PopData::AgentView person, const VaxSet& vaxset,
+float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
                 uint8_t target_variant, float csig, float decay_lower) {
   if (person.vaxstatus() == Vaxstat::none || person.vax_count() == 0) return 1.0f;
 
