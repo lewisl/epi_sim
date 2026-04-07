@@ -81,9 +81,9 @@ void apply_to_columns(const vector<Column> &cols,
                 action(to_str, recovday);
                 break;
             }
-            case Column::recovday_count: {
+            case Column::recovday_hist: {
                 auto to_str = nullptr;
-                action(to_str, recovday_count);
+                action(to_str, recovday_hist);
                 break;
             }
             case Column::deadday: {
@@ -106,9 +106,9 @@ void apply_to_columns(const vector<Column> &cols,
                 action(to_str, tested);
                 break;
             }
-            case Column::tested_count: {
+            case Column::testday_hist: {
                 auto to_str = nullptr;
-                action(to_str, tested_count);
+                action(to_str, testday_hist);
                 break;
             }
             case Column::quar: {

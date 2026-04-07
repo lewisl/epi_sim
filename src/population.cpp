@@ -2,6 +2,10 @@
 
 namespace {
 
+std::string bool_text(uint8_t value) {
+  return value == 0 ? std::string{"false"} : std::string{"true"};
+}
+
 std::string format_variant_name(Variant value) {
   const auto rendered = value.show();
   if (!rendered.empty()) return rendered;
@@ -9,18 +13,11 @@ std::string format_variant_name(Variant value) {
                            fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
-template <typename T, size_t N, typename Formatter>
-std::string join_history_values(const std::array<T, N>& values, uint8_t count,
-                                Formatter formatter) {
-  const size_t entry_count = std::min<size_t>(count, N);
-  if (entry_count == 0) return "";
-
-  std::vector<std::string> rendered;
-  rendered.reserve(entry_count);
-  for (size_t entry_idx = 0; entry_idx < entry_count; ++entry_idx) {
-    rendered.push_back(formatter(values[entry_idx]));
-  }
-  return fmt::format("{}", fmt::join(rendered, "|"));
+std::string format_vax_name(Vax value) {
+  const auto rendered = value.show();
+  if (!rendered.empty()) return rendered;
+  return idx(value) == 0 ? std::string{} :
+                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
 std::string csv_escape(std::string_view cell) {
@@ -53,7 +50,7 @@ std::string txt_agegrp(AgentView person) { return person.agegrp().show(); }
 std::string txt_cond(AgentView person) { return person.cond().show(); }
 
 std::string txt_duration(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.duration()));
+  return person.duration().show();
 }
 
 std::string txt_variant(AgentView person) {
@@ -65,7 +62,7 @@ std::string txt_variant_hist(AgentView person) {
 }
 
 std::string txt_sickday(AgentView person) {
-  return person.sickday() == 0 ? std::string{} : fmt::format("{}", person.sickday());
+  return person.sickday() == 0 ? std::string{} : person.sickday().show();
 }
 
 std::string txt_sickday_hist(AgentView person) {
@@ -73,16 +70,15 @@ std::string txt_sickday_hist(AgentView person) {
 }
 
 std::string txt_recovday(AgentView person) {
-  return join_history_values(person.all_recovdays(), person.recovday_count(),
-                             [](int16_t value) { return fmt::format("{}", value); });
+  return person.recovday() == 0 ? std::string{} : person.recovday().show();
 }
 
-std::string txt_recovday_count(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.recovday_count()));
+std::string txt_recovday_hist(AgentView person) {
+  return person.recovday_hist().show();
 }
 
 std::string txt_deadday(AgentView person) {
-  return fmt::format("{}", person.deadday());
+  return person.deadday().show();
 }
 
 std::string txt_ring(AgentView person) {
@@ -90,45 +86,45 @@ std::string txt_ring(AgentView person) {
 }
 
 std::string txt_sdcase(AgentView person) {
-  return person.bool_labels().to_str(person.sdcase());
+  return bool_text(person.sdcase());
 }
 
 std::string txt_tested(AgentView person) {
-  return join_history_values(person.tested(), person.tested_count(),
-                             [&](uint8_t value) { return person.bool_labels().to_str(value); });
+  return person.tested() == 0 ? std::string{} : bool_text(person.tested());
 }
 
-std::string txt_tested_count(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.tested_count()));
+std::string txt_testday_hist(AgentView person) {
+  return person.testday_hist().show();
 }
 
 std::string txt_testday(AgentView person) {
-  return join_history_values(person.testday(), person.tested_count(),
-                             [](int16_t value) { return fmt::format("{}", value); });
+  return person.testday() == 0 ? std::string{} : person.testday().show();
 }
 
 std::string txt_quar(AgentView person) {
-  return person.bool_labels().to_str(person.quar());
+  return bool_text(person.quar());
 }
 
 std::string txt_quarday(AgentView person) {
-  return fmt::format("{}", person.quarday());
+  return person.quarday().show();
 }
 
 std::string txt_vaxstatus(AgentView person) { return person.vaxstatus().name(); }
 
 std::string txt_vaxrcvd(AgentView person) {
-  return join_history_values(person.vaxrcvd(), person.vax_count(),
-                             [&](uint8_t value) { return person.vax_labels().to_str(value); });
+  return idx(person.vaxrcvd()) == 0 ? std::string{} : format_vax_name(person.vaxrcvd());
 }
 
-std::string txt_vax_count(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.vax_count()));
+std::string txt_vax_hist(AgentView person) {
+  return person.vax_hist().show();
 }
 
 std::string txt_vaxday(AgentView person) {
-  return join_history_values(person.vaxday(), person.vax_count(),
-                             [](int16_t value) { return fmt::format("{}", value); });
+  return person.vaxday() == 0 ? std::string{} : person.vaxday().show();
+}
+
+std::string txt_vaxday_hist(AgentView person) {
+  return person.vaxday_hist().show();
 }
 
 const PopData::PopColumnMap COLUMN_SPECS{
@@ -141,22 +137,23 @@ const PopData::PopColumnMap COLUMN_SPECS{
     {"sickday", {ColumnName::sickday, "sickday", txt_sickday}},
     {"sickday_hist", {ColumnName::sickday_hist, "sickday_hist", txt_sickday_hist}},
     {"recovday", {ColumnName::recovday, "recovday", txt_recovday}},
-    {"recovday_count", {ColumnName::recovday_count, "recovday_count", txt_recovday_count}},
+    {"recovday_hist", {ColumnName::recovday_hist, "recovday_hist", txt_recovday_hist}},
     {"deadday", {ColumnName::deadday, "deadday", txt_deadday}},
     {"ring", {ColumnName::ring, "ring", txt_ring}},
     {"sdcase", {ColumnName::sdcase, "sdcase", txt_sdcase}},
     {"tested", {ColumnName::tested, "tested", txt_tested}},
-    {"tested_count", {ColumnName::tested_count, "tested_count", txt_tested_count}},
+    {"testday_hist", {ColumnName::testday_hist, "testday_hist", txt_testday_hist}},
     {"testday", {ColumnName::testday, "testday", txt_testday}},
     {"quar", {ColumnName::quar, "quar", txt_quar}},
     {"quarday", {ColumnName::quarday, "quarday", txt_quarday}},
     {"vaxstatus", {ColumnName::vaxstatus, "vaxstatus", txt_vaxstatus}},
     {"vaxrcvd", {ColumnName::vaxrcvd, "vaxrcvd", txt_vaxrcvd}},
-    {"vax_count", {ColumnName::vax_count, "vax_count", txt_vax_count}},
+    {"vax_hist", {ColumnName::vax_hist, "vax_hist", txt_vax_hist}},
     {"vaxday", {ColumnName::vaxday, "vaxday", txt_vaxday}},
+    {"vaxday_hist", {ColumnName::vaxday_hist, "vaxday_hist", txt_vaxday_hist}},
 };
 
-static_assert(size_t(ColumnName::COUNT) == 22);
+static_assert(size_t(ColumnName::COUNT) == 23);
 static_assert(size_t(ColumnName::COUNT) == column_name_labels.size());
 
 }  // namespace

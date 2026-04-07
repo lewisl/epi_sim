@@ -12,6 +12,8 @@
 #include "../src/timing.h"
 #include "../src/spread.h"
 #include "../src/progression.h"
+#include "../src/disease_modeling.h"
+#include "../src/vaccination.h"
 #include "../src/plot.h"
 
 #include <sstream>
@@ -30,6 +32,14 @@ struct VariantNamesGuard {
 
     ~VariantNamesGuard() {
         Variant::names = saved_names;
+    }
+};
+
+struct VaxNamesGuard {
+    vector<string> saved_names = Vax::names;
+
+    ~VaxNamesGuard() {
+        Vax::names = saved_names;
     }
 };
 
@@ -67,15 +77,14 @@ size_t require_locale_index(const GeoData& geodata, int locale) {
 }
 
 const VaxParams& require_vax(const VaxSet& vaxset, string_view name) {
-    const auto it = std::find_if(vaxset.vaxset.begin(), vaxset.vaxset.end(),
-                                 [name](const auto& entry) { return entry.first == name; });
-    assert(it != vaxset.vaxset.end());
-    return it->second;
+    const auto it = std::find(Vax::names.begin(), Vax::names.end(), name);
+    assert(it != Vax::names.end());
+    return vaxset.at(Vax{static_cast<uint8_t>(std::distance(Vax::names.begin(), it))});
 }
 
 const PerVaxSpec& require_sched_vax(const VaxSched& sched, string_view name) {
     const auto it = std::find_if(sched.vaxesincluded.begin(), sched.vaxesincluded.end(),
-                                 [name](const auto& entry) { return entry.vax_name == name; });
+                                 [name](const auto& entry) { return entry.vax.show() == name; });
     assert(it != sched.vaxesincluded.end());
     return *it;
 }
@@ -122,13 +131,10 @@ vector<string> split_trimmed_lines(const string& text) {
 }
 
 PopData make_popdata_print_fixture() {
-    MapEnum<uint8_t> vax_lbl{{{"none", 0}, {"pfizer", 1}, {"moderna", 2}}};
-    MapEnum<uint8_t> true_false{{{"false", 0}, {"true", 1}}};
-    MapEnum<int> justint{};
-
     Variant::names = {"none", "alpha", "delta"};
+    Vax::names = {"none", "pfizer", "moderna"};
 
-    PopData pop(3, vax_lbl, true_false, justint);
+    PopData pop(3);
 
     pop.agegrp[1] = AGE20_39;
     pop.agegrp[2] = AGE40_59;
@@ -142,8 +148,9 @@ PopData make_popdata_print_fixture() {
     pop.sickday[1] = 2;
     pop.sickday_hist[1].arr[0] = 2;
     pop.sickday_hist[1].count = 1;
-    pop.recovday[1][0] = 9;
-    pop.recovday_count[1] = 1;
+    pop.recovday[1] = 9;
+    pop.recovday_hist[1].arr[0] = 9;
+    pop.recovday_hist[1].count = 1;
 
     pop.status[2] = INFECTIOUS;
     pop.cond[2] = MILD;
@@ -159,17 +166,19 @@ PopData make_popdata_print_fixture() {
     pop.sickday_hist[2].arr[0] = 4;
     pop.sickday_hist[2].arr[1] = 11;
     pop.sickday_hist[2].count = 2;
-    pop.tested[2][0] = 0;
-    pop.tested[2][1] = 1;
-    pop.tested_count[2] = 2;
-    pop.testday[2][0] = 6;
-    pop.testday[2][1] = 12;
+    pop.testday[2] = 12;
+    pop.testday_hist[2].arr[0] = 6;
+    pop.testday_hist[2].arr[1] = 12;
+    pop.testday_hist[2].count = 2;
     pop.vaxstatus[2] = Vaxstat::booster;
-    pop.vaxrcvd[2][0] = 1;
-    pop.vaxrcvd[2][1] = 2;
-    pop.vax_count[2] = 2;
-    pop.vaxday[2][0] = 5;
-    pop.vaxday[2][1] = 14;
+    pop.vaxrcvd[2] = Vax{2};
+    pop.vax_hist[2].arr[0] = Vax{1};
+    pop.vax_hist[2].arr[1] = Vax{2};
+    pop.vax_hist[2].count = 2;
+    pop.vaxday[2] = 14;
+    pop.vaxday_hist[2].arr[0] = 5;
+    pop.vaxday_hist[2].arr[1] = 14;
+    pop.vaxday_hist[2].count = 2;
 
     pop.status[3] = UNEXPOSED;
     pop.cond[3] = UNINFECTED;
@@ -178,6 +187,61 @@ PopData make_popdata_print_fixture() {
 }
 
 } // namespace poptable_test
+
+void test_primitive_column_wrappers() {
+    fmt::print("\n=== Testing Primitive Column Wrappers ===\n\n");
+
+    Duration duration;
+    Sickday sickday;
+
+    assert(duration == 0);
+    assert(sickday == 0);
+
+    duration = 5;
+    sickday = 12;
+
+    assert(duration.show() == "5");
+    assert(sickday.show() == "12");
+    assert(fmt::format("{}", duration) == "5");
+    assert(fmt::format("{}", sickday) == "12");
+
+    assert(duration == 5);
+    assert(5 == duration);
+    assert(duration < 6);
+    assert(4 < duration);
+    assert(sickday == 12);
+    assert(sickday > 11);
+
+    Duration next = duration + 2;
+    assert(next == 7);
+    next += 3;
+    assert(next == 10);
+    const Duration before_post = next++;
+    assert(before_post == 10);
+    assert(next == 11);
+    ++next;
+    assert(next == 12);
+
+    bool threw = false;
+    try {
+        Duration bad{-1};
+        (void)bad;
+    } catch (const std::out_of_range&) {
+        threw = true;
+    }
+    assert(threw);
+
+    threw = false;
+    try {
+        Sickday bad{40000};
+        (void)bad;
+    } catch (const std::out_of_range&) {
+        threw = true;
+    }
+    assert(threw);
+
+    fmt::println("=== Primitive Column Wrappers Test Completed ===");
+}
 
 
 void run_category_tests() {
@@ -297,7 +361,7 @@ void test_agent_pop_print() {
     std::ostringstream mixed_out;
     print_agent_pop_table(pop, rows,
                           {"variant", "variant_hist", "sickday", "sickday_hist",
-                           "recovday", "tested", "testday"},
+                           "recovday", "recovday_hist", "tested", "testday", "testday_hist"},
                           mixed_out);
     const auto mixed_lines = poptable_test::split_trimmed_lines(mixed_out.str());
     for (const auto& line : mixed_lines) {
@@ -305,18 +369,18 @@ void test_agent_pop_print() {
     }
     fmt::print("\n");
     const vector<string> expected_mixed = {
-        "row  variant     variant_hist   sickday  sickday_hist  recovday  tested  testday",
-        "--------------------------------------------------------------------------------",
-        "  1  alpha       alpha         2        2             9         -       -",
-        "  2  delta       alpha|delta   11       4|11          -         true    12",
-        "  3  none        -             -        -             -         -       -",
+        "row  variant     variant_hist   sickday  sickday_hist  recovday  recovday_hist  tested  testday  testday_hist",
+        "----------------------------------------------------------------------------------------------------------------",
+        "  1  alpha       alpha         2        2             9         9              -       -        -",
+        "  2  delta       alpha|delta   11       4|11          -         -              true    12       6|12",
+        "  3  none        -             -        -             -         -              -       -        -",
     };
     assert(mixed_lines == expected_mixed);
 
     std::ostringstream multi_out;
     print_agent_pop_table(pop, rows,
                           {"variant", "variant_hist", "sickday", "sickday_hist",
-                           "recovday", "tested", "testday"},
+                           "recovday", "recovday_hist", "tested", "testday", "testday_hist"},
                           multi_out, true);
     const auto multi_lines = poptable_test::split_trimmed_lines(multi_out.str());
     for (const auto& line : multi_lines) {
@@ -324,12 +388,12 @@ void test_agent_pop_print() {
     }
     fmt::print("\n");
     const vector<string> expected_multi = {
-        "row  variant     variant_hist   sickday  sickday_hist  recovday  tested  testday",
-        "--------------------------------------------------------------------------------",
-        "  1  alpha       alpha         2        2             9         -       -",
-        "  2  delta       alpha         11       4             -         false   6",
-        "  *             delta                  11                      true    12",
-        "  3  none        -             -        -             -         -       -",
+        "row  variant     variant_hist   sickday  sickday_hist  recovday  recovday_hist  tested  testday  testday_hist",
+        "----------------------------------------------------------------------------------------------------------------",
+        "  1  alpha       alpha         2        2             9         9              -       -        -",
+        "  2  delta       alpha         11       4             -         -              true    12       6",
+        "  *             delta                  11                                              12",
+        "  3  none        -             -        -             -         -              -       -        -",
     };
     assert(multi_lines == expected_multi);
 
@@ -360,9 +424,9 @@ void test_agent_pop_print() {
         pop, rows,
         {"status", "agegrp", "cond", "duration", "variant", "variant_hist",
          "sickday", "sickday_hist",
-         "recovday", "recovday_count", "deadday", "ring", "sdcase",
-         "tested", "tested_count", "testday", "quar", "quarday", "vaxstatus",
-         "vaxrcvd", "vax_count", "vaxday"},
+         "recovday", "recovday_hist", "deadday", "ring", "sdcase",
+         "tested", "testday_hist", "testday", "quar", "quarday", "vaxstatus",
+         "vaxrcvd", "vax_hist", "vaxday", "vaxday_hist"},
         all_expected_out);
     assert(poptable_test::split_trimmed_lines(all_out.str()) ==
            poptable_test::split_trimmed_lines(all_expected_out.str()));
@@ -425,8 +489,12 @@ void test_pop_column_registry() {
 
     assert(PopData::column_name_from_string("status") == ColumnName::status);
     assert(PopData::column_name_from_string("sickday_hist") == ColumnName::sickday_hist);
+    assert(PopData::column_name_from_string("recovday_hist") == ColumnName::recovday_hist);
+    assert(PopData::column_name_from_string("testday_hist") == ColumnName::testday_hist);
     assert(PopData::column_name_from_string("testday") == ColumnName::testday);
     assert(PopData::column_name_from_string("vaxrcvd") == ColumnName::vaxrcvd);
+    assert(PopData::column_name_from_string("vax_hist") == ColumnName::vax_hist);
+    assert(PopData::column_name_from_string("vaxday_hist") == ColumnName::vaxday_hist);
     assert(!PopData::column_name_from_string("variant_count").has_value());
     assert(!PopData::column_name_from_string("does_not_exist").has_value());
 
@@ -469,17 +537,19 @@ void test_pop_column_registry() {
     assert(PopData::find_column("sickday_hist")->to_txt_cell(row2) == "4|11");
     assert(PopData::find_column("recovday")->to_txt_cell(row1) == "9");
     assert(PopData::find_column("recovday")->to_txt_cell(row2).empty());
-    assert(PopData::find_column("recovday_count")->to_txt_cell(row1) == "1");
+    assert(PopData::find_column("recovday_hist")->to_txt_cell(row1) == "9");
+    assert(PopData::find_column("recovday_hist")->to_txt_cell(row2).empty());
 
-    assert(PopData::find_column("tested")->to_txt_cell(row2) == "false|true");
+    assert(PopData::find_column("tested")->to_txt_cell(row2) == "true");
     assert(PopData::find_column("tested")->to_txt_cell(row3).empty());
-    assert(PopData::find_column("tested_count")->to_txt_cell(row2) == "2");
-    assert(PopData::find_column("testday")->to_txt_cell(row2) == "6|12");
+    assert(PopData::find_column("testday_hist")->to_txt_cell(row2) == "6|12");
+    assert(PopData::find_column("testday")->to_txt_cell(row2) == "12");
 
-    assert(PopData::find_column("vaxrcvd")->to_txt_cell(row2) == "pfizer|moderna");
+    assert(PopData::find_column("vaxrcvd")->to_txt_cell(row2) == "moderna");
     assert(PopData::find_column("vaxrcvd")->to_txt_cell(row3).empty());
-    assert(PopData::find_column("vax_count")->to_txt_cell(row2) == "2");
-    assert(PopData::find_column("vaxday")->to_txt_cell(row2) == "5|14");
+    assert(PopData::find_column("vax_hist")->to_txt_cell(row2) == "pfizer|moderna");
+    assert(PopData::find_column("vaxday")->to_txt_cell(row2) == "14");
+    assert(PopData::find_column("vaxday_hist")->to_txt_cell(row2) == "5|14");
 
     fmt::println("=== Pop Column Registry Test Completed ===");
 }
@@ -637,14 +707,10 @@ void test_sendrisk_indexing() {
 void test_make_sick_and_seedcase_duration_indexing() {
     fmt::print("\n=== Testing make_sick and SeedCase Duration Indexing ===\n\n");
 
-    MapEnum<uint8_t> vax_lbl{{{"none", 0}, {"pfizer", 1}}};
-    MapEnum<uint8_t> true_false{{{"false", 0}, {"true", 1}}};
-    MapEnum<int> justint{};
-
     const vector<string> saved_variant_names = Variant::names;
     Variant::names = {"none", "base"};
 
-    PopData pop(4, vax_lbl, true_false, justint);
+    PopData pop(4);
     HistorySeries series(5);
 
     sim::reset_day();
@@ -685,6 +751,228 @@ void test_make_sick_and_seedcase_duration_indexing() {
     Variant::names = saved_variant_names;
 
     fmt::println("=== make_sick and SeedCase Duration Indexing Test Completed ===");
+}
+
+void test_make_well_recovday_history() {
+    fmt::print("\n=== Testing make_well Recovery Day History ===\n\n");
+
+    PopData pop(1);
+    HistorySeries series(20);
+    auto person = pop.agent(1);
+
+    const vector<string> saved_variant_names = Variant::names;
+    Variant::names = {"none", "base"};
+    person.variant() = Variant{1};
+
+    sim::reset_day();
+
+    for (int day = 1; day <= 17; ++day) {
+        sim::incr_day();
+        sim::ds.day = sim::get_day();
+
+        person.status() = INFECTIOUS;
+        person.cond() = MILD;
+        person.duration() = 3;
+        person.make_well(series);
+    }
+
+    assert(person.status() == RECOVERED);
+    assert(person.cond() == UNINFECTED);
+    assert(person.duration() == 0);
+    assert(person.recovday() == 17);
+    assert(person.recovday_hist().count == 17);
+    assert(person.recovday_hist().stored_count() == 16);
+    assert(person.recovday_hist().arr[0] == 2);
+    assert(person.recovday_hist().arr[15] == 17);
+    assert(person.recovday_hist().latest() == 17);
+    assert(person.recovday_hist().show() == "2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17");
+
+    Variant::names = saved_variant_names;
+
+    fmt::println("=== make_well Recovery Day History Test Completed ===");
+}
+
+void test_testday_history_and_derived_tested() {
+    fmt::print("\n=== Testing testday History and Derived tested ===\n\n");
+
+    PopData pop(2);
+    HistorySeries series(5);
+
+    assert(pop.testday[1] == 0);
+    assert(pop.testday_hist[1].count == 0);
+    assert(pop.agent(1).tested() == 0);
+
+    for (int day = 1; day <= 17; ++day) {
+        pop.testday_hist[1].set(day);
+    }
+    pop.testday[1] = 17;
+
+    assert(pop.testday_hist[1].stored_count() == 16);
+    assert(pop.testday_hist[1].arr[0] == 2);
+    assert(pop.testday_hist[1].arr[15] == 17);
+    assert(pop.testday_hist[1].latest() == 17);
+    assert(pop.agent(1).tested() == 1);
+
+    Filter filter{{{"tested", 1}}};
+    Change change{{{"quar", 1}}, 1};
+    SeedCase seed_case(1, true, filter, change, pop);
+
+    const auto seeded = seed_case(series);
+    assert(seeded.size() == 1);
+    assert(seeded.front() == 1);
+    assert(pop.quar[1] == 1);
+    assert(pop.quar[2] == 0);
+
+    fmt::println("=== testday History and Derived tested Test Completed ===");
+}
+
+void test_recoveffect_uses_scalar_recovday() {
+    fmt::print("\n=== Testing recoveffect Scalar recovday ===\n\n");
+
+    PopData pop(2);
+    pop.variant[1] = Variant{1};
+    pop.recovday[1] = 10;
+    pop.recovday_hist[1].count = 0;
+    pop.variant[2] = Variant{1};
+    pop.recovday[2] = 0;
+
+    vector<InfectParams> infectparams(2);
+    infectparams[1].recovery_immunity = {0.0f, 0.5f};
+    infectparams[1].immunehalflife = 120;
+
+    const float recovered_factor = recoveffect(pop.agent(1), 20, 1, infectparams);
+    const float naive_factor = recoveffect(pop.agent(2), 20, 1, infectparams);
+
+    assert(recovered_factor < 1.0f);
+    assert(recovered_factor >= 0.0f);
+    assert(approx_equal(naive_factor, 1.0f, 1e-6));
+
+    fmt::println("=== recoveffect Scalar recovday Test Completed ===");
+}
+
+void test_vaccinate_uses_scalar_recovday() {
+    fmt::print("\n=== Testing vaccinate Scalar recovday Eligibility ===\n\n");
+    parameter_test::VaxNamesGuard vax_names_guard;
+    Vax::names = {"none", "pfizer"};
+
+    PopData pop(3);
+    for (int p = 1; p <= 3; ++p) {
+        pop.agegrp[p] = AGE20_39;
+    }
+
+    pop.status[1] = UNEXPOSED;
+    pop.status[2] = RECOVERED;
+    pop.recovday[2] = 5;
+    pop.status[3] = RECOVERED;
+    pop.recovday[3] = 10;
+
+    VaxParams pfizer;
+    pfizer.reqdshots = 1;
+    pfizer.delay2ndshot = 0;
+    pfizer.delaybooster = 999;
+
+    VaxSet vaxset;
+    vaxset.params.push_back(VaxParams{});
+    vaxset.params.push_back(pfizer);
+
+    PerVaxSpec spec;
+    spec.vax = Vax{1};
+    spec.mix = 1.0f;
+    spec.starting_doses = 10;
+    spec.doses = 10;
+    spec.pct2ndshot = 1.0f;
+    spec.pctboost = 1.0f;
+
+    VaxSched sched;
+    sched.vaxesincluded.push_back(spec);
+    sched.dayrange = {1, 30};
+    sched.targetpct = 1.0f;
+    sched.filtervec = {AGE20_39};
+    sched.shotmode = "all";
+    sched.pattern = {1.0f, 1.0f};
+    sched.spreadfunc = [](int) { return 1.0f; };
+
+    VaxSchedSet schedset;
+    schedset.schedules.push_back({"unit_test_sched", sched});
+
+    HistorySeries series(30);
+    vaccinate(20, schedset, vaxset, pop, series);
+
+    assert(pop.vax_hist[1].count == 1);
+    assert(pop.vax_hist[2].count == 1);
+    assert(pop.vax_hist[3].count == 0);
+    assert(pop.vaxrcvd[1] == Vax{1});
+    assert(pop.vaxrcvd[2] == Vax{1});
+    assert(idx(pop.vaxrcvd[3]) == 0);
+
+    fmt::println("=== vaccinate Scalar recovday Eligibility Test Completed ===");
+}
+
+void test_vaxeffect_uses_scalar_latest_vax() {
+    fmt::print("\n=== Testing vaxeffect Scalar latest vaccine/day ===\n\n");
+    parameter_test::VariantNamesGuard variant_names_guard;
+    parameter_test::VaxNamesGuard vax_names_guard;
+    Variant::names = {"none", "base"};
+    Vax::names = {"none", "pfizer"};
+
+    PopData pop(2);
+    pop.vaxstatus[1] = Vaxstat::full;
+    pop.vaxrcvd[1] = Vax{1};
+    pop.vaxday[1] = 10;
+    pop.vax_hist[1].count = 0;
+    pop.vaxday_hist[1].count = 0;
+
+    VaxParams pfizer;
+    pfizer.halflife = 180;
+    pfizer.full_effect_days = 14;
+    pfizer.day1_effect = 0.65f;
+    pfizer.infectfactor = {{"base", 0.9f}};
+    pfizer.effectiveness = {
+        {"first", {{"base", 0.7f}}},
+        {"full", {{"base", 0.9f}}},
+        {"booster", {{"base", 0.95f}}},
+    };
+
+    VaxSet vaxset;
+    vaxset.params.push_back(VaxParams{});
+    vaxset.params.push_back(pfizer);
+
+    const float protected_factor = vaxeffect(20, pop.agent(1), vaxset, 1);
+    const float naive_factor = vaxeffect(20, pop.agent(2), vaxset, 1);
+
+    assert(protected_factor < 1.0f);
+    assert(protected_factor >= 0.0f);
+    assert(approx_equal(naive_factor, 1.0f, 1e-6));
+
+    fmt::println("=== vaxeffect Scalar latest vaccine/day Test Completed ===");
+}
+
+void test_vax_history_overflow() {
+    fmt::print("\n=== Testing vax history overflow retention ===\n\n");
+    parameter_test::VaxNamesGuard vax_names_guard;
+    Vax::names = {"none", "pfizer"};
+
+    PopData pop(1);
+
+    for (int day = 1; day <= 17; ++day) {
+        pop.vaxrcvd[1] = Vax{1};
+        pop.vaxday[1] = static_cast<int16_t>(day);
+        pop.vax_hist[1].set(Vax{1});
+        pop.vaxday_hist[1].set(static_cast<int16_t>(day));
+    }
+
+    assert(pop.vaxrcvd[1] == Vax{1});
+    assert(pop.vaxday[1] == 17);
+    assert(pop.vax_hist[1].count == 17);
+    assert(pop.vax_hist[1].stored_count() == 16);
+    assert(pop.vax_hist[1].latest() == Vax{1});
+    assert(pop.vaxday_hist[1].count == 17);
+    assert(pop.vaxday_hist[1].stored_count() == 16);
+    assert(pop.vaxday_hist[1].arr[0] == 2);
+    assert(pop.vaxday_hist[1].arr[15] == 17);
+    assert(pop.vaxday_hist[1].latest() == 17);
+
+    fmt::println("=== vax history overflow retention Test Completed ===");
 }
 
 void test_age_distribution(const PopData& pop) {
@@ -729,7 +1017,9 @@ void test_model_params() {
   fmt::print("\n=== Testing ModelParams Loading ===\n\n");
 
   parameter_test::VariantNamesGuard variant_names_guard;
+  parameter_test::VaxNamesGuard vax_names_guard;
   Variant::names.clear();
+  Vax::names.clear();
   const auto paths = parameter_test::sample_paths();
 
   GeoData geodata = load_geodata_csv(paths.geodata);
@@ -777,12 +1067,13 @@ void test_model_params() {
   assert(approx_equal(socialdata.touchfactors[0][0], 0.55, 1e-9));
   assert(approx_equal(socialdata.touchfactors[4][0], 0.28, 1e-9));
 
-  auto [vaxset, vaxlist] = load_vax_data(paths.vaccines, variants);
-  assert(vaxset.vaxset.size() == 3);
-  assert(vaxlist.size() == 3);
-  assert(vaxlist.to_int("Pfizer").has_value());
-  assert(vaxlist.to_int("Moderna").has_value());
-  assert(vaxlist.to_int("JnJ").has_value());
+  VaxSet vaxset = load_vax_data(paths.vaccines);
+  assert(vaxset.size() == 3);
+  assert(Vax::names.size() == 4);
+  assert(Vax::names[0] == "none");
+  assert(Vax::names[1] == "Pfizer");
+  assert(Vax::names[2] == "Moderna");
+  assert(Vax::names[3] == "JnJ");
   const auto& pfizer = parameter_test::require_vax(vaxset, "Pfizer");
   assert(pfizer.reqdshots == 2);
   assert(pfizer.delay2ndshot == 21);
@@ -793,7 +1084,7 @@ void test_model_params() {
   assert(pfizer.effectiveness[1].first == "full");
   assert(approx_equal(parameter_test::require_named_factor(pfizer.effectiveness[1].second, "delta"), 0.8, 1e-9));
 
-  VaxSchedSet vaxschedset = load_vax_sched_set(paths.vax_sched_dir, vaxlist);
+  VaxSchedSet vaxschedset = load_vax_sched_set(paths.vax_sched_dir);
   assert(vaxschedset.size() == 2);
 
   const auto& old_sched = parameter_test::require_sched(vaxschedset, "loc38015_old");
@@ -830,13 +1121,12 @@ void test_model_params() {
       .trvec = std::move(trvec),
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxset),
-      .vaxlist = std::move(vaxlist),
       .vaxschedset = std::move(vaxschedset),
   };
 
   assert(mp.geodata.pop[locale_idx] == 95626);
   assert(mp.variants[1].show() == "base");
-  assert(mp.vaxset.vaxset.size() == 3);
+  assert(mp.vaxset.size() == 3);
   assert(mp.vaxschedset.size() == 2);
 
   fmt::println("==================== Model Parameters ==================");
@@ -851,10 +1141,6 @@ void test_model_params() {
   mp.progressionset.print(mp.variants);
   fmt::print("\n");
   mp.vaxset.print();
-  fmt::print("\n");
-  fmt::println("============ VaxList ==============");
-  mp.vaxlist.print();
-  fmt::println("============ End Vaxlist ==========");
   fmt::print("\n");
   mp.vaxschedset.print();
   fmt::print("\n");
@@ -1279,8 +1565,15 @@ void test_random_functions() {
 // }
 
 int main() {
-  // test_pop_column_registry();
-  // test_agent_pop_print();
+  test_primitive_column_wrappers();
+  test_pop_column_registry();
+  test_agent_pop_print();
+  test_make_well_recovday_history();
+  test_testday_history_and_derived_tested();
+  test_recoveffect_uses_scalar_recovday();
+  test_vaccinate_uses_scalar_recovday();
+  test_vaxeffect_uses_scalar_latest_vax();
+  test_vax_history_overflow();
   test_model_params();
   // test_build_model();
   // test_finalize_series();

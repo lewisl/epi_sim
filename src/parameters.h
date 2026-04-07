@@ -170,6 +170,94 @@ namespace Vaxstat {
   inline const Vaxstatus booster{3};
 } // namespace Vaxstat
 
+template<typename T, typename Tag>
+struct PrimitiveCol {
+  using value_type = T;
+  using tag_type = Tag;
+
+  T v{};
+
+  constexpr PrimitiveCol() noexcept = default;
+  constexpr PrimitiveCol(const PrimitiveCol&) noexcept = default;
+  constexpr PrimitiveCol& operator=(const PrimitiveCol&) noexcept = default;
+  constexpr PrimitiveCol(PrimitiveCol&&) noexcept = default;
+  constexpr PrimitiveCol& operator=(PrimitiveCol&&) noexcept = default;
+
+  explicit constexpr PrimitiveCol(T value) noexcept : v(value) {}
+
+  template<std::integral U>
+    requires (!std::same_as<std::remove_cvref_t<U>, PrimitiveCol> &&
+              !std::same_as<std::remove_cvref_t<U>, PrimitiveCol<T, Tag>>)
+  explicit constexpr PrimitiveCol(U value) : v(checked_cast(value)) {}
+
+  template<std::integral U>
+    requires (!std::same_as<std::remove_cvref_t<U>, PrimitiveCol<T, Tag>>)
+  constexpr PrimitiveCol& operator=(U value) {
+    v = checked_cast(value);
+    return *this;
+  }
+
+  std::string show() const {
+    if constexpr (std::same_as<T, uint8_t>) {
+      return fmt::format("{}", static_cast<unsigned int>(v));
+    } else {
+      return fmt::format("{}", v);
+    }
+  }
+
+  constexpr operator T() const noexcept { return v; }
+  constexpr bool operator==(const PrimitiveCol&) const noexcept = default;
+  constexpr auto operator<=>(const PrimitiveCol&) const noexcept = default;
+
+ protected:
+  template<std::integral U>
+  static constexpr T checked_cast(U value) {
+    if (!std::in_range<T>(value)) {
+      throw std::out_of_range(
+          fmt::format("Value {} is out of range for {}", value, typeid(T).name()));
+    }
+    return static_cast<T>(value);
+  }
+};
+
+struct DurationTag;
+using DurationBase = PrimitiveCol<uint8_t, DurationTag>;
+
+struct Duration : DurationBase {
+  using DurationBase::DurationBase;
+  using DurationBase::operator=;
+
+  constexpr Duration& operator++() {
+    v = checked_cast(static_cast<int>(v) + 1);
+    return *this;
+  }
+
+  constexpr Duration operator++(int) {
+    Duration copy = *this;
+    ++(*this);
+    return copy;
+  }
+
+  template<std::integral U>
+  constexpr Duration& operator+=(U rhs) {
+    v = checked_cast(static_cast<long long>(v) + static_cast<long long>(rhs));
+    return *this;
+  }
+
+  template<std::integral U>
+  friend constexpr Duration operator+(Duration lhs, U rhs) {
+    lhs += rhs;
+    return lhs;
+  }
+};
+
+using Sickday = PrimitiveCol<int16_t, struct SickdayTag>;
+using Recovday = PrimitiveCol<int16_t, struct RecovdayTag>;
+using Deadday = PrimitiveCol<int16_t, struct DeaddayTag>;
+using Testday = PrimitiveCol<int16_t, struct TestdayTag>;
+using Quarday = PrimitiveCol<int16_t, struct QuardayTag>;
+using Vaxday = PrimitiveCol<int16_t, struct VaxdayTag>;
+
 //
 // runtime building of trait classes
 //
@@ -198,6 +286,31 @@ struct Variant {
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Variant &) const = default;
+};
+
+struct Vax {
+  uint8_t v{};
+  inline static std::vector<std::string> names;
+
+  Vax() = default;
+  constexpr explicit Vax(uint8_t v) noexcept : v(v) {}
+  constexpr Vax(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  explicit Vax(std::string_view name) {
+    if (names.empty()) {
+      assert(name == "none" && "First Vax constructed must be \"none\"");
+    } else {
+      assert(name != "none" && "\"none\" vax already exists");
+    }
+    names.push_back(std::string{name});
+    v = static_cast<uint8_t>(names.size() - 1);
+  }
+
+  std::string show() const noexcept {
+    if (static_cast<size_t>(v) >= names.size()) return "";
+    return names[v];
+  }
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Vax &) const = default;
 };
 
 struct VariantHist {
@@ -236,7 +349,136 @@ struct VariantHist {
   }
 };
 
+struct VaxHist {
+  std::array<Vax, 16> arr{};
+  uint8_t count{};
+
+  void set(Vax vax) {
+    if (count < arr.size()) {
+      arr[count] = vax;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = vax;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  Vax latest() const {
+    if (count == 0) return Vax{};
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+
+    std::vector<std::string> rendered;
+    rendered.reserve(entry_count);
+    for (size_t idx = 0; idx < entry_count; ++idx) {
+      rendered.push_back(arr[idx].show());
+    }
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
 struct SickdayHist {
+  std::array<int16_t, 16> arr{};
+  uint8_t count{};
+
+  void set(int16_t day) {
+    if (count < arr.size()) {
+      arr[count] = day;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = day;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  int16_t latest() const {
+    if (count == 0) return 0;
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+    std::vector<int16_t> rendered(arr.begin(), arr.begin() + entry_count);
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
+struct RecovdayHist {
+  std::array<int16_t, 16> arr{};
+  uint8_t count{};
+
+  void set(int16_t day) {
+    if (count < arr.size()) {
+      arr[count] = day;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = day;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  int16_t latest() const {
+    if (count == 0) return 0;
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+    std::vector<int16_t> rendered(arr.begin(), arr.begin() + entry_count);
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
+struct TestdayHist {
+  std::array<int16_t, 16> arr{};
+  uint8_t count{};
+
+  void set(int16_t day) {
+    if (count < arr.size()) {
+      arr[count] = day;
+    } else {
+      std::shift_left(arr.begin(), arr.end(), 1);
+      arr.back() = day;
+    }
+    ++count;
+  }
+
+  size_t stored_count() const {
+    return std::min<size_t>(count, arr.size());
+  }
+
+  int16_t latest() const {
+    if (count == 0) return 0;
+    return count >= arr.size() ? arr.back() : arr[zidx(count)];
+  }
+
+  std::string show() const {
+    const auto entry_count = stored_count();
+    if (entry_count == 0) return "";
+    std::vector<int16_t> rendered(arr.begin(), arr.begin() + entry_count);
+    return fmt::format("{}", fmt::join(rendered, "|"));
+  }
+};
+
+struct VaxdayHist {
   std::array<int16_t, 16> arr{};
   uint8_t count{};
 
@@ -289,6 +531,26 @@ struct fmt::formatter<T> : fmt::formatter<uint8_t> {
     }
 };
 
+template <typename T>
+concept PrimitiveColType = requires(const T& value) {
+  typename T::value_type;
+  typename T::tag_type;
+  { value.v };
+};
+
+template<PrimitiveColType T>
+struct fmt::formatter<T> : fmt::formatter<std::conditional_t<std::same_as<typename T::value_type, uint8_t>,
+                                                              unsigned int,
+                                                              typename T::value_type>> {
+  auto format(const T& val, fmt::format_context& ctx) const {
+    if constexpr (std::same_as<typename T::value_type, uint8_t>) {
+      return fmt::formatter<unsigned int>::format(static_cast<unsigned int>(val.v), ctx);
+    } else {
+      return fmt::formatter<typename T::value_type>::format(val.v, ctx);
+    }
+  }
+};
+
 /* trait_from_string<T>(s) -- converts a string name to a trait value.
    T must be a TraitType (Agegrp, Status, Condition, etc.).
    Returns std::nullopt if s is not found in T::names.
@@ -310,92 +572,6 @@ std::optional<T> trait_from_string(const std::string& s) {
     if (it == T::names.end()) return std::nullopt;    // use nullopt instead of nullptr--because the return object is not a pointer. we could use {} instead
     return T{static_cast<uint8_t>(std::distance(T::names.begin(), it))};
 }
-
-template<typename T>    // T is the type of numeric to use for the number behind the enum
-struct MapEnum {
-  std::vector<std::string> names; // Index-to-Name (Number -> String)
-  absl::flat_hash_map<std::string, T> lookup; // Name-to-Index (String -> Number)
-  std::vector<T> valid_nums{};
-  T nextnum{0};
-
-  // contructors
-  MapEnum() = default;
-  // restore aggregate initializer style constructor
-  MapEnum(vector<string> names_,
-            absl::flat_hash_map<string, T> lookup_,
-            vector<T> valid_nums_,
-            T nextnum_)
-    : names(std::move(names_)),
-      lookup(std::move(lookup_)),
-      valid_nums(std::move(valid_nums_)),
-      nextnum(nextnum_) {}
-  // constructor for map literal--maintains invariants, always consistent, shortest
-  MapEnum(vector<std::pair<string, T>> mapliteral) {
-    for (auto pr : mapliteral) {
-      names.push_back(pr.first);
-      valid_nums.push_back(pr.second);
-      lookup[pr.first] = pr.second;
-      if constexpr (std::is_enum_v<T>) {
-        using U = std::underlying_type_t<T>;
-        nextnum = static_cast<T>(std::to_underlying(pr.second) + 1);
-      } else {
-        nextnum = pr.second + 1;
-      }
-    }
-  }
-
-  void add_item(std::string newname) {
-      if (lookup.find(newname) == lookup.end()) { // Avoid duplicates
-          names.push_back(newname);
-          valid_nums.push_back(nextnum);
-          lookup[newname] = nextnum;
-          if constexpr (std::is_enum_v<T>) {
-            using U = std::underlying_type_t<T>;
-            nextnum = static_cast<T>(std::to_underlying(nextnum) + 1);
-          } else {
-            ++nextnum;
-          }
-      }
-  }
-
-  // String -> stored numeric value (hash lookup)
-  //    returns std::nullopt if the name is not present
-  std::optional<T> to_int(const std::string& name) const {
-      auto it = lookup.find(name);
-      return (it != lookup.end()) ? std::optional<T>{it->second} : std::nullopt;
-  }
-
-  // Stored numeric value -> string label
-  std::string to_str(T i) const {
-    const auto it = std::find(valid_nums.begin(), valid_nums.end(), i);
-    if (it == valid_nums.end()) {
-      if constexpr (std::is_enum_v<T>) {
-        return "INVALID";
-      } else {
-        return std::to_string(i);
-      }
-    }
-    return names[static_cast<size_t>(std::distance(valid_nums.begin(), it))];
-  }
-
-  size_t size() const { return names.size(); }
-
-  void print() const {
-    for (size_t i = 0; i < names.size(); ++i) {
-      fmt::print("{:>2}: {:<8}\n", i, names[i]);
-    }
-  }
-};  // struct MapEnum
-
-// "fake" enums created at runtime to hold characteristics of persons in the simulation
-//     in the PopData table
-namespace Trait
-{
-  inline MapEnum<int> Justint{};
-
-  inline MapEnum<uint8_t> true_false = {{"true", "false"}, {{"true", 0}, {"false", 1}}, {0,1}, 2};
-}
-
 
 
 
@@ -638,26 +814,33 @@ struct VaxParams {
 
 
 struct VaxSet {
-  vector<std::pair<string, VaxParams>> vaxset{};
-  // TODO might need to replace this with Vaxstatus values??
-  MapEnum<uint8_t> shot_types = {{"first", "full", "booster"},           // names
-                            {{"first", 0}, {"full", 1}, {"booster", 2}},  // lookup
-                            {0,1,2},  // valid_nums
-                            3}; // nextnum --  I guess this will be hard-coded
+  vector<VaxParams> params{};
+
+  const VaxParams& at(Vax vax) const {
+    const size_t vax_idx = idx(vax);
+    if (vax_idx == 0 || vax_idx >= params.size()) {
+      throw std::runtime_error("Invalid vaccine lookup for VaxSet");
+    }
+    return params[vax_idx];
+  }
+
+  [[nodiscard]] size_t size() const {
+    return params.empty() ? 0 : params.size() - 1;
+  }
 
   void print() const {
     fmt::println("\n=== VaxSet ===");
-    fmt::println("Total vaccines: {}", vaxset.size());
+    fmt::println("Total vaccines: {}", size());
 
     fmt::print("Shot types: ");
-    for (size_t i = 0; i < shot_types.names.size(); ++i) {
-      if (i > 0) fmt::print(", ");
-      fmt::print("{}", shot_types.names[i]);
+    for (size_t i = 1; i < Vaxstatus::names.size(); ++i) {
+      if (i > 1) fmt::print(", ");
+      fmt::print("{}", Vaxstatus::names[i]);
     }
     fmt::println("\n");
 
-    for (const auto& [vax_name, vax_params] : vaxset) {
-      vax_params.print(vax_name);
+    for (size_t i = 1; i < params.size(); ++i) {
+      params[i].print(Vax::names[i]);
       fmt::println("");
     }
 
@@ -669,16 +852,16 @@ struct VaxSet {
 // vaccination schedules
 //
 struct PerVaxSpec {
-  string vax_name{};
+  Vax vax{};
   float mix{};
   int starting_doses{};
   int doses{};
   float pct2ndshot {};
   float pctboost {};
-  vector<string> alternate {};
+  vector<Vax> alternate {};
 
   void print() const {
-    fmt::println("    Vaccine: {}", vax_name);
+    fmt::println("    Vaccine: {}", vax.show());
     fmt::println("      Mix: {:.2f}", mix);
     fmt::println("      Starting doses: {}", starting_doses);
     fmt::println("      Doses remaining: {}", doses);
@@ -690,7 +873,7 @@ struct PerVaxSpec {
       fmt::print("      Alternates: ");
       for (size_t i = 0; i < alternate.size(); ++i) {
         if (i > 0) fmt::print(", ");
-        fmt::print("{}", alternate[i]);
+        fmt::print("{}", alternate[i].show());
       }
       fmt::println("");
     }
@@ -889,7 +1072,6 @@ struct ModelParams {
 
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
-  MapEnum<uint8_t> vaxlist;
   VaxSchedSet vaxschedset;
 };
 
@@ -917,13 +1099,11 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
 std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath);
 
 
-std::tuple<VaxSet, MapEnum<uint8_t>> load_vax_data(string fpath, vector<Variant>);
+VaxSet load_vax_data(string fpath);
 
+VaxSched load_vax_sched(const string &fname);
 
-VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist);
-
-
-VaxSchedSet load_vax_sched_set(const string &dirpath, const MapEnum<uint8_t>& vaxlist);
+VaxSchedSet load_vax_sched_set(const string &dirpath);
 
 
 SocialParams load_social_params(string social_path);

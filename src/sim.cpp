@@ -74,7 +74,7 @@ bool matches_filter(AgentView person, const Filter& filt) {
     else if (f.trait == "variant")   pval = int32_t(uint8_t(person.variant()));
     else if (f.trait == "vaxstatus") pval = int32_t(uint8_t(person.vaxstatus()));
     else if (f.trait == "quar")      pval = int32_t(person.quar());
-    else if (f.trait == "tested")    pval = int32_t(person.tested_count() > 0 ? 1 : 0);
+    else if (f.trait == "tested")    pval = int32_t(person.tested());
     if (pval != f.val) return false;
   }
   return true;
@@ -99,11 +99,11 @@ void apply_change(AgentView person, const Change& chg, HistorySeries& series) {
       }
       Variant  var{1};        // default: base (index 1)
       Condition cond = NIL;
-      uint8_t   dur  = 1;
+      Duration  dur{1};
       for (const auto& t : chg.terms) {
         if      (t.trait == "variant")  var  = Variant{static_cast<uint8_t>(t.val)};
         else if (t.trait == "cond")     cond = Condition{static_cast<uint8_t>(t.val)};
-        else if (t.trait == "duration") dur  = static_cast<uint8_t>(t.val);
+        else if (t.trait == "duration") dur  = t.val;
       }
       person.make_sick(var, series, cond, dur);
       // Fall through to apply any remaining terms not consumed by make_sick
@@ -123,7 +123,7 @@ void apply_change(AgentView person, const Change& chg, HistorySeries& series) {
   // No status routing: apply all terms directly
   for (const auto& t : chg.terms) {
     if      (t.trait == "cond")      person.cond()      = Condition{static_cast<uint8_t>(t.val)};
-    else if (t.trait == "duration")  person.duration()  = static_cast<uint8_t>(t.val);
+    else if (t.trait == "duration")  person.duration()  = t.val;
     else if (t.trait == "vaxstatus") person.vaxstatus() = Vaxstatus{static_cast<uint8_t>(t.val)};
     else if (t.trait == "quar")      person.quar()      = static_cast<uint8_t>(t.val);
   }
@@ -206,7 +206,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   // override dovax=true if any vax parameters within ModelParameters instance mp are empty
     if (model.dovax) { 
-      if ( (mp.vaxlist.size() == 0) | (mp.vaxset.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
+      if ((Vax::names.size() <= 1) | (mp.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
             model.dovax = false;
     }
 
@@ -240,7 +240,6 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       vaccinate(sim::get_day(),
                mp.vaxschedset,
                mp.vaxset,
-               mp.vaxlist,
                pop,
                series);
       vax_timing.cum();
@@ -282,7 +281,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       std::vector<size_t> rows;
       for (size_t p = 1; p <= pop.popn; ++p) {
         auto person = pop.agent(p);
-        if (person.status() == INFECTIOUS && person.agegrp() == AGE80_UP) {
+        if (person.status() == RECOVERED && person.agegrp() == AGE80_UP) {
           rows.push_back(p);
           if (rows.size() == 20) break;
         }

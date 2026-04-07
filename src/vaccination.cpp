@@ -7,22 +7,40 @@
 #include "population.h"
 #include "random.h"
 #include "series.h"
+#include "sim.h"
 
 // ---------------------------------------------------------------
 // internal helpers
 // ---------------------------------------------------------------
 
-static const VaxParams& vax_params(const VaxSet& vaxset, const string& name) {
-    for (const auto& [n, p] : vaxset.vaxset)
-        if (n == name) return p;
-    throw std::runtime_error("vax_params: unknown vaccine: " + name);
+static const VaxParams& vax_params(const VaxSet& vaxset, Vax vax) {
+    return vaxset.at(vax);
 }
 
-// find index of a vax name within sched.vaxesincluded
-static size_t spec_index(const vector<PerVaxSpec>& specs, const string& name) {
+// find index of a vax within sched.vaxesincluded
+static size_t spec_index(const vector<PerVaxSpec>& specs, Vax vax) {
     for (size_t i = 0; i < specs.size(); ++i)
-        if (specs[i].vax_name == name) return i;
-    throw std::runtime_error("spec_index: vax not in schedule: " + name);
+        if (specs[i].vax == vax) return i;
+    throw std::runtime_error("spec_index: vax not in schedule: " + vax.show());
+}
+
+static void record_vaccination(AgentView agent, Vax vax, int today) {
+    auto& vax_history = agent.vax_hist();
+    auto& vaxday_history = agent.vaxday_hist();
+    const bool history_overflow = vax_history.count >= 16 || vaxday_history.count >= 16;
+
+    agent.vaxrcvd() = vax;
+    agent.vaxday() = today;
+    vax_history.set(vax);
+    vaxday_history.set(static_cast<int16_t>(today));
+
+    if (history_overflow && sim::debug) {
+        std::cerr << "Vaccine history overflow for person " << agent.id
+                  << ". Oldest history entries lost.\n";
+        std::cerr << "vax_hist.count increased to " << static_cast<int>(vax_history.count)
+                  << ", vaxday_hist.count increased to "
+                  << static_cast<int>(vaxday_history.count) << "\n";
+    }
 }
 
 // ---------------------------------------------------------------
@@ -33,10 +51,9 @@ static void doshots(
         int today,
         VaxSched& sched,
         const VaxSet& vaxset,
-        const MapEnum<uint8_t>& vaxlist,
         vector<int>& doses_today,
-        const absl::flat_hash_map<string, int>& delay2ndshot,
-        const absl::flat_hash_map<string, int>& delaybooster,
+        const absl::flat_hash_map<uint8_t, int>& delay2ndshot,
+        const absl::flat_hash_map<uint8_t, int>& delaybooster,
         vector<size_t>& eligible,
         PopData& pop,
         HistorySeries& series)
@@ -63,33 +80,29 @@ static void doshots(
         if (vstatus == Vaxstat::none) {
 
             size_t choice_idx = xo::categorical_fast(mix);
-            string choice     = specs[choice_idx].vax_name;
+            Vax choice        = specs[choice_idx].vax;
 
             // try alternates if out of first choice
             if (doses_today[choice_idx] < 1) {
-                choice = "";
-                for (const auto& alt : specs[choice_idx].alternate) {
+                choice = Vax{};
+                for (const Vax alt : specs[choice_idx].alternate) {
                     for (size_t ai = 0; ai < specs.size(); ++ai) {
-                        if (specs[ai].vax_name == alt && doses_today[ai] > 0) {
+                        if (specs[ai].vax == alt && doses_today[ai] > 0) {
                             choice     = alt;
                             choice_idx = ai;
                             break;
                         }
                     }
-                    if (!choice.empty()) break;
+                    if (idx(choice) != 0) break;
                 }
-                if (choice.empty()) continue;  // no doses of any brand
+                if (idx(choice) == 0) continue;  // no doses of any brand
             }
 
             --specs[choice_idx].doses;      
             --doses_today[choice_idx];
             --avail_doses;
 
-            uint8_t vax_idx = vaxlist.lookup.at(choice);
-            uint8_t vc      = agent.vax_count();
-            agent.vaxrcvd()[vc] = vax_idx;
-            agent.vaxday()[vc]  = static_cast<int16_t>(today);
-            ++agent.vax_count();
+            record_vaccination(agent, choice, today);
 
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
@@ -100,15 +113,13 @@ static void doshots(
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
 
-            uint8_t vc        = agent.vax_count();
-            uint8_t last_idx  = agent.vaxrcvd()[zidx(vc)];
-            string  last_name = vaxlist.to_str(last_idx);
-            size_t  sidx      = spec_index(specs, last_name);
+            const Vax last_vax = agent.vaxrcvd();
+            size_t  sidx      = spec_index(specs, last_vax);
 
             if (doses_today[sidx] < 1) continue;
 
-            int16_t prev_day = agent.vaxday()[zidx(vc)];
-            if ((today - prev_day) < delay2ndshot.at(last_name)) continue;
+            const int16_t prev_day = agent.vaxday();
+            if ((today - prev_day) < delay2ndshot.at(idx(last_vax))) continue;
 
             if (!xo::bernoulli(specs[sidx].pct2ndshot)) continue;
 
@@ -116,23 +127,19 @@ static void doshots(
             --doses_today[sidx];
             --avail_doses;
 
-            agent.vaxrcvd()[vc] = last_idx;
-            agent.vaxday()[vc]  = static_cast<int16_t>(today);
-            ++agent.vax_count();
+            record_vaccination(agent, last_vax, today);
             agent.vaxstatus() = Vaxstat::full;
 
         // ---- booster ----
         } else if (vstatus == Vaxstat::full || vstatus == Vaxstat::booster) {
 
-            uint8_t vc        = agent.vax_count();
-            uint8_t last_idx  = agent.vaxrcvd()[zidx(vc)];
-            string  last_name = vaxlist.to_str(last_idx);
-            size_t  sidx      = spec_index(specs, last_name);
+            const Vax last_vax = agent.vaxrcvd();
+            size_t  sidx      = spec_index(specs, last_vax);
 
             if (doses_today[sidx] < 1) continue;
 
-            int16_t prev_day = agent.vaxday()[zidx(vc)];
-            if ((today - prev_day) < delaybooster.at(last_name)) continue;
+            const int16_t prev_day = agent.vaxday();
+            if ((today - prev_day) < delaybooster.at(idx(last_vax))) continue;
 
             if (!xo::bernoulli(specs[sidx].pctboost)) continue;
 
@@ -141,9 +148,7 @@ static void doshots(
             --avail_doses;
             // replace with a give_shot that preserves invariants for the vaccination columns
             // add a day stat for newly vaccinated.
-            agent.vaxrcvd()[vc] = last_idx;
-            agent.vaxday()[vc]  = static_cast<int16_t>(today);
-            ++agent.vax_count();
+            record_vaccination(agent, last_vax, today);
             agent.vaxstatus() = Vaxstat::booster;
         }
     }
@@ -152,7 +157,6 @@ static void doshots(
 static void vaccinate_sched(int today,
                             VaxSched& sched,
                             const VaxSet& vaxset,
-                            const MapEnum<uint8_t>& vaxlist,
                             PopData& pop,
                             HistorySeries& series)
 {
@@ -162,16 +166,16 @@ static void vaccinate_sched(int today,
     // extend window past schedule end to allow 2nd shots to complete
     int maxdelay = 0;
     for (const auto& spec : specs)
-        maxdelay = std::max(maxdelay, vax_params(vaxset, spec.vax_name).delay2ndshot);
+        maxdelay = std::max(maxdelay, vax_params(vaxset, spec.vax).delay2ndshot);
 
     if (today < dayrange.first || today > dayrange.second + maxdelay) return;
 
     // pre-build delay maps — one lookup per vax brand, not per person
-    absl::flat_hash_map<string, int> delay2ndshot, delaybooster;
+    absl::flat_hash_map<uint8_t, int> delay2ndshot, delaybooster;
     for (const auto& spec : specs) {
-        const auto& vp        = vax_params(vaxset, spec.vax_name);
-        delay2ndshot[spec.vax_name] = vp.delay2ndshot;
-        delaybooster[spec.vax_name] = vp.delaybooster;
+        const auto& vp        = vax_params(vaxset, spec.vax);
+        delay2ndshot[idx(spec.vax)] = vp.delay2ndshot;
+        delaybooster[idx(spec.vax)] = vp.delaybooster;
     }
 
     // doses available today per brand from the spread curve
@@ -193,8 +197,8 @@ static void vaccinate_sched(int today,
 
         bool unexposed = (pop.status[p] == UNEXPOSED);
         bool recovered = (pop.status[p] == RECOVERED)
-                      && (pop.recovday_count[p] > 0)
-                      && (pop.recovday[p][zidx(pop.recovday_count[p])] < today - 14);
+                      && (pop.recovday[p] > 0)
+                      && (pop.recovday[p] < today - 14);
 
         if (unexposed || recovered)
             eligible.push_back(p);
@@ -202,7 +206,7 @@ static void vaccinate_sched(int today,
 
     std::shuffle(eligible.begin(), eligible.end(), xo::get_gen());
 
-    doshots(today, sched, vaxset, vaxlist,
+    doshots(today, sched, vaxset,
             doses_today, delay2ndshot, delaybooster,
             eligible, pop, series);
 }
@@ -214,12 +218,11 @@ static void vaccinate_sched(int today,
 void vaccinate(int today,
                VaxSchedSet& schedset,
                const VaxSet& vaxset,
-               const MapEnum<uint8_t>& vaxlist,
                PopData& pop,
                HistorySeries& series)
 {
     for (auto& [name, sched] : schedset.schedules) {
         (void)name;
-        vaccinate_sched(today, sched, vaxset, vaxlist, pop, series);
+        vaccinate_sched(today, sched, vaxset, pop, series);
     }
 }

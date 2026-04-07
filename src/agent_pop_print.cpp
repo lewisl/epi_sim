@@ -10,6 +10,10 @@
 
 namespace {
 
+std::string bool_text(uint8_t value) {
+  return value == 0 ? std::string{"false"} : std::string{"true"};
+}
+
 using RowView = AgentView;
 using RenderLines = std::vector<std::string>;
 using RenderFn = RenderLines (*)(RowView, bool);
@@ -21,22 +25,10 @@ struct ColumnSpec {
 };
 
 template <typename T, size_t N>
-const T *latest_value(const std::array<T, N> &values, uint8_t count) {
-  if (count == 0) return nullptr;
-  return &values[count >= N ? N - 1 : zidx(count)];
-}
-
-template <typename T, size_t N>
 const T *stored_value(const std::array<T, N> &values, uint8_t count, size_t entry_idx) {
   const size_t stored_entries = std::min<size_t>(count, N);
   if (entry_idx >= stored_entries) return nullptr;
   return &values[entry_idx];
-}
-
-template <typename T, size_t N, typename Formatter>
-std::string latest_or_dash(const std::array<T, N> &values, uint8_t count, Formatter formatter) {
-  const T *value = latest_value(values, count);
-  return value == nullptr ? "-" : formatter(*value);
 }
 
 template <typename T, size_t N, typename Formatter>
@@ -62,6 +54,13 @@ std::string format_variant_name(Variant value) {
                            fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
+std::string format_vax_name(Vax value) {
+  const auto rendered = value.show();
+  if (!rendered.empty()) return rendered;
+  return idx(value) == 0 ? std::string{"none"} :
+                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
+}
+
 RenderLines render_status(RowView person, bool) { return {person.status().show()}; }
 
 RenderLines render_agegrp(RowView person, bool) { return {person.agegrp().show()}; }
@@ -69,7 +68,7 @@ RenderLines render_agegrp(RowView person, bool) { return {person.agegrp().show()
 RenderLines render_cond(RowView person, bool) { return {person.cond().show()}; }
 
 RenderLines render_duration(RowView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.duration()))};
+  return {person.duration().show()};
 }
 
 RenderLines render_variant(RowView person, bool) {
@@ -86,7 +85,7 @@ RenderLines render_variant_hist(RowView person, bool multi_values) {
 }
 
 RenderLines render_sickday(RowView person, bool) {
-  return {person.sickday() == 0 ? std::string{"-"} : fmt::format("{}", person.sickday())};
+  return {person.sickday() == 0 ? std::string{"-"} : person.sickday().show()};
 }
 
 RenderLines render_sickday_hist(RowView person, bool multi_values) {
@@ -99,19 +98,21 @@ RenderLines render_sickday_hist(RowView person, bool multi_values) {
 }
 
 RenderLines render_recovday(RowView person, bool multi_values) {
-  return render_history(
-      person.all_recovdays(), person.recovday_count(), multi_values,
-      [](int16_t value) { return fmt::format("{}", value); },
-      person.recovday_count() == 0 ? std::string{"-"}
-                                   : fmt::format("{}", person.get_recovday()));
+  (void)multi_values;
+  return {person.recovday() == 0 ? std::string{"-"} : person.recovday().show()};
 }
 
-RenderLines render_recovday_count(RowView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.recovday_count()))};
+RenderLines render_recovday_hist(RowView person, bool multi_values) {
+  const auto& history = person.recovday_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
+  return render_history(
+      history.arr, history.count, multi_values,
+      [](int16_t value) { return fmt::format("{}", value); },
+      scalar_value);
 }
 
 RenderLines render_deadday(RowView person, bool) {
-  return {fmt::format("{}", person.deadday())};
+  return {person.deadday().show()};
 }
 
 RenderLines render_ring(RowView person, bool) {
@@ -119,60 +120,65 @@ RenderLines render_ring(RowView person, bool) {
 }
 
 RenderLines render_sdcase(RowView person, bool) {
-  return {person.bool_labels().to_str(person.sdcase())};
+  return {bool_text(person.sdcase())};
 }
 
 RenderLines render_tested(RowView person, bool multi_values) {
-  return render_history(
-      person.tested(), person.tested_count(), multi_values,
-      [&](uint8_t value) { return person.bool_labels().to_str(value); },
-      latest_or_dash(person.tested(), person.tested_count(),
-                     [&](uint8_t value) { return person.bool_labels().to_str(value); }));
+  (void)multi_values;
+  return {person.tested() == 0 ? std::string{"-"} : bool_text(person.tested())};
 }
 
-RenderLines render_tested_count(RowView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.tested_count()))};
+RenderLines render_testday_hist(RowView person, bool multi_values) {
+  const auto& history = person.testday_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
+  return render_history(
+      history.arr, history.count, multi_values,
+      [](int16_t value) { return fmt::format("{}", value); },
+      scalar_value);
 }
 
 RenderLines render_testday(RowView person, bool multi_values) {
-  return render_history(
-      person.testday(), person.tested_count(), multi_values,
-      [](int16_t value) { return fmt::format("{}", value); },
-      latest_or_dash(person.testday(), person.tested_count(),
-                     [](int16_t value) { return fmt::format("{}", value); }));
+  (void)multi_values;
+  return {person.testday() == 0 ? std::string{"-"} : person.testday().show()};
 }
 
 RenderLines render_quar(RowView person, bool) {
-  return {person.bool_labels().to_str(person.quar())};
+  return {bool_text(person.quar())};
 }
 
 RenderLines render_quarday(RowView person, bool) {
-  return {fmt::format("{}", person.quarday())};
+  return {person.quarday().show()};
 }
 
 RenderLines render_vaxstatus(RowView person, bool) { return {person.vaxstatus().name()}; }
 
-RenderLines render_vaxrcvd(RowView person, bool multi_values) {
-  return render_history(
-      person.vaxrcvd(), person.vax_count(), multi_values,
-      [&](uint8_t value) { return person.vax_labels().to_str(value); },
-      latest_or_dash(person.vaxrcvd(), person.vax_count(),
-                     [&](uint8_t value) { return person.vax_labels().to_str(value); }));
+RenderLines render_vaxrcvd(RowView person, bool) {
+  return {idx(person.vaxrcvd()) == 0 ? std::string{"-"} : format_vax_name(person.vaxrcvd())};
 }
 
-RenderLines render_vax_count(RowView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.vax_count()))};
+RenderLines render_vax_hist(RowView person, bool multi_values) {
+  const auto& history = person.vax_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
+  return render_history(
+      history.arr, history.count, multi_values,
+      [](Vax value) { return format_vax_name(value); },
+      scalar_value);
 }
 
-RenderLines render_vaxday(RowView person, bool multi_values) {
+RenderLines render_vaxday(RowView person, bool) {
+  return {person.vaxday() == 0 ? std::string{"-"} : person.vaxday().show()};
+}
+
+RenderLines render_vaxday_hist(RowView person, bool multi_values) {
+  const auto& history = person.vaxday_hist();
+  const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
   return render_history(
-      person.vaxday(), person.vax_count(), multi_values,
+      history.arr, history.count, multi_values,
       [](int16_t value) { return fmt::format("{}", value); },
-      latest_or_dash(person.vaxday(), person.vax_count(),
-                     [](int16_t value) { return fmt::format("{}", value); }));
+      scalar_value);
 }
 
-constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
+constexpr std::array<ColumnSpec, 23> COLUMN_SPECS{{
     {"status", 10, render_status},
     {"agegrp", 10, render_agegrp},
     {"cond", 10, render_cond},
@@ -182,19 +188,20 @@ constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {"sickday", 7, render_sickday},
     {"sickday_hist", 11, render_sickday_hist},
     {"recovday", 8, render_recovday},
-    {"recovday_count", 14, render_recovday_count},
+    {"recovday_hist", 13, render_recovday_hist},
     {"deadday", 7, render_deadday},
     {"ring", 4, render_ring},
     {"sdcase", 6, render_sdcase},
     {"tested", 6, render_tested},
-    {"tested_count", 12, render_tested_count},
+    {"testday_hist", 12, render_testday_hist},
     {"testday", 7, render_testday},
     {"quar", 5, render_quar},
     {"quarday", 7, render_quarday},
     {"vaxstatus", 10, render_vaxstatus},
     {"vaxrcvd", 10, render_vaxrcvd},
-    {"vax_count", 9, render_vax_count},
+    {"vax_hist", 10, render_vax_hist},
     {"vaxday", 6, render_vaxday},
+    {"vaxday_hist", 11, render_vaxday_hist},
 }};
 
 constexpr size_t ROW_LABEL_WIDTH = 6;

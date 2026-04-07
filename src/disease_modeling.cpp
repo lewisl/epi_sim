@@ -10,13 +10,6 @@
 
 namespace {
 
-const VaxParams& require_vax_params(const VaxSet& vaxset, const string& name) {
-  for (const auto& [vax_name, params] : vaxset.vaxset) {
-    if (vax_name == name) return params;
-  }
-  throw std::runtime_error("Unknown vaccine in VaxSet: " + name);
-}
-
 float require_named_factor(const vector<std::pair<string, float>>& entries,
                            const string& key,
                            const string& context) {
@@ -96,19 +89,17 @@ void AgentView::make_well(HistorySeries & series) {    // the object is person--
   status() = RECOVERED; 
   // increment_series(series, SeriesName::new_recovered, agegrp(), sim::get_day());
   duration() = 0; 
-  // update recovday
-  if (recovday_count() < 16) {
-    all_recovdays()[recovday_count()] = sim::get_day();
-  } else {
-      std::shift_left(all_recovdays().begin(), all_recovdays().end(), 1);
-      all_recovdays().back() = sim::get_day();
-      if (sim::debug) {
-        std::cerr << "Recovday overflow for person " << i
-                << ". Oldest recovday lost.\n";
-        std::cerr << "  Recovday_count increased to " << recovday_count() << "\n";
-      }
+  recovday() = today;
+
+  auto& history = recovday_hist();
+  const bool history_overflow = history.count >= 16;
+  history.set(today);
+
+  if (history_overflow && sim::debug) {
+    std::cerr << "Recovday overflow for person " << id
+              << ". Oldest history entries lost.\n";
+    std::cerr << "recovday_hist.count increased to " << static_cast<int>(history.count) << "\n";
   }
-  ++recovday_count();
 }
 
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
@@ -187,9 +178,8 @@ float recoveffect(AgentView contact, size_t thisday,  uint8_t spr_variant,
 
     float factor = 1.0f; // return value
 
-    if (contact.recovday_count() > 0) {
-      
-        size_t recovday = contact.get_recovday();
+    if (contact.recovday() > 0) {
+        const size_t recovday = static_cast<size_t>(contact.recovday());
         size_t days_post_recov = thisday - recovday;
 
         if (days_post_recov >= 0) {
@@ -214,13 +204,12 @@ float recoveffect(AgentView contact, size_t thisday,  uint8_t spr_variant,
 
 float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
                 uint8_t target_variant, float csig, float decay_lower) {
-  if (person.vaxstatus() == Vaxstat::none || person.vax_count() == 0) return 1.0f;
+  if (person.vaxstatus() == Vaxstat::none || idx(person.vaxrcvd()) == 0 || person.vaxday() == 0) {
+    return 1.0f;
+  }
 
-  const uint8_t vax_count = person.vax_count();
-  const uint8_t vax_idx = person.vaxrcvd()[zidx(vax_count)];
-  const int16_t vaxday = person.vaxday()[zidx(vax_count)];
-  const string vax_name = person.vax_labels().to_str(vax_idx);
-  const auto& params = require_vax_params(vaxset, vax_name);
+  const auto& params = vaxset.at(person.vaxrcvd());
+  const int16_t vaxday = person.vaxday();
 
   if (target_variant >= Variant::names.size()) {
     throw std::runtime_error(fmt::format("Invalid variant index in vaxeffect: {}", target_variant));

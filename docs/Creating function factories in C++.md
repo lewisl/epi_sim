@@ -768,7 +768,7 @@ Good. Now I have everything. The key observations from PopData:
 
 - `vaxrcvd` is `array<uint8_t, 16>` — stores vaxlist indices, not strings
 - `vaxday` is `array<int16_t, 16>` — parallel array of shot days  
-- `vax_count` tracks how many shots, same pattern as `variant_count`/`recovday_count`
+- `vax_count` tracks how many shots, same pattern as `variant_count` and other bounded history counters
 - "last shot" = `vaxrcvd[i][zidx(vax_count[i])]` and `vaxday[i][zidx(vax_count[i])]`
 
 One issue to flag: `filtervec` is loaded as strings like `"age80_up"` but `Agegrp::names` has `"Age80_Up"` — need a case-insensitive match or a conversion at load time. I'll do the conversion at load time in `load_vax_sched` since paying that cost once is better than per-person per-day.
@@ -1033,8 +1033,8 @@ void vaccinate(int today, VaxSched& sched, const VaxSet& vaxset,
         // status filter
         bool unexposed = (pop.status[p] == Stat::Unexposed);
         bool recovered = (pop.status[p] == Stat::Recovered)
-                      && (pop.recovday_count[p] > 0)
-                      && (pop.recovday[p][zidx(pop.recovday_count[p])] < today - 14);
+                      && (pop.recovday[p] > 0)
+                      && (pop.recovday[p] < today - 14);
 
         if (unexposed || recovered)
             eligible.push_back(p);
@@ -1065,7 +1065,7 @@ size_t categorical_draw(const vector<float>& weights, auto& rng) {
 
 **2. `reqdshots` check in the `none` branch** — I left a placeholder comment. You need to pass `vaxset` into `doshots` or look up `reqdshots` before the call and pass it in. Easiest fix: pass `const VaxSet& vaxset` to `doshots` alongside the delay maps.
 
-**3. `vax_count` indexing** — confirm that `zidx(vax_count)` gives the 0-based index of the *most recently added* shot, i.e. `vax_count - 1`. If so the pattern is consistent with how you handle `variant_count` and `recovday_count` elsewhere.
+**3. `vax_count` indexing** — confirm that `zidx(vax_count)` gives the 0-based index of the *most recently added* shot, i.e. `vax_count - 1`. If so the pattern is consistent with how you handle `variant_count` and the history-backed day arrays elsewhere.
 
 ---
 
@@ -1315,8 +1315,8 @@ void vaccinate(int today,
 
         bool unexposed = (pop.status[p] == Stat::Unexposed);
         bool recovered = (pop.status[p] == Stat::Recovered)
-                      && (pop.recovday_count[p] > 0)
-                      && (pop.recovday[p][zidx(pop.recovday_count[p])] < today - 14);
+                      && (pop.recovday[p] > 0)
+                      && (pop.recovday[p] < today - 14);
 
         if (unexposed || recovered)
             eligible.push_back(p);

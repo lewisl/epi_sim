@@ -252,7 +252,7 @@ vector<array<uint8_t, 16>> vaxday;       // Day of each dose
 ### Boolean Attributes
 ```cpp
 vector<uint8_t> quar;        // Quarantine status (0 = false, 1 = true)
-vector<uint8_t> tested;      // Test status (0 = false, 1 = true)
+// tested is derived from latest testday != 0, not stored as its own vector
 ```
 
 **Why not `vector<bool>`?**
@@ -398,3 +398,11 @@ You have columns that are physically vector<uint8_t> but semantically different 
  variant → MapEnum (variants)
  vaxrcvd → MapEnum (vaccines)
  duration,  ring,  quar, etc. → just plain integers
+
+## Usage Warnings / Gotchas for struct PrimitiveCol
+- Comparisons with raw ints will work because of implicit conversion, not because the wrapper defines dedicated mixed-comparison overloads.
+- Checked narrowing only happens when you construct or assign through the wrapper API. Writing .v directly bypasses the range checks.
+- Only Duration should support arithmetic. The day wrappers should remain comparison-and-storage types only.
+- Because conversion to the underlying integer stays implicit, wrappers can still silently flow into generic numeric code. That is convenient, but it also means they are not “hard” type barriers in expressions.
+- uint8_t-backed wrappers must always print through .show() or the formatter if human-readable numeric output is desired; direct stream insertion on v can behave like character output.
+- to keep raw-int comparisons working through implicit conversion without ambiguity, the wrapper constructors are now explicit. That means direct initialization like Sickday{12} is fine, assignment like person.sickday() = 12 is fine, but copy-initialization like Duration d = 1 is no longer valid.

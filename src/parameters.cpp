@@ -269,16 +269,29 @@ progression[0].tree[0][5][0][0]
 // vaccine data
 //
 
-std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Variant> variants) {
+namespace {
+
+std::optional<Vax> find_vax(std::string_view name) {
+  const auto it = std::find(Vax::names.begin(), Vax::names.end(), name);
+  if (it == Vax::names.end()) return std::nullopt;
+  return Vax{static_cast<uint8_t>(std::distance(Vax::names.begin(), it))};
+}
+
+}  // namespace
+
+VaxSet load_vax_data(string fpath) {
   VaxSet vaxset{};
-  MapEnum<uint8_t> vaxlist = MapEnum<uint8_t>();
 
   json vaxdata = load_json_params(fpath); // read data from json file input
 
-  vector<std::pair<string, VaxParams>> vaxvec{}; // outer container
-                                                 // 
+  Vax::names.clear();
+  Vax::names.emplace_back("none");
+  vaxset.params.clear();
+  vaxset.params.emplace_back(VaxParams{});
+
   for (const auto &[vaxname, body] : vaxdata.items()) {  // for each vax
-    vaxlist.add_item(vaxname);
+    const Vax vax{vaxname};
+    (void)vax;
 
     VaxParams vx {};  // details for each vaccine
     // load items for each vax into struct
@@ -300,7 +313,8 @@ std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Var
     }
 
     // effectiveness vector of vector
-    for (const auto &shot : vaxset.shot_types.names) {
+    for (size_t shot_idx = 1; shot_idx < Vaxstatus::names.size(); ++shot_idx) {
+      const auto& shot = Vaxstatus::names[shot_idx];
       vector<std::pair<string, float>> variant_effectiveness {};
       for (const auto &variantname : Variant::names) {
         if (body["effectiveness"][shot].contains(variantname))
@@ -312,11 +326,10 @@ std::tuple<VaxSet, MapEnum<std::uint8_t>> load_vax_data(string fpath, vector<Var
       };
       vx.effectiveness.emplace_back(shot, variant_effectiveness);
     }
-    vaxvec.emplace_back(vaxname, vx);
+    vaxset.params.push_back(vx);
   }
 
-  vaxset.vaxset = vaxvec;  // Assign the populated vector to vaxset
-  return {vaxset, vaxlist};
+  return vaxset;
 };
 
 static Agegrp agegrp_from_string(const string& s) {
@@ -336,7 +349,7 @@ static Agegrp agegrp_from_string(const string& s) {
 }
 
 
-VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist) {
+VaxSched load_vax_sched(const string &fname) {
   json jdata = load_json_params(fname);
   
   VaxSched sched{};
@@ -344,17 +357,25 @@ VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist) {
   //  vaxesincluded member
   for (const auto &[vax, factors] : jdata["vaxesincluded"].items()) {
     PerVaxSpec spec{};
-    if (vaxlist.lookup.find(vax) == vaxlist.lookup.end())
-      fmt::println("WARNING: Vaccine {} not found in vaxlist.", vax);
-    else {
-      spec.vax_name = vax;  // Store the vaccine name
-      spec.mix = factors["mix"];
-      spec.starting_doses = factors["starting_doses"];
-      spec.pct2ndshot = factors["pct2ndshot"];
-      spec.pctboost = factors["pctboost"];
-      spec.alternate = factors["alternate"];
-      sched.vaxesincluded.push_back(spec);
+    const auto resolved_vax = find_vax(vax);
+    if (!resolved_vax.has_value()) {
+      fmt::println("WARNING: Vaccine {} not found in Vax::names.", vax);
+      continue;
     }
+    spec.vax = *resolved_vax;
+    spec.mix = factors["mix"];
+    spec.starting_doses = factors["starting_doses"];
+    spec.pct2ndshot = factors["pct2ndshot"];
+    spec.pctboost = factors["pctboost"];
+    for (const auto& alt_name : factors["alternate"]) {
+      const auto resolved_alt = find_vax(alt_name.get<string>());
+      if (!resolved_alt.has_value()) {
+        fmt::println("WARNING: Alternate vaccine {} not found in Vax::names.", alt_name.get<string>());
+        continue;
+      }
+      spec.alternate.push_back(*resolved_alt);
+    }
+    sched.vaxesincluded.push_back(spec);
   };
   // other members
   sched.dayrange = {jdata["dayrange"][0], jdata["dayrange"][1]}; // vector of 2 set to pair
@@ -369,7 +390,7 @@ VaxSched load_vax_sched(const string &fname, const MapEnum<uint8_t>& vaxlist) {
   return sched;
 }
 
-VaxSchedSet load_vax_sched_set(const string &dirpath, const MapEnum<uint8_t>& vaxlist) {
+VaxSchedSet load_vax_sched_set(const string &dirpath) {
   namespace fs = std::filesystem;
 
   VaxSchedSet schedset{};
@@ -397,7 +418,7 @@ VaxSchedSet load_vax_sched_set(const string &dirpath, const MapEnum<uint8_t>& va
     if (it != schedset.schedules.end()) {
       throw std::runtime_error("Duplicate vaccine schedule name from filename stem: " + sched_name);
     }
-    schedset.schedules.emplace_back(sched_name, load_vax_sched(path.string(), vaxlist));
+    schedset.schedules.emplace_back(sched_name, load_vax_sched(path.string()));
   }
 
   return schedset;

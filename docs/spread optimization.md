@@ -22,7 +22,7 @@
 - Inline or move hot helpers into header-visible form only where needed for optimization.
 - In the contact loop, first reject non-eligible statuses directly from `pop.status[c]`; only `Unexposed` and `Recovered` should continue.
 - For `Unexposed`, skip recovery-immunity work entirely.
-- For `Recovered`, compute `recoveffect` only when `recovday_count[c] > 0`, and use hoisted variant/halflife lookups.
+- For `Recovered`, compute `recoveffect` only when `recovday[c] > 0`, and use hoisted variant/halflife lookups.
 - Remove avoidable `touch_map`, `AgentView`, and repeated branch work from the hot path.
 
 5. Precompute and reuse stable probability inputs.

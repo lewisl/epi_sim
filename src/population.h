@@ -26,17 +26,17 @@ const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 // setup for numeric and string access to PopData columns
 enum class ColumnName : uint8_t {
   status, agegrp, cond, duration, variant, variant_hist,
-  sickday, sickday_hist, recovday, recovday_count, deadday,
-  ring, sdcase, tested, tested_count, testday,
-  quar, quarday, vaxstatus, vaxrcvd, vax_count, vaxday,
+  sickday, sickday_hist, recovday, recovday_hist, deadday,
+  ring, sdcase, tested, testday_hist, testday,
+  quar, quarday, vaxstatus, vaxrcvd, vax_hist, vaxday, vaxday_hist,
   COUNT
 };
 
 inline constexpr std::array<std::string_view, size_t(ColumnName::COUNT)> column_name_labels{
     "status", "agegrp", "cond", "duration", "variant", "variant_hist",
-    "sickday", "sickday_hist", "recovday", "recovday_count", "deadday",
-    "ring", "sdcase", "tested", "tested_count", "testday",
-    "quar", "quarday", "vaxstatus", "vaxrcvd", "vax_count", "vaxday"};
+    "sickday", "sickday_hist", "recovday", "recovday_hist", "deadday",
+    "ring", "sdcase", "tested", "testday_hist", "testday",
+    "quar", "quarday", "vaxstatus", "vaxrcvd", "vax_hist", "vaxday", "vaxday_hist"};
 
 constexpr std::string_view to_string(ColumnName name) {
   return column_name_labels[size_t(name)];
@@ -50,19 +50,16 @@ class PopData {
 
     // constructor
     // clang-format off
-    PopData(size_t n, MapEnum<uint8_t> vax_lbl, 
-          MapEnum<uint8_t> true_false, MapEnum<int> Justint,
-          const vector<double>& age_dist=AGE_DIST)  
+    PopData(size_t n, const vector<double>& age_dist=AGE_DIST)
           : popn(n), popz(n+1),
             agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
             status(n+1, UNEXPOSED),
             agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
-            cond(n+1, UNINFECTED), duration(n+1, 0),
-            variant(n+1), variant_hist(n+1), sickday(n+1, 0), sickday_hist(n+1),
-            recovday(n+1), recovday_count(n+1), deadday(n+1, 0), ring(n+1, 0),
-            sdcase(n+1, 0), tested(n+1), tested_count(n+1), testday(n+1), quar(n+1, 0), quarday(n+1, 0),
-            vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_count(n+1), vaxday(n+1),
-            vax_lbl(vax_lbl),  true_false(true_false), Justint(Justint) // vaxstatus_lbl(vaxstatus_lbl),
+            cond(n+1, UNINFECTED), duration(n+1, Duration{0}),
+            variant(n+1), variant_hist(n+1), sickday(n+1, Sickday{0}), sickday_hist(n+1),
+            recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, 0),
+            sdcase(n+1, 0), testday(n+1, Testday{0}), testday_hist(n+1), quar(n+1, 0), quarday(n+1, Quarday{0}),
+            vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1)
             // clang-format on
       {
           if (n <= 0) {
@@ -77,28 +74,27 @@ class PopData {
   vector<Status> status; // default unexposed = 1
   vector<Agegrp> agegrp;
   vector<Condition> cond;
-  vector<uint8_t> duration;
+  vector<Duration> duration;
   vector<Variant> variant;
   vector<VariantHist> variant_hist;
-  vector<std::int16_t> sickday;
+  vector<Sickday> sickday;
   vector<SickdayHist> sickday_hist;
-  vector<array<int16_t, 16>> recovday;
-  vector<std::uint8_t> recovday_count;
-  vector<int16_t> deadday;
+  vector<Recovday> recovday;
+  vector<RecovdayHist> recovday_hist;
+  vector<Deadday> deadday;
   vector<uint8_t> ring;
   vector<uint8_t> sdcase;
-  vector<array<uint8_t, 16>> tested; // pseudo bool 0 = false, 1 = true
-  vector<std::uint8_t> tested_count;
-  vector<array<int16_t, 16>> testday;
+  vector<Testday> testday;
+  vector<TestdayHist> testday_hist;
   vector<uint8_t> quar; // pseudo bool
-  vector<int16_t> quarday;
+  vector<Quarday> quarday;
   vector<Vaxstatus> vaxstatus;  
-  vector<array<uint8_t, 16>> vaxrcvd;  // :none,  vaccine symbols  :Pfizer, :Moderna, :JnJ _
-  vector<std::uint8_t> vax_count;
-  vector<array<int16_t, 16>> vaxday;  // = vec of vec of sim day
+  vector<Vax> vaxrcvd;
+  vector<VaxHist> vax_hist;
+  vector<Vaxday> vaxday;
+  vector<VaxdayHist> vaxday_hist;
 
   
-
   struct PopColumnSpec {
     ColumnName name;
     std::string_view key;
@@ -112,13 +108,6 @@ class PopData {
   //     called with an instance of PopData because it's a PopData method:   auto a = pop.agent(i)
   // encapsulates the person's PopData index. allows fast access to "column" values
   AgentView agent(std::size_t i);
-
-
-  // domains of valid values for columns
-      // what is the stub to use for int valued columns that print as ints?
-  MapEnum<uint8_t> vax_lbl;
-  MapEnum<int> Justint;
-  MapEnum<uint8_t> true_false;
 
   static std::optional<ColumnName> column_name_from_string(std::string_view text);
   static const PopColumnMap& column_map();
@@ -181,13 +170,6 @@ class PopData {
       return parts;
     }
 
-    // used by printing
-    size_t get_recovday(size_t p) const {    // don't need a setter because it happens in make_well()
-      if (recovday_count[p] == 0) return 0; // maps to "none"
-      else if (recovday_count[p] >= 16) return recovday[p].back();
-      else return recovday[p][zidx(recovday_count[p])];    
-    }
-
 };
 
 
@@ -224,35 +206,27 @@ class PopData {
       Status & status() { return pop.status[i]; }
       Agegrp & agegrp() { return pop.agegrp[i]; }
       Condition & cond() { return pop.cond[i]; }
-      std::uint8_t & duration() { return pop.duration[i]; }
+      Duration & duration() { return pop.duration[i]; }
       Variant & variant() { return pop.variant[i]; }
       VariantHist & variant_hist() { return pop.variant_hist[i]; }
-      std::int16_t &sickday() { return pop.sickday[i]; }
+      Sickday &sickday() { return pop.sickday[i]; }
       SickdayHist & sickday_hist() { return pop.sickday_hist[i]; }
-      int16_t get_sickday() { return pop.sickday[i]; }
-      array<int16_t, 16> & all_recovdays() { return pop.recovday[i]; }
-      int16_t get_recovday() {
-        const auto recovday_count = pop.recovday_count[i];
-        const auto & all_recovdays = pop.recovday[i];
-        if (recovday_count == 0) return 0;
-        else if (recovday_count >= 16) return all_recovdays.back();
-        else return all_recovdays[zidx(recovday_count)];
-      }
-      std::uint8_t &recovday_count() { return pop.recovday_count[i]; }
-      std::int16_t &deadday() { return pop.deadday[i]; }
+      int16_t get_sickday() { return static_cast<int16_t>(pop.sickday[i]); }
+      Recovday &recovday() { return pop.recovday[i]; }
+      RecovdayHist & recovday_hist() { return pop.recovday_hist[i]; }
+      Deadday &deadday() { return pop.deadday[i]; }
       std::uint8_t &ring() { return pop.ring[i]; }
       std::uint8_t &sdcase() { return pop.sdcase[i]; }
-      array<uint8_t, 16> &tested() { return pop.tested[i]; }
-      uint8_t & tested_count() { return pop.tested_count[i];}
-      array<int16_t, 16> &testday() { return pop.testday[i]; }
+      uint8_t tested() const { return pop.testday[i] == 0 ? uint8_t{0} : uint8_t{1}; }
+      Testday &testday() { return pop.testday[i]; }
+      TestdayHist & testday_hist() { return pop.testday_hist[i]; }
       uint8_t &quar() { return pop.quar[i]; }  // pseudo bool
-      int16_t &quarday() { return pop.quarday[i]; }
+      Quarday &quarday() { return pop.quarday[i]; }
       Vaxstatus &vaxstatus() { return pop.vaxstatus[i]; }
-      array<uint8_t, 16> &vaxrcvd() { return pop.vaxrcvd[i]; }
-      uint8_t &vax_count() { return pop.vax_count[i]; }
-      array<int16_t, 16> &vaxday() { return pop.vaxday[i]; }
-      const MapEnum<uint8_t> &vax_labels() { return pop.vax_lbl; }
-      const MapEnum<uint8_t> &bool_labels() { return pop.true_false; }
+      Vax &vaxrcvd() { return pop.vaxrcvd[i]; }
+      VaxHist &vax_hist() { return pop.vax_hist[i]; }
+      Vaxday &vaxday() { return pop.vaxday[i]; }
+      VaxdayHist &vaxday_hist() { return pop.vaxday_hist[i]; }
       // end of column related methods
 
       //

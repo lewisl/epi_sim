@@ -25,12 +25,11 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       load_infect_params(variants_path);
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
-    MapEnum<uint8_t> vaxlist;
     VaxSchedSet vaxschedset;
     if (dovax) {
       fmt::println("we got here to load valid vax parameters...");
-      std::tie(vaxdata, vaxlist) = load_vax_data(vax_path, variants); 
-      vaxschedset = load_vax_sched_set(vaxsched_dir, vaxlist);
+      vaxdata = load_vax_data(vax_path);
+      vaxschedset = load_vax_sched_set(vaxsched_dir);
     }
   auto socialdata = load_social_params(social_path);
 
@@ -45,7 +44,6 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       .trvec = std::move(trvec),
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxdata),
-      .vaxlist = std::move(vaxlist),
       .vaxschedset = std::move(vaxschedset),
   };
 }
@@ -128,7 +126,7 @@ Model setup_sim(Config config)
     auto locale_idx = locale_pos - mp.geodata.fips.begin();
     int popn = mp.geodata.pop[locale_idx];
 
-    PopData pop(popn, mp.vaxlist, Trait::true_false, Trait::Justint);
+    PopData pop(popn);
     auto day1 = parse_date(date);
 
     // series_type series = build_series(ndays, day1, std::vector<std::string>{});
