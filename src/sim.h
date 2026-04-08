@@ -6,6 +6,8 @@
 #include "parameters.h"
 #include "random.h"
 #include "series.h"
+#include "cases.h"
+
 namespace fs = std::filesystem;
 
 // Forward declaration
@@ -61,44 +63,7 @@ namespace sim {
     inline daystats ds{};
 }
 
-// A single trait column reference + its expected or new value.
-// trait is the AgentView accessor name (e.g. "status", "agegrp", "cond", "variant").
-// val is the integer representation of the value, parsed at load time.
-struct Term {
-  string trait;
-  int32_t val;
-};
 
-// Filter: all terms must match (AND semantics) for a person to be a candidate.
-// Allowed traits: "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested"
-// "tested" is derived from latest testday != 0.
-struct Filter {
-  vector<Term> terms;
-};
-
-// Change: the trait values to set on each matched candidate, and how many to affect.
-// Allowed traits: "status", "cond", "duration", "variant", "vaxstatus", "quar"
-// When "status"="infectious" is present, make_sick is called (preserving all invariants).
-// Guard: only UNEXPOSED and RECOVERED persons may be made sick.
-struct Change {
-  vector<Term> terms;
-  int count{0};
-};
-
-struct SeedCase {
-  PopData& pop;
-  int triggerday{0};    // simulation day the changes are applied
-  bool startofday{true}; // true = beginning of day, false = end of day
-  Filter filter;
-  Change change;
-
-  SeedCase(int triggerday, bool startofday, Filter filt, Change chg, PopData& pop)
-      : triggerday(triggerday), startofday(startofday),
-        filter(std::move(filt)), change(std::move(chg)), pop(pop) {}
-  SeedCase() = delete;
-
-  vector<size_t> operator()(HistorySeries& series);
-};
 
 struct SummaryData {
   std::array<int, 7> unexposed{};
@@ -109,8 +74,7 @@ struct SummaryData {
   // index 1..5 = age groups, index 6 = total, index 0 unused
 };
 
-// Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
-vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp);
+
 
 // Simulation runner
 void runsim(Model& model, vector<SeedCase> seedcases);

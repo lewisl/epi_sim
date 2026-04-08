@@ -707,11 +707,17 @@ void test_sendrisk_indexing() {
 void test_make_sick_and_seedcase_duration_indexing() {
     fmt::print("\n=== Testing make_sick and SeedCase Duration Indexing ===\n\n");
 
-    const vector<string> saved_variant_names = Variant::names;
-    Variant::names = {"none", "base"};
+    parameter_test::VariantNamesGuard variant_names_guard;
+    Variant::names = {"none", "base", "delta"};
 
     PopData pop(4);
     HistorySeries series(5);
+    ModelParams mp;
+
+    pop.agegrp[1] = AGE20_39;
+    pop.agegrp[2] = AGE40_59;
+    pop.agegrp[3] = AGE60_79;
+    pop.agegrp[4] = AGE80_UP;
 
     sim::reset_day();
     sim::incr_day();
@@ -727,30 +733,78 @@ void test_make_sick_and_seedcase_duration_indexing() {
     assert(first_person.variant() == Variant{1});
     assert(first_person.get_sickday() == 1);
 
-    Filter filter{{{"agegrp", int32_t(uint8_t(AGE20_39))}}};
-    Change change{{{"status", int32_t(uint8_t(INFECTIOUS))},
-                   {"cond", int32_t(uint8_t(MILD))},
-                   {"duration", 3},
-                   {"variant", 1}},
-                  1};
-    SeedCase seed_case(2, true, filter, change, pop);
+    json seed_json = json::parse(R"([
+        {
+            "triggerday": 2,
+            "startofday": true,
+            "filter": [
+                {"trait": "agegrp", "val": "age40_59"}
+            ],
+            "change": {
+                "terms": [
+                    {"trait": "status", "val": "infectious"},
+                    {"trait": "cond", "val": "mild"},
+                    {"trait": "duration", "val": 3},
+                    {"trait": "variant", "val": "delta"}
+                ],
+                "count": 1
+            }
+        }
+    ])");
+    vector<SeedCase> seed_cases = load_seed_cases(seed_json, pop, mp);
+    assert(seed_cases.size() == 1);
 
     sim::incr_day();
     sim::ds.day = sim::get_day();
-    const auto seeded = seed_case(series);
+    const auto seeded = seed_cases.front()(series);
 
     assert(seeded.size() == 1);
+    assert(seeded.front() == 2);
     const auto seeded_person = pop.agent(seeded.front());
     assert(seeded_person.status() == INFECTIOUS);
     assert(seeded_person.cond() == MILD);
     assert(seeded_person.duration() == 3);
     assert(seeded_person.variant_hist().count == 1);
-    assert(seeded_person.variant() == Variant{1});
+    assert(seeded_person.variant() == Variant{2});
+    assert(seeded_person.variant_hist().latest() == Variant{2});
     assert(seeded_person.get_sickday() == 2);
 
-    Variant::names = saved_variant_names;
-
     fmt::println("=== make_sick and SeedCase Duration Indexing Test Completed ===");
+}
+
+void test_seedcase_infectious_change_requires_variant() {
+    fmt::print("\n=== Testing Infectious SeedCase Requires Variant ===\n\n");
+
+    parameter_test::VariantNamesGuard variant_names_guard;
+    Variant::names = {"none", "base", "delta"};
+
+    PopData pop(2);
+    HistorySeries series(5);
+
+    pop.agegrp[1] = AGE20_39;
+    pop.agegrp[2] = AGE40_59;
+
+    Filter filter{{{"agegrp", int32_t(uint8_t(AGE20_39))}}};
+    Change change{{{"status", int32_t(uint8_t(INFECTIOUS))},
+                   {"cond", int32_t(uint8_t(MILD))},
+                   {"duration", 3}},
+                  1};
+    SeedCase seed_case(1, true, filter, change, pop);
+
+    bool threw = false;
+    try {
+        seed_case(series);
+    } catch (const std::runtime_error& ex) {
+        threw = true;
+        assert(string(ex.what()).find("variant") != string::npos);
+    }
+
+    assert(threw);
+    assert(pop.agent(1).status() == UNEXPOSED);
+    assert(pop.agent(1).variant() == Variant{0});
+    assert(pop.agent(1).variant_hist().count == 0);
+
+    fmt::println("=== Infectious SeedCase Requires Variant Test Completed ===");
 }
 
 void test_make_well_recovday_history() {
@@ -1568,6 +1622,8 @@ int main() {
   test_primitive_column_wrappers();
   test_pop_column_registry();
   test_agent_pop_print();
+  test_make_sick_and_seedcase_duration_indexing();
+  test_seedcase_infectious_change_requires_variant();
   test_make_well_recovday_history();
   test_testday_history_and_derived_tested();
   test_recoveffect_uses_scalar_recovday();
@@ -1579,6 +1635,5 @@ int main() {
   // test_finalize_series();
   // test_simple_plot_render();
   // test_sendrisk_indexing();
-  // test_make_sick_and_seedcase_duration_indexing();
   // test_short_sim_smoke(180);
 }

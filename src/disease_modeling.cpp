@@ -38,7 +38,7 @@ float require_effectiveness(const VaxParams& params,
 
 // make_sick: make one person sick
 // declaration is in population.h
-void AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t durationdays) {
+void AgentView::make_sick(Variant var,  HistorySeries & series, Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
   series.delta_series(SeriesName::new_infected, agegrp(), today, 1);
   series.delta_series(SeriesName::now_infected, agegrp(), today, 1);
@@ -51,7 +51,7 @@ void AgentView::make_sick(Variant var,  HistorySeries & series, Condition condit
     }
   }
   cond() = condition;
-  duration() = durationdays;
+  duration() = spr_duration;
   status() = INFECTIOUS;
   variant() = var;
   sickday() = sim::get_day();
