@@ -461,12 +461,11 @@ void test_pop_column_registry() {
 
     assert(PopData::column_map().size() == size_t(ColumnName::COUNT));
     for (const auto& [key, spec] : PopData::column_map()) {
-        assert(key == spec.key);
-        assert(spec.key == to_string(spec.name));
+        assert(key == to_string(spec.name));
         assert(PopData::find_column(spec.name) != nullptr);
-        assert(PopData::find_column(spec.name)->key == spec.key);
-        assert(PopData::find_column(spec.key) != nullptr);
-        assert(PopData::find_column(spec.key)->name == spec.name);
+        assert(PopData::find_column(to_string(spec.name))->name == spec.name);
+        assert(PopData::find_column(key) != nullptr);
+        assert(PopData::find_column(key)->name == spec.name);
     }
 
     assert(PopData::column_name_from_string("status") == ColumnName::status);
@@ -480,24 +479,13 @@ void test_pop_column_registry() {
     assert(!PopData::column_name_from_string("variant_count").has_value());
     assert(!PopData::column_name_from_string("does_not_exist").has_value());
 
-    const auto selected = PopData::resolve_columns({"status", "variant", "vax"});
-    assert(selected.size() == 3);
-
-    bool bad_column_threw = false;
-    try {
-        PopData::resolve_columns({"status", "variant_count"});
-    } catch (const std::invalid_argument&) {
-        bad_column_threw = true;
-    }
-    assert(bad_column_threw);
-
     const auto row1 = pop.agent(1);
     const auto row2 = pop.agent(2);
     const auto row3 = pop.agent(3);
 
-    assert(selected[0](row2) == "infectious");
-    assert(selected[1](row2) == "delta");
-    assert(selected[2](row2) == "moderna");
+    assert(PopData::find_column("status")->to_txt_cell(row2) == "infectious");
+    assert(PopData::find_column("variant")->to_txt_cell(row2) == "delta");
+    assert(PopData::find_column("vax")->to_txt_cell(row2) == "moderna");
 
     assert(PopData::find_column("status")->to_txt_cell(row2) == "infectious");
     assert(PopData::find_column("agegrp")->to_txt_cell(row2) == "age40_59");
@@ -532,6 +520,88 @@ void test_pop_column_registry() {
     assert(PopData::find_column("vaxday_hist")->to_txt_cell(row2) == "5|14");
 
     fmt::println("=== Pop Column Registry Test Completed ===");
+}
+
+namespace pop_csv_test {
+namespace fs = std::filesystem;
+
+fs::path first_csv_in_dir(const fs::path& dir) {
+  for (const auto& e : fs::directory_iterator(dir)) {
+    if (e.is_regular_file() && e.path().extension() == ".csv") {
+      return e.path();
+    }
+  }
+  throw std::runtime_error("no csv in dir");
+}
+
+string read_file_text(const fs::path& path) {
+  std::ifstream in(path);
+  if (!in) {
+    throw std::runtime_error("cannot read csv");
+  }
+  std::ostringstream ss;
+  ss << in.rdbuf();
+  return ss.str();
+}
+}  // namespace pop_csv_test
+
+void test_popdata_csv_serialization_escape() {
+  fmt::print("\n=== Testing PopData CSV escape ===\n\n");
+  const vector<string> saved_names = Variant::names;
+  Variant::names = {"none", "delta,epsilon"};
+  PopData pop(1);
+  pop.status[1] = UNEXPOSED;
+  pop.cond[1] = UNINFECTED;
+  pop.variant[1] = Variant{1};
+
+  const pop_csv_test::fs::path out_dir =
+      pop_csv_test::fs::temp_directory_path() /
+      fmt::format("epi_sim_pop_csv_{}", std::random_device{}());
+  pop_csv_test::fs::create_directories(out_dir);
+  pop.serialize_selected_columns({"variant"}, "escape_test", {out_dir.string()});
+
+  const pop_csv_test::fs::path csv_path = pop_csv_test::first_csv_in_dir(out_dir);
+  const string content = pop_csv_test::read_file_text(csv_path);
+  assert(content.find("\"delta,epsilon\"") != string::npos);
+  Variant::names = saved_names;
+  pop_csv_test::fs::remove_all(out_dir);
+  fmt::println("=== PopData CSV escape test completed ===");
+}
+
+void test_popdata_csv_partial_and_dedupe_selections() {
+  fmt::print("\n=== Testing PopData CSV partial / dedupe selections ===\n\n");
+  PopData pop = poptable_test::make_popdata_print_fixture();
+
+  const pop_csv_test::fs::path out_dir =
+      pop_csv_test::fs::temp_directory_path() /
+      fmt::format("epi_sim_pop_csv_sel_{}", std::random_device{}());
+  pop_csv_test::fs::create_directories(out_dir);
+
+  pop.serialize_selected_columns({"status", "not_a_column", "agegrp"}, "partial_test",
+                                 {out_dir.string()});
+  {
+    const pop_csv_test::fs::path csv_path = pop_csv_test::first_csv_in_dir(out_dir);
+    const string content = pop_csv_test::read_file_text(csv_path);
+    const auto lines = poptable_test::split_trimmed_lines(content);
+    assert(!lines.empty());
+    assert(lines[0] == "row,status,agegrp");
+  }
+  for (const auto& e : pop_csv_test::fs::directory_iterator(out_dir)) {
+    if (e.is_regular_file()) {
+      pop_csv_test::fs::remove(e.path());
+    }
+  }
+
+  pop.serialize_selected_columns({"status", "status", "agegrp"}, "dedupe_test", {out_dir.string()});
+  {
+    const pop_csv_test::fs::path csv_path = pop_csv_test::first_csv_in_dir(out_dir);
+    const string content = pop_csv_test::read_file_text(csv_path);
+    const auto lines = poptable_test::split_trimmed_lines(content);
+    assert(lines[0] == "row,status,agegrp");
+  }
+
+  pop_csv_test::fs::remove_all(out_dir);
+  fmt::println("=== PopData CSV partial / dedupe test completed ===");
 }
 
 void test_finalize_series() {
@@ -1601,6 +1671,8 @@ void test_random_functions() {
 int main() {
   test_primitive_column_wrappers();
   test_pop_column_registry();
+  test_popdata_csv_serialization_escape();
+  test_popdata_csv_partial_and_dedupe_selections();
   test_agent_pop_print();
   test_make_sick_and_seedcase_duration_indexing();
   test_seedcase_infectious_change_requires_variant();

@@ -170,6 +170,10 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
                                   {"new_infected","total"},{"new_recovered", "total"},{"new_dead","total"}}, 
     series, "test_series", {"code", "epi_sim", "series_output"});
 
+  pop.serialize_selected_columns(
+      {"status", "agegrp", "cond", "duration", "variant_hist", "sickday_hist"}, "test_pop",
+      {"code", "epi_sim", "pop_output"});
+
   SummaryData sumstruct = print_summary(pop);
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 

@@ -97,11 +97,10 @@ class PopData {
   
   struct PopColumnSpec {
     ColumnName name;
-    std::string_view key;
     std::string (*to_txt_cell)(AgentView person);
   };
 
-  using PopColumnRenderer = std::function<std::string(AgentView)>;
+  using PopColumnRenderer = std::string (*)(AgentView);
   using PopColumnMap = absl::flat_hash_map<std::string_view, PopColumnSpec>;
 
   //
@@ -114,9 +113,6 @@ class PopData {
   static const PopColumnMap& column_map();
   static const PopColumnSpec* find_column(ColumnName name);
   static const PopColumnSpec* find_column(std::string_view key);
-  static std::vector<PopColumnRenderer> resolve_columns(std::span<const std::string_view> col_names);
-  static std::vector<PopColumnRenderer> resolve_columns(const std::vector<std::string>& col_names);
-  static std::vector<PopColumnRenderer> resolve_columns(std::initializer_list<std::string_view> col_names);
   void serialize_selected_columns(std::vector<string> selections, string base_fname,
                                   vector<string> path_steps = {});
 

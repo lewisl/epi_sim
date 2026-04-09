@@ -20,6 +20,7 @@ std::string format_vax_name(Vax value) {
                            fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
+// Escape a field for CSV (RFC 4180-style): quote if needed, double internal quotes.
 std::string csv_escape(std::string_view cell) {
   if (cell.find_first_of(",\"\n\r") == std::string_view::npos) {
     return std::string{cell};
@@ -123,33 +124,45 @@ std::string txt_vaxday_hist(AgentView person) {
   return person.vaxday_hist().show();
 }
 
+// Registry keys must match ColumnName / column_name_labels; static_assert below guards COUNT.
 const PopData::PopColumnMap COLUMN_SPECS{
-    {"status", {ColumnName::status, "status", txt_status}},
-    {"agegrp", {ColumnName::agegrp, "agegrp", txt_agegrp}},
-    {"cond", {ColumnName::cond, "cond", txt_cond}},
-    {"duration", {ColumnName::duration, "duration", txt_duration}},
-    {"variant", {ColumnName::variant, "variant", txt_variant}},
-    {"variant_hist", {ColumnName::variant_hist, "variant_hist", txt_variant_hist}},
-    {"sickday", {ColumnName::sickday, "sickday", txt_sickday}},
-    {"sickday_hist", {ColumnName::sickday_hist, "sickday_hist", txt_sickday_hist}},
-    {"recovday", {ColumnName::recovday, "recovday", txt_recovday}},
-    {"recovday_hist", {ColumnName::recovday_hist, "recovday_hist", txt_recovday_hist}},
-    {"deadday", {ColumnName::deadday, "deadday", txt_deadday}},
-    {"ring", {ColumnName::ring, "ring", txt_ring}},
-    {"sdcase", {ColumnName::sdcase, "sdcase", txt_sdcase}},
-    {"testday_hist", {ColumnName::testday_hist, "testday_hist", txt_testday_hist}},
-    {"testday", {ColumnName::testday, "testday", txt_testday}},
-    {"quar", {ColumnName::quar, "quar", txt_quar}},
-    {"quarday", {ColumnName::quarday, "quarday", txt_quarday}},
-    {"vaxstatus", {ColumnName::vaxstatus, "vaxstatus", txt_vaxstatus}},
-    {"vax", {ColumnName::vax, "vax", txt_vax}},
-    {"vax_hist", {ColumnName::vax_hist, "vax_hist", txt_vax_hist}},
-    {"vaxday", {ColumnName::vaxday, "vaxday", txt_vaxday}},
-    {"vaxday_hist", {ColumnName::vaxday_hist, "vaxday_hist", txt_vaxday_hist}},
+    {"status", {ColumnName::status, txt_status}},
+    {"agegrp", {ColumnName::agegrp, txt_agegrp}},
+    {"cond", {ColumnName::cond, txt_cond}},
+    {"duration", {ColumnName::duration, txt_duration}},
+    {"variant", {ColumnName::variant, txt_variant}},
+    {"variant_hist", {ColumnName::variant_hist, txt_variant_hist}},
+    {"sickday", {ColumnName::sickday, txt_sickday}},
+    {"sickday_hist", {ColumnName::sickday_hist, txt_sickday_hist}},
+    {"recovday", {ColumnName::recovday, txt_recovday}},
+    {"recovday_hist", {ColumnName::recovday_hist, txt_recovday_hist}},
+    {"deadday", {ColumnName::deadday, txt_deadday}},
+    {"ring", {ColumnName::ring, txt_ring}},
+    {"sdcase", {ColumnName::sdcase, txt_sdcase}},
+    {"testday_hist", {ColumnName::testday_hist, txt_testday_hist}},
+    {"testday", {ColumnName::testday, txt_testday}},
+    {"quar", {ColumnName::quar, txt_quar}},
+    {"quarday", {ColumnName::quarday, txt_quarday}},
+    {"vaxstatus", {ColumnName::vaxstatus, txt_vaxstatus}},
+    {"vax", {ColumnName::vax, txt_vax}},
+    {"vax_hist", {ColumnName::vax_hist, txt_vax_hist}},
+    {"vaxday", {ColumnName::vaxday, txt_vaxday}},
+    {"vaxday_hist", {ColumnName::vaxday_hist, txt_vaxday_hist}},
 };
 
 static_assert(size_t(ColumnName::COUNT) == 22);
 static_assert(size_t(ColumnName::COUNT) == column_name_labels.size());
+
+void print_valid_popdata_column_names_hint() {
+  std::vector<std::string_view> keys;
+  keys.reserve(COLUMN_SPECS.size());
+  for (const auto& [k, spec] : COLUMN_SPECS) {
+    (void)spec;
+    keys.push_back(k);
+  }
+  std::ranges::sort(keys);
+  fmt::println("Valid PopData columns: {}", fmt::join(keys, ", "));
+}
 
 }  // namespace
 
@@ -171,35 +184,6 @@ const PopData::PopColumnSpec* PopData::find_column(std::string_view key) {
   return &it->second;
 }
 
-std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(std::span<const std::string_view> col_names) {
-  std::vector<PopColumnRenderer> cols;
-  cols.reserve(col_names.size());
-  for (const auto name : col_names) {
-    const PopColumnSpec* spec = find_column(name);
-    if (spec == nullptr) {
-      throw std::invalid_argument(fmt::format("Unknown PopData column '{}'", name));
-    }
-    cols.push_back(spec->to_txt_cell);
-  }
-  return cols;
-}
-
-std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(const std::vector<std::string>& col_names) {
-  std::vector<PopColumnRenderer> cols;
-  cols.reserve(col_names.size());
-  for (const auto& name : col_names) {
-    const PopColumnSpec* spec = find_column(name);
-    if (spec == nullptr) {
-      throw std::invalid_argument(fmt::format("Unknown PopData column '{}'", name));
-    }
-    cols.push_back(spec->to_txt_cell);
-  }
-  return cols;
-}
-
-std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(std::initializer_list<std::string_view> col_names) {
-  return resolve_columns(std::span<const std::string_view>{col_names.begin(), col_names.size()});
-}
 
 void PopData::serialize_selected_columns(std::vector<string> selections,
                                          string base_fname, vector<string> path_steps) {
@@ -213,12 +197,58 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
     return;
   }
 
-  const auto cols = PopData::resolve_columns(selections);
+  // Unknown names are skipped (with a hint); duplicates resolve to the first occurrence.
+  std::vector<PopColumnRenderer> cols;
+  std::vector<std::string> header_labels;
+  std::vector<std::string> invalid;
+  std::array<bool, static_cast<size_t>(ColumnName::COUNT)> used{};
+  cols.reserve(selections.size());
+  header_labels.reserve(selections.size());
 
+  for (const auto& raw : selections) {
+    const PopColumnSpec* spec = find_column(std::string_view{raw});
+    if (spec == nullptr) {
+      invalid.push_back(raw);
+      continue;
+    }
+    const auto ord = static_cast<size_t>(spec->name);
+    if (ord >= used.size()) {
+      continue;
+    }
+    if (used[ord]) {
+      continue;
+    }
+    used[ord] = true;
+    cols.push_back(spec->to_txt_cell);
+    header_labels.push_back(raw);
+  }
+
+  auto print_column_hints = [&] {
+    if (!invalid.empty()) {
+      fmt::println("Skipping unknown PopData column(s): {}", fmt::join(invalid, ", "));
+    }
+    print_valid_popdata_column_names_hint();
+  };
+
+  if (cols.empty()) {
+    fmt::println("\nNo valid columns selected for population CSV output.");
+    print_column_hints();
+    return;
+  }
+
+  if (!invalid.empty()) {
+    print_column_hints();
+  }
+
+  // Match serialize_selected_series: non-empty path_steps are under $HOME (each step appended).
+  // If a step is an absolute path, path /= replaces to that path (tests use temp dirs this way).
   std::filesystem::path fpath;
   if (path_steps.empty()) {
     fpath = std::filesystem::current_path() / "population_output";
   } else {
+    const char* home = std::getenv("HOME");
+    if (!home) throw std::runtime_error("HOME not set");
+    fpath = home;
     for (const auto& step : path_steps) fpath /= step;
   }
   fpath /= make_timestamped_filename(base_fname) + ".csv";
@@ -230,19 +260,24 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
                                          fpath.string()));
   }
 
-  std::vector<std::string> header;
-  header.reserve(selections.size() + 1);
-  header.push_back("row");
-  for (const auto& col : selections) header.push_back(col);
-  fmt::println(out, "{}", fmt::join(header, ","));
+  std::vector<std::string> row;
+  row.reserve(cols.size() + 1);
+
+  row.clear();
+  row.push_back(csv_escape(std::string_view{"row"}));
+  for (const auto& label : header_labels) {
+    row.push_back(csv_escape(std::string_view{label}));
+  }
+  fmt::println(out, "{}", fmt::join(row, ","));
 
   for (size_t person_idx = 1; person_idx <= popn; ++person_idx) {
-    std::vector<std::string> row;
-    row.reserve(cols.size() + 1);
-    row.push_back(fmt::format("{}", person_idx));
+    row.clear();
+    const std::string idx_str = fmt::format("{}", person_idx);
+    row.push_back(csv_escape(std::string_view{idx_str}));
     const auto person = agent(person_idx);
-    for (const auto& col : cols) {
-      row.push_back(col(person));
+    for (const auto col_fn : cols) {
+      const std::string cell = col_fn(person);
+      row.push_back(csv_escape(std::string_view{cell}));
     }
     fmt::println(out, "{}", fmt::join(row, ","));
   }

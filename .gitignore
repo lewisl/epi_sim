@@ -6,6 +6,7 @@ outtakes
 scratch
 plot_output
 series_output
+pop_output
 
 # MacOS Cache
 .DS_Store

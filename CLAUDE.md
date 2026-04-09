@@ -18,6 +18,7 @@ Only after completing these steps should you engage with the user's task.
 - Build file is `xmake.lua` in the project root.
 - C++23, LLVM/Clang toolchain.
 - External libraries are installed via vcpkg with manually configured paths — do not assume a clean build will work without that environment in place.
+- xmake documentation: https://xmake.io/guide/introduction.html
 
 ## Before Making Any Change
 
