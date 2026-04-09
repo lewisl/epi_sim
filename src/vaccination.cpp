@@ -29,7 +29,7 @@ static void record_vaccination(AgentView agent, Vax vax, int today) {
     auto& vaxday_history = agent.vaxday_hist();
     const bool history_overflow = vax_history.count >= 16 || vaxday_history.count >= 16;
 
-    agent.vaxrcvd() = vax;
+    agent.vax() = vax;
     agent.vaxday() = today;
     vax_history.set(vax);
     vaxday_history.set(static_cast<int16_t>(today));
@@ -113,7 +113,7 @@ static void doshots(
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
 
-            const Vax last_vax = agent.vaxrcvd();
+            const Vax last_vax = agent.vax();
             size_t  sidx      = spec_index(specs, last_vax);
 
             if (doses_today[sidx] < 1) continue;
@@ -133,7 +133,7 @@ static void doshots(
         // ---- booster ----
         } else if (vstatus == Vaxstat::full || vstatus == Vaxstat::booster) {
 
-            const Vax last_vax = agent.vaxrcvd();
+            const Vax last_vax = agent.vax();
             size_t  sidx      = spec_index(specs, last_vax);
 
             if (doses_today[sidx] < 1) continue;

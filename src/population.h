@@ -27,16 +27,16 @@ const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 enum class ColumnName : uint8_t {
   status, agegrp, cond, duration, variant, variant_hist,
   sickday, sickday_hist, recovday, recovday_hist, deadday,
-  ring, sdcase, tested, testday_hist, testday,
-  quar, quarday, vaxstatus, vaxrcvd, vax_hist, vaxday, vaxday_hist,
+  ring, sdcase, testday_hist, testday,
+  quar, quarday, vaxstatus, vax, vax_hist, vaxday, vaxday_hist,
   COUNT
 };
 
 inline constexpr std::array<std::string_view, size_t(ColumnName::COUNT)> column_name_labels{
     "status", "agegrp", "cond", "duration", "variant", "variant_hist",
     "sickday", "sickday_hist", "recovday", "recovday_hist", "deadday",
-    "ring", "sdcase", "tested", "testday_hist", "testday",
-    "quar", "quarday", "vaxstatus", "vaxrcvd", "vax_hist", "vaxday", "vaxday_hist"};
+    "ring", "sdcase", "testday_hist", "testday",
+    "quar", "quarday", "vaxstatus", "vax", "vax_hist", "vaxday", "vaxday_hist"};
 
 constexpr std::string_view to_string(ColumnName name) {
   return column_name_labels[size_t(name)];
@@ -59,7 +59,7 @@ class PopData {
             variant(n+1), variant_hist(n+1), sickday(n+1, Sickday{0}), sickday_hist(n+1),
             recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, 0),
             sdcase(n+1, 0), testday(n+1, Testday{0}), testday_hist(n+1), quar(n+1, 0), quarday(n+1, Quarday{0}),
-            vaxstatus(n+1, Vaxstat::none), vaxrcvd(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1)
+            vaxstatus(n+1, Vaxstat::none), vax(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1)
             // clang-format on
       {
           if (n <= 0) {
@@ -89,7 +89,7 @@ class PopData {
   vector<uint8_t> quar; // pseudo bool
   vector<Quarday> quarday;
   vector<Vaxstatus> vaxstatus;  
-  vector<Vax> vaxrcvd;
+  vector<Vax> vax;
   vector<VaxHist> vax_hist;
   vector<Vaxday> vaxday;
   vector<VaxdayHist> vaxday_hist;
@@ -101,6 +101,7 @@ class PopData {
     std::string (*to_txt_cell)(AgentView person);
   };
 
+  using PopColumnRenderer = std::function<std::string(AgentView)>;
   using PopColumnMap = absl::flat_hash_map<std::string_view, PopColumnSpec>;
 
   //
@@ -113,9 +114,9 @@ class PopData {
   static const PopColumnMap& column_map();
   static const PopColumnSpec* find_column(ColumnName name);
   static const PopColumnSpec* find_column(std::string_view key);
-  static std::vector<const PopColumnSpec*> resolve_columns(std::span<const std::string_view> col_names);
-  static std::vector<const PopColumnSpec*> resolve_columns(const std::vector<std::string>& col_names);
-  static std::vector<const PopColumnSpec*> resolve_columns(std::initializer_list<std::string_view> col_names);
+  static std::vector<PopColumnRenderer> resolve_columns(std::span<const std::string_view> col_names);
+  static std::vector<PopColumnRenderer> resolve_columns(const std::vector<std::string>& col_names);
+  static std::vector<PopColumnRenderer> resolve_columns(std::initializer_list<std::string_view> col_names);
   void serialize_selected_columns(std::vector<string> selections, string base_fname,
                                   vector<string> path_steps = {});
 
@@ -211,19 +212,18 @@ class PopData {
       VariantHist & variant_hist() { return pop.variant_hist[i]; }
       Sickday &sickday() { return pop.sickday[i]; }
       SickdayHist & sickday_hist() { return pop.sickday_hist[i]; }
-      int16_t get_sickday() { return static_cast<int16_t>(pop.sickday[i]); }
+      // int16_t get_sickday() { return static_cast<int16_t>(pop.sickday[i]); }
       Recovday &recovday() { return pop.recovday[i]; }
       RecovdayHist & recovday_hist() { return pop.recovday_hist[i]; }
       Deadday &deadday() { return pop.deadday[i]; }
       std::uint8_t &ring() { return pop.ring[i]; }
       std::uint8_t &sdcase() { return pop.sdcase[i]; }
-      uint8_t tested() const { return pop.testday[i] == 0 ? uint8_t{0} : uint8_t{1}; }
       Testday &testday() { return pop.testday[i]; }
       TestdayHist & testday_hist() { return pop.testday_hist[i]; }
       uint8_t &quar() { return pop.quar[i]; }  // pseudo bool
       Quarday &quarday() { return pop.quarday[i]; }
       Vaxstatus &vaxstatus() { return pop.vaxstatus[i]; }
-      Vax &vaxrcvd() { return pop.vaxrcvd[i]; }
+      Vax &vax() { return pop.vax[i]; }
       VaxHist &vax_hist() { return pop.vax_hist[i]; }
       Vaxday &vaxday() { return pop.vaxday[i]; }
       VaxdayHist &vaxday_hist() { return pop.vaxday_hist[i]; }

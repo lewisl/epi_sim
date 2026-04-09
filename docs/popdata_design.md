@@ -1,408 +1,182 @@
-# PopData Design - Agent-Based Model Storage
+# PopData Design
 
 ## Overview
 
-`PopData` is the core data structure for the Agent-Based Model (ABM). It stores simulation state for every person in the population using a **Struct of Arrays (SoA)** pattern, where each vector represents one attribute across all people.
+`PopData` is the simulation's core population store. It uses a **struct of arrays (SoA)** layout: each member vector is one attribute across all people, and index `i` refers to the same person in every vector.
 
-## Design Pattern: Struct of Arrays (SoA)
+This design is intentionally column-oriented:
 
-### Concept
-Instead of an array of structs (one struct per person), we use a struct of arrays (one array per attribute).
+- fast indexed access in hot loops
+- good cache locality when touching one attribute across many people
+- simple storage for serialization and debugging
+- direct alignment between simulation state and physical stored columns
+
+## One-Based Population Storage
+
+All `PopData` vectors are **1-based**.
+
+- `popn` is the real population size
+- `popz = popn + 1` is the physical vector size
+- index `0` is unused
+- valid person indices are `1..popn`
+
+This matches the simulation's person numbering and keeps agent id and vector index aligned.
+
+## Why SoA Instead of Array-of-Structs
+
+With an array-of-structs design, one person's entire state is packed together. That can be convenient, but it is a poor fit for this model, where most kernels touch only a few attributes at a time.
+
+With `PopData`, all values for one attribute are contiguous:
 
 ```cpp
-// ❌ Array of Structs (AoS) - Poor cache locality
-struct Person {
-    uint8_t status;
-    uint8_t agegrp;
-    uint8_t cond;
-    // ... 20+ fields
-};
-vector<Person> population;  // Each person is a separate struct
-
-// ✅ Struct of Arrays (SoA) - Excellent cache locality
-class PopData {
-    vector<uint8_t> status;   // All statuses together
-    vector<uint8_t> agegrp;   // All age groups together
-    vector<uint8_t> cond;     // All conditions together
-    // ... 20+ vectors
-};
-```
-
-### Why SoA is Better for Simulation
-
-**Cache Locality:**
-```cpp
-// Update status for infected people (common operation)
-for (size_t i : infected_indices) {
-    popdata.status[i] = Status::recovered;  // Sequential memory access
+for (int i = 1; i <= pop.popn; ++i) {
+    if (pop.status[i] == INFECTIOUS) {
+        pop.duration[i] += 1;
+    }
 }
 ```
 
-With AoS, accessing `person[i].status` jumps around memory (each person is ~30 bytes apart). With SoA, all status values are contiguous in memory → better cache performance.
+This keeps the memory layout close to the actual work being done.
 
-**SIMD Potential:**
-Sequential data enables vectorization (SIMD instructions can process multiple people simultaneously).
+## AgentView: Virtual Mutable Row
 
-**Selective Updates:**
-Only load the vectors you need. If updating status, you don't load vaccination history into cache.
+SoA storage is efficient, but person-oriented code is awkward if every access has to spell out `pop.column[i]`.
 
-## AgentView: Mutable Virtual Row
+`PopData::AgentView` is the compromise:
 
-The main ergonomic cost of SoA is that a person's data is spread across many vectors. `PopData::AgentView` solves that without giving up the columnar layout.
+- it stores a reference to `PopData`
+- it stores one person index
+- it exposes row-like accessors such as `status()`, `variant()`, and `vaxday()`
+- it does not materialize a copied row
 
-`AgentView` is a small row-like proxy:
-
-- it holds a reference to the owning `PopData`
-- it holds one person index
-- it does not materialize or copy a full row
-- passing it by value is cheap because it is only a handle
-
-Conceptually, it lets code work with a semantic "row" while the actual storage remains columnar.
+That means code can stay person-oriented without giving up columnar storage:
 
 ```cpp
 auto person = pop.agent(i);
 
-if (person.status() == Stat::Unexposed) {
-    person.cond() = Cond::Sick;
-    person.duration() = 1;
+if (person.status() == UNEXPOSED) {
+    person.status() = INFECTIOUS;
+    person.cond() = MILD;
+    person.duration() = Duration{1};
 }
 ```
 
-This is a core design feature, not a convenience wrapper added on later.
+`AgentView` is intentionally mutable. Its accessors return references into the underlying vectors.
 
-### Why It Matters
+## Trait Structs Instead of Plain Enums or Raw Primitives
 
-Without `AgentView`, code that operates on one person becomes noisy and error-prone:
+The older design discussion was framed as "pseudo-enums." The current code is more explicit than that.
 
-```cpp
-// Without AgentView
-if (pop.status[i] == Stat::Unexposed) {
-    pop.cond[i] = Cond::Sick;
-    pop.duration[i] = 1;
-}
-```
+Most semantic column types are now tiny dedicated structs in [`src/traits.h`](/Users/lewislevin/code/epi_sim/src/traits.h):
 
-With `AgentView`, the code reads like a row-oriented model while still writing directly into the underlying SoA vectors.
+- compile-time categorical traits such as `Status`, `Agegrp`, `Condition`, and `Vaxstatus`
+- small scalar wrappers such as `Duration`, `Sickday`, `Recovday`, `Testday`, `Quarday`, and `Vaxday`
+- runtime-loaded traits such as `Variant` and `Vax`
 
-This gives three benefits at once:
+These types are still compact, but they carry convenience behavior that plain enums or raw integers do not:
 
-1. **Convenience**: person-oriented code is shorter and easier to read
-2. **Intuition**: `person.status()` and `person.cond()` match how we think about one agent
-3. **Performance**: no row object is copied out of the SoA storage
+- `show()` for readable output
+- per-type names and string lookup
+- a valid column-specific type at each vector element
+- small operator support where it is actually needed, such as arithmetic on `Duration`
 
-### Mutability Is Intentional
+This also fixes the old debugging problem. A column no longer has the type "some arbitrary primitive that happens to mean status." It has the correct semantic type for that column.
 
-`AgentView` is deliberately mutable. That is part of the design goal.
+The underlying storage is still compact:
 
-Accessors such as `status()`, `cond()`, and `duration()` return lvalue references to the underlying `PopData` vectors. That means they can appear on the left-hand side of an assignment:
+- many categorical traits use `uint8_t`
+- ordinal day wrappers use `int16_t`
+- the type stays small enough for dense population storage and fast copying
 
-```cpp
-person.cond() = Cond::Sick;
-person.status() = Stat::Infectious;
-```
+## Real Columns in PopData
 
-This is the key idea: the accessor does not return a detached value. It returns a reference into the source data, so the virtual row remains writable.
+The **real columns** are the physical vectors in `PopData`. That is the source of truth.
 
-Because of that design:
+Derived values are not columns. For example, `tested` is derived from `testday != 0`, but it is not stored as its own vector and should not be printed or serialized as if it were a physical column.
 
-- `AgentView` is not a read-only facade
-- `AgentView` is not a copied row struct
-- `AgentView` exists specifically to provide convenient mutable access to dissimilar column types through a row-like interface
+## Stored Vectors
 
-### Passing AgentView to Functions
+| Vector | Purpose | Element type | Notes |
+|---|---|---|---|
+| `status` | current infection state | `Status` | categorical trait |
+| `agegrp` | age bucket | `Agegrp` | assigned at initialization |
+| `cond` | current severity/condition | `Condition` | categorical trait |
+| `duration` | days being infected | `Duration` | small counter |
+| `variant` | current active variant | `Variant` | runtime-loaded names |
+| `variant_hist` | prior variant history | `VariantHist` | up to 16 stored entries |
+| `sickday` | day sickness started | `Sickday` | `0` is sentinel for none |
+| `sickday_hist` | sickness-day history | `SickdayHist` | up to 16 stored entries |
+| `recovday` | recovery day | `Recovday` | ordinal sim day |
+| `recovday_hist` | recovery-day history | `RecovdayHist` | up to 16 stored entries |
+| `deadday` | death day | `Deadday` | ordinal sim day |
+| `ring` | ring assignment / ring flag | `uint8_t` | small numeric code |
+| `sdcase` | social distancing case marker / code | `uint8_t` | small numeric code |
+| `testday` | latest test day | `Testday` | `0` means never tested |
+| `testday_hist` | testing history | `TestdayHist` | up to 16 stored entries |
+| `quar` | quarantine flag | `uint8_t` | pseudo-bool stored as byte |
+| `quarday` | quarantine day | `Quarday` | ordinal sim day |
+| `vaxstatus` | vaccination status class | `Vaxstatus` | none/first/full/booster |
+| `vax` | latest vaccine type | `Vax` | runtime-loaded names |
+| `vax_hist` | vaccine history | `VaxHist` | up to 16 stored entries |
+| `vaxday` | latest vaccine day | `Vaxday` | ordinal sim day |
+| `vaxday_hist` | vaccine-day history | `VaxdayHist` | up to 16 stored entries |
 
-Functions should usually take `PopData::AgentView` by value:
+### Notes on History Vectors
 
-```cpp
-void progression(PopData::AgentView person, DayData& series, ...);
-```
+The history types use a small fixed-capacity array plus a count.
 
-That is appropriate because:
+- no per-agent dynamic allocation in the simulation loop
+- enough room for ordinary usage
+- if more than 16 events occur, the oldest entries are dropped and the newest are retained
 
-- the handle is small
-- copying it does not copy the underlying person state
-- the function still mutates the real `PopData` through returned references
+## Printing and Serialization
 
-Adding `const` to the `AgentView` parameter is usually the wrong signal for this type:
+Each semantic type used for human-readable output provides a `show()` method.
 
-- it does not improve performance
-- it does not add meaningful safety for the index, which is already private
-- it works against the design intent that the row view be writable
+That is the main API for rendering:
 
-## Critical Constraint: Row Alignment
+- debugging output
+- table-style printing
+- CSV serialization
 
-**All vectors MUST stay aligned** - index `i` represents the same person across all vectors.
+This is simpler than trying to make every type participate in elaborate generic formatting machinery. The serialization code only needs a column registry plus per-column render functions.
 
-```cpp
-// Person at index 42:
-popdata.status[42]    // Their infection status
-popdata.agegrp[42]    // Their age group
-popdata.vaxstatus[42] // Their vaccination status
-// All refer to the SAME person
-```
+## Design Boundaries
 
-**Implications:**
-- ✅ Can add/remove people (resize all vectors together)
-- ❌ Cannot reorder one vector independently
-- ✅ Can use same index across all attributes
-- ❌ Must maintain alignment during updates
+Some values are intentionally strict physical storage, not rich abstractions.
 
-## Pseudo-Enums: uint8_t with String Mapping
+- `PopData` stores the simulation state
+- `AgentView` provides convenient row-like access
+- trait structs provide semantic element types and rendering
+- derived predicates such as "tested" belong in query/filter logic, not in stored column layout
 
-### The Problem
-C++ enums are strongly typed - each enum is a different type. Can't store different enum types in the same container or use generic code.
-
-### Julia Solution
-Julia uses **Symbols** (`:unexposed`, `:infectious`, etc.):
-- Compact representation (like interned strings)
-- Fast equality comparison (pointer comparison)
-- Self-documenting (human-readable)
-
-### C++ Solution
-Use `uint8_t` everywhere with companion namespaces for string conversion.
-Wrap the `uint8_t` in compile time single member structs for Status, Condition, Agegrp, Progressionmap, Vaxstatus. Create a namespace with inline constants to allow "friendly" value expressions: 
-
-```cpp
-Status person_status = Stat::Unexposed;
-person_status = Stat::Infectious;    // fine
-person_status = Stat::Recovered;   // fine
-```
-Note that the namespace name is a little shorter than the struct name.
-
-```cpp
-// categories.h
-namespace Status {
-    enum Value : uint8_t { none = 0, unexposed, infectious, recovered, dead };
-    
-    const char* to_str(uint8_t v);      // Index → String (O(1) array lookup)
-    uint8_t from_str(const string& s);  // String → Index (O(1) branching)
-}
-
-// Usage in PopData
-vector<Status> status;  // Stores Status::Value as uint8_t
-
-// Printing
-cout << Stat::Infectious.name();  // "infectious"
-
-// Parsing
-popdata.status[i] = Status::from_str("recovered");  // 3
-```
-
-### Why uint8_t?
-
-1. **Uniform type** - All categorical columns are `vector<uint8_t>`, enables generic code
-2. **Compact** - 1 byte per person (vs 4 bytes for `int` or 8 bytes for `enum class`)
-3. **Fast** - Integer comparison and indexing
-4. **Sufficient range** - 0-255 covers all our categories (status has 5 values, age has 6, etc.)
-
-### Trade-off: Debugging Difficulty
-
-```cpp
-// Hard to debug - what does "3" mean?
-cout << popdata.status[42];  // Output: 3
-
-// Need helper functions for readability
-cout << Status::to_str(popdata.status[42]);  // Output: "recovered"
-```
-
-**Solution:** Develop print methods early (like `print_table()`) to make debugging easier.
-
-## Evolution from Julia
-
-### Julia Journey
-1. **Started with `Int`** - Fast but not self-documenting
-2. **Switched to enums** - Self-documenting but every enum is a different type
-3. **Discovered Symbols** - Perfect! Compact, fast, readable
-
-### C++ Journey
-1. **Can't use Symbols** - No equivalent in C++
-2. **Can't use enums** - Type system too rigid for generic code
-3. **Use `uint8_t` + namespaces** - Compromise: fast and uniform, but need conversion functions
-
-## Vector Types in PopData
-
-### Simple Attributes (one value per person)
-```cpp
-vector<uint8_t> status;      // Current infection status
-vector<uint8_t> agegrp;      // Age group (fixed)
-vector<uint8_t> cond;        // Current condition severity
-vector<uint8_t> duration;    // Days in current status
-```
-
-### History Attributes (multiple events per person)
-```cpp
-vector<array<uint8_t, 16>> variant;      // Up to 16 variant infections
-vector<uint8_t> variant_count;           // How many infections so far
-
-vector<array<uint8_t, 16>> vaxrcvd;      // Up to 16 vaccine doses
-vector<uint8_t> vax_count;               // How many doses received
-vector<array<uint8_t, 16>> vaxday;       // Day of each dose
-```
-
-**Pattern:** 
-- `array<uint8_t, 16>` stores up to 16 events
-- `uint8_t` count tracks how many slots are used
-- Fixed size (16) avoids dynamic allocation during simulation
-
-**Why 16?** 
-- Reasonable upper bound (unlikely anyone gets 16+ infections or doses)
-- Fixed size = no reallocation during simulation
-- Small enough to fit in cache line
-
-### Boolean Attributes
-```cpp
-vector<uint8_t> quar;        // Quarantine status (0 = false, 1 = true)
-// tested is derived from latest testday != 0, not stored as its own vector
-```
-
-**Why not `vector<bool>`?**
-- `vector<bool>` is specialized (bit-packed) and slow
-- `vector<uint8_t>` is faster and consistent with other columns
-
-## Constructor Pattern
-
-```cpp
-PopData(size_t n)
-    : popn(n),
-      status(n, 1),      // Initialize all to Status::unexposed (1)
-      agegrp(n, 1),      // Initialize all to Agegrp::age0_19 (1)
-      cond(n, 1),        // Initialize all to Condition::nil (1)
-      duration(n, 0),    // Initialize all to 0
-      variant(n),        // Default construct arrays
-      variant_count(n),  // Initialize counts to 0
-      // ... etc
-{
-    if (n <= 0) {
-        throw std::invalid_argument("Bad size input. Must be a positive integer.");
-    }
-}
-```
-
-**Pattern:**
-- Simple attributes: `vector(n, initial_value)`
-- History arrays: `vector(n)` (default constructs empty arrays)
-- Counts: `vector(n)` or `vector(n, 0)` (zero-initialized)
-
-## Column Enum for Generic Operations
-
-```cpp
-enum class Column : uint8_t {
-    status, agegrp, cond, duration,
-    variant, variant_count,
-    // ... all columns
-};
-```
-
-**Purpose:** Enable generic operations on selected columns:
-
-```cpp
-// Print specific columns
-popdata.print_table(rows, {Column::status, Column::agegrp, Column::cond});
-
-// Apply function to multiple columns
-popdata.apply_to_columns(cols, [](auto& vec) { /* process vec */ });
-```
-
-## Generic Column Processing
-
-```cpp
-template <typename Action>
-void apply_to_columns(const vector<Column>& cols, Action&& action) {
-    for (auto col : cols) {
-        switch (col) {
-            case Column::status:   action(status);   break;
-            case Column::agegrp:   action(agegrp);   break;
-            // ... all columns
-        }
-    }
-}
-```
-
-**Use cases:**
-- Printing selected columns
-- Serialization (save/load specific columns)
-- Statistics (compute stats on selected columns)
-- Validation (check constraints on specific columns)
-
-## Printing for Debugging
-
-```cpp
-struct CellPrinter {
-    int current_row;
-    
-    void operator()(const vector<uint8_t>& vec) const {
-        cout << "   " << (int)vec[current_row] << "\t|";
-    }
-    
-    void operator()(const vector<array<uint8_t, 16>>& vec) {
-        cout << "   " << (int)vec[current_row][0] << "...    | ";
-    }
-};
-
-void print_table(const vector<int>& rows, const vector<Column>& cols);
-```
-
-**Why this matters:**
-Since we're using `uint8_t` instead of self-documenting symbols, we need good printing to understand what's happening during development and debugging.
-
-**Future enhancement:** Add string conversion to print methods:
-```cpp
-cout << Status::to_str(vec[current_row]);  // "infectious" instead of "2"
-```
+That boundary keeps printing and serialization honest: output should reflect what is physically stored.
 
 ## Performance Characteristics
 
 | Operation | Complexity | Notes |
-|-----------|------------|-------|
-| Access person i's attribute | O(1) | Direct array index |
-| Update person i's attribute | O(1) | Direct array index |
-| Iterate all people for one attribute | O(n) | Sequential, cache-friendly |
-| Add/remove person | O(n) | Must resize all vectors |
-| Find people with attribute X | O(n) | Linear scan (can optimize with indices) |
+|---|---|---|
+| access one attribute for one person | `O(1)` | direct vector index |
+| update one attribute for one person | `O(1)` | direct vector index |
+| sweep one column across all people | `O(n)` | contiguous memory access |
+| build row-like access with `AgentView` | `O(1)` | lightweight handle only |
+| serialize selected columns | `O(n * k)` | `k` selected columns |
 
-## Memory Layout
+The design optimizes for the common case: many repeated sweeps over some subset of columns.
 
-For population of 100,000:
-```
-status:   [1,1,2,1,3,...]  100KB (100k × 1 byte)
-agegrp:   [1,2,2,3,1,...]  100KB
-cond:     [1,1,2,1,1,...]  100KB
-variant:  [[0,0,...], ...] 1.6MB (100k × 16 bytes)
-...
-Total: ~5-10 MB for 100k population
-```
+## Future Work
 
-**Cache-friendly:** Related data is contiguous, fits in CPU cache during iteration.
+Most of the previously listed "future enhancements" were either completed already or turned out not to be compelling.
 
-## Future Enhancements
+The remaining realistic future work is modest:
 
-1. **String conversion in print methods** - Use `Status::to_str()` etc. for readable output
-2. **Index structures** - Build indices for fast queries (e.g., all infected people)
-3. **Columnar compression** - Run-length encoding for sparse columns
-4. **SIMD operations** - Vectorize common operations (count infected, update statuses)
-5. **Serialization** - Save/load PopData to disk for checkpointing
+- checkpoint/restart serialization if long simulations need resumable runs
+- targeted performance tuning of specific kernels if profiling shows a real bottleneck
+- better developer-side debugging helpers where they improve tracing without affecting hot paths
+
+Ideas such as general indexing schemes, column compression, or broad SIMD treatment are possible in principle, but they are not obviously a good fit for this model as it currently mutates state. The simulation tends to branch heavily and update scattered values, which reduces the payoff of those approaches.
 
 ## References
 
 - Struct of Arrays pattern: https://en.wikipedia.org/wiki/AoS_and_SoA
 - Data-Oriented Design: https://www.dataorienteddesign.com/dodbook/
-- Cache-friendly data structures: https://gameprogrammingpatterns.com/data-locality.html
-
-## Semantic Column Types
-
-You have columns that are physically vector<uint8_t> but semantically different types:
-
- status → Status::Value enum
- agegrp → Agegrp::Value enum
- cond → Condition::Value enum
- variant → MapEnum (variants)
- vaxrcvd → MapEnum (vaccines)
- duration,  ring,  quar, etc. → just plain integers
-
-## Usage Warnings / Gotchas for struct PrimitiveCol
-- Comparisons with raw ints will work because of implicit conversion, not because the wrapper defines dedicated mixed-comparison overloads.
-- Checked narrowing only happens when you construct or assign through the wrapper API. Writing .v directly bypasses the range checks.
-- Only Duration should support arithmetic. The day wrappers should remain comparison-and-storage types only.
-- Because conversion to the underlying integer stays implicit, wrappers can still silently flow into generic numeric code. That is convenient, but it also means they are not “hard” type barriers in expressions.
-- uint8_t-backed wrappers must always print through .show() or the formatter if human-readable numeric output is desired; direct stream insertion on v can behave like character output.
-- to keep raw-int comparisons working through implicit conversion without ambiguity, the wrapper constructors are now explicit. That means direct initialization like Sickday{12} is fine, assignment like person.sickday() = 12 is fine, but copy-initialization like Duration d = 1 is no longer valid.

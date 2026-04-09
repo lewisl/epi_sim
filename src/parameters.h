@@ -377,7 +377,7 @@ struct VaxSched {
       fmt::print("  Filter: ");
       for (size_t i = 0; i < filtervec.size(); ++i) {
         if (i > 0) fmt::print(", ");
-        fmt::print("{}", filtervec[i]);
+        fmt::print("{}", filtervec[i].show());
       }
       fmt::println("");
     }

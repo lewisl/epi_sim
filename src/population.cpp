@@ -54,7 +54,7 @@ std::string txt_duration(AgentView person) {
 }
 
 std::string txt_variant(AgentView person) {
-  return idx(person.variant()) == 0 ? std::string{} : format_variant_name(person.variant());
+  return person.variant().show();
 }
 
 std::string txt_variant_hist(AgentView person) {
@@ -70,7 +70,7 @@ std::string txt_sickday_hist(AgentView person) {
 }
 
 std::string txt_recovday(AgentView person) {
-  return person.recovday() == 0 ? std::string{} : person.recovday().show();
+  return person.recovday().show();
 }
 
 std::string txt_recovday_hist(AgentView person) {
@@ -86,11 +86,7 @@ std::string txt_ring(AgentView person) {
 }
 
 std::string txt_sdcase(AgentView person) {
-  return bool_text(person.sdcase());
-}
-
-std::string txt_tested(AgentView person) {
-  return person.tested() == 0 ? std::string{} : bool_text(person.tested());
+  return fmt::format("{}", static_cast<unsigned int>(person.sdcase()));
 }
 
 std::string txt_testday_hist(AgentView person) {
@@ -109,10 +105,10 @@ std::string txt_quarday(AgentView person) {
   return person.quarday().show();
 }
 
-std::string txt_vaxstatus(AgentView person) { return person.vaxstatus().name(); }
+std::string txt_vaxstatus(AgentView person) { return person.vaxstatus().show(); }
 
-std::string txt_vaxrcvd(AgentView person) {
-  return idx(person.vaxrcvd()) == 0 ? std::string{} : format_vax_name(person.vaxrcvd());
+std::string txt_vax(AgentView person) {
+  return format_vax_name(person.vax());
 }
 
 std::string txt_vax_hist(AgentView person) {
@@ -120,7 +116,7 @@ std::string txt_vax_hist(AgentView person) {
 }
 
 std::string txt_vaxday(AgentView person) {
-  return person.vaxday() == 0 ? std::string{} : person.vaxday().show();
+  return person.vaxday().show();
 }
 
 std::string txt_vaxday_hist(AgentView person) {
@@ -141,19 +137,18 @@ const PopData::PopColumnMap COLUMN_SPECS{
     {"deadday", {ColumnName::deadday, "deadday", txt_deadday}},
     {"ring", {ColumnName::ring, "ring", txt_ring}},
     {"sdcase", {ColumnName::sdcase, "sdcase", txt_sdcase}},
-    {"tested", {ColumnName::tested, "tested", txt_tested}},
     {"testday_hist", {ColumnName::testday_hist, "testday_hist", txt_testday_hist}},
     {"testday", {ColumnName::testday, "testday", txt_testday}},
     {"quar", {ColumnName::quar, "quar", txt_quar}},
     {"quarday", {ColumnName::quarday, "quarday", txt_quarday}},
     {"vaxstatus", {ColumnName::vaxstatus, "vaxstatus", txt_vaxstatus}},
-    {"vaxrcvd", {ColumnName::vaxrcvd, "vaxrcvd", txt_vaxrcvd}},
+    {"vax", {ColumnName::vax, "vax", txt_vax}},
     {"vax_hist", {ColumnName::vax_hist, "vax_hist", txt_vax_hist}},
     {"vaxday", {ColumnName::vaxday, "vaxday", txt_vaxday}},
     {"vaxday_hist", {ColumnName::vaxday_hist, "vaxday_hist", txt_vaxday_hist}},
 };
 
-static_assert(size_t(ColumnName::COUNT) == 23);
+static_assert(size_t(ColumnName::COUNT) == 22);
 static_assert(size_t(ColumnName::COUNT) == column_name_labels.size());
 
 }  // namespace
@@ -176,33 +171,33 @@ const PopData::PopColumnSpec* PopData::find_column(std::string_view key) {
   return &it->second;
 }
 
-std::vector<const PopData::PopColumnSpec*> PopData::resolve_columns(std::span<const std::string_view> col_names) {
-  std::vector<const PopColumnSpec*> cols;
+std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(std::span<const std::string_view> col_names) {
+  std::vector<PopColumnRenderer> cols;
   cols.reserve(col_names.size());
   for (const auto name : col_names) {
     const PopColumnSpec* spec = find_column(name);
     if (spec == nullptr) {
       throw std::invalid_argument(fmt::format("Unknown PopData column '{}'", name));
     }
-    cols.push_back(spec);
+    cols.push_back(spec->to_txt_cell);
   }
   return cols;
 }
 
-std::vector<const PopData::PopColumnSpec*> PopData::resolve_columns(const std::vector<std::string>& col_names) {
-  std::vector<const PopColumnSpec*> cols;
+std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(const std::vector<std::string>& col_names) {
+  std::vector<PopColumnRenderer> cols;
   cols.reserve(col_names.size());
   for (const auto& name : col_names) {
     const PopColumnSpec* spec = find_column(name);
     if (spec == nullptr) {
       throw std::invalid_argument(fmt::format("Unknown PopData column '{}'", name));
     }
-    cols.push_back(spec);
+    cols.push_back(spec->to_txt_cell);
   }
   return cols;
 }
 
-std::vector<const PopData::PopColumnSpec*> PopData::resolve_columns(std::initializer_list<std::string_view> col_names) {
+std::vector<PopData::PopColumnRenderer> PopData::resolve_columns(std::initializer_list<std::string_view> col_names) {
   return resolve_columns(std::span<const std::string_view>{col_names.begin(), col_names.size()});
 }
 
@@ -236,9 +231,9 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
   }
 
   std::vector<std::string> header;
-  header.reserve(cols.size() + 1);
+  header.reserve(selections.size() + 1);
   header.push_back("row");
-  for (const auto* col : cols) header.push_back(std::string{col->key});
+  for (const auto& col : selections) header.push_back(col);
   fmt::println(out, "{}", fmt::join(header, ","));
 
   for (size_t person_idx = 1; person_idx <= popn; ++person_idx) {
@@ -246,8 +241,8 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
     row.reserve(cols.size() + 1);
     row.push_back(fmt::format("{}", person_idx));
     const auto person = agent(person_idx);
-    for (const auto* col : cols) {
-      row.push_back(csv_escape(col->to_txt_cell(person)));
+    for (const auto& col : cols) {
+      row.push_back(col(person));
     }
     fmt::println(out, "{}", fmt::join(row, ","));
   }

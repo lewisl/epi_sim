@@ -204,11 +204,11 @@ float recoveffect(AgentView contact, size_t thisday,  uint8_t spr_variant,
 
 float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
                 uint8_t target_variant, float csig, float decay_lower) {
-  if (person.vaxstatus() == Vaxstat::none || idx(person.vaxrcvd()) == 0 || person.vaxday() == 0) {
+  if (person.vaxstatus() == Vaxstat::none || idx(person.vax()) == 0 || person.vaxday() == 0) {
     return 1.0f;
   }
 
-  const auto& params = vaxset.at(person.vaxrcvd());
+  const auto& params = vaxset.at(person.vax());
   const int16_t vaxday = person.vaxday();
 
   if (target_variant >= Variant::names.size()) {
@@ -216,7 +216,7 @@ float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
   }
 
   const string variant_name = Variant::names[target_variant];
-  const string shot_name = person.vaxstatus().name();
+  const string shot_name = person.vaxstatus().show();
   const float infectfactor = require_named_factor(params.infectfactor, variant_name, "infectfactor");
   const float vaccine_effect = require_effectiveness(params, shot_name, variant_name);
 

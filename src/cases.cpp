@@ -38,10 +38,10 @@ int32_t parse_term_val(const string& trait, const json& jval, const ModelParams&
   }
   if (trait == "variant") {
     const string vname = jval.get<string>();
-    auto it = std::find(Variant::names.begin(), Variant::names.end(), vname);
-    if (it == Variant::names.end())
+    auto opt = trait_from_string<Variant>(vname);
+    if (!opt)
       throw std::runtime_error("Unknown variant: " + vname);
-    uint8_t vidx = static_cast<uint8_t>(std::distance(Variant::names.begin(), it));
+    uint8_t vidx = static_cast<uint8_t>(*opt);
     if (vidx == 0)
       throw std::runtime_error("Variant 'none' (index 0) is not valid in seed terms");
     return int32_t(vidx);
@@ -60,7 +60,7 @@ bool matches_filter(AgentView person, const Filter& filt) {
     else if (f.trait == "variant")   pval = int32_t(uint8_t(person.variant()));
     else if (f.trait == "vaxstatus") pval = int32_t(uint8_t(person.vaxstatus()));
     else if (f.trait == "quar")      pval = int32_t(person.quar());
-    else if (f.trait == "tested")    pval = int32_t(person.tested());
+    else if (f.trait == "tested")    pval = int32_t(person.testday() != 0);
     if (pval != f.val) return false;
   }
   return true;

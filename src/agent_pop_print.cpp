@@ -123,11 +123,6 @@ RenderLines render_sdcase(RowView person, bool) {
   return {bool_text(person.sdcase())};
 }
 
-RenderLines render_tested(RowView person, bool multi_values) {
-  (void)multi_values;
-  return {person.tested() == 0 ? std::string{"-"} : bool_text(person.tested())};
-}
-
 RenderLines render_testday_hist(RowView person, bool multi_values) {
   const auto& history = person.testday_hist();
   const auto scalar_value = history.count == 0 ? std::string{"-"} : history.show();
@@ -150,10 +145,10 @@ RenderLines render_quarday(RowView person, bool) {
   return {person.quarday().show()};
 }
 
-RenderLines render_vaxstatus(RowView person, bool) { return {person.vaxstatus().name()}; }
+RenderLines render_vaxstatus(RowView person, bool) { return {person.vaxstatus().show()}; }
 
-RenderLines render_vaxrcvd(RowView person, bool) {
-  return {idx(person.vaxrcvd()) == 0 ? std::string{"-"} : format_vax_name(person.vaxrcvd())};
+RenderLines render_vax(RowView person, bool) {
+  return {idx(person.vax()) == 0 ? std::string{"-"} : format_vax_name(person.vax())};
 }
 
 RenderLines render_vax_hist(RowView person, bool multi_values) {
@@ -178,7 +173,7 @@ RenderLines render_vaxday_hist(RowView person, bool multi_values) {
       scalar_value);
 }
 
-constexpr std::array<ColumnSpec, 23> COLUMN_SPECS{{
+constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {"status", 10, render_status},
     {"agegrp", 10, render_agegrp},
     {"cond", 10, render_cond},
@@ -192,13 +187,12 @@ constexpr std::array<ColumnSpec, 23> COLUMN_SPECS{{
     {"deadday", 7, render_deadday},
     {"ring", 4, render_ring},
     {"sdcase", 6, render_sdcase},
-    {"tested", 6, render_tested},
     {"testday_hist", 12, render_testday_hist},
     {"testday", 7, render_testday},
     {"quar", 5, render_quar},
     {"quarday", 7, render_quarday},
     {"vaxstatus", 10, render_vaxstatus},
-    {"vaxrcvd", 10, render_vaxrcvd},
+    {"vax", 10, render_vax},
     {"vax_hist", 10, render_vax_hist},
     {"vaxday", 6, render_vaxday},
     {"vaxday_hist", 11, render_vaxday_hist},

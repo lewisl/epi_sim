@@ -20,10 +20,11 @@ the population table for the simulation.
 use as:
 
 Status person_status = UNEXPOSED;
-person_status = INFECTIOUS;    // fine
-person_status = RECOVERED;   // fine
+person_status = INFECTIOUS;    
+person_status = RECOVERED;   
 
 */
+
 
 // Agegrp
 struct Agegrp {
@@ -157,7 +158,7 @@ struct Vaxstatus {
   static constexpr std::array<std::string, 4> names{
       "none", "first", "full", "booster"};
 
-  std::string name() const noexcept { return names[v]; }
+  std::string show() const noexcept { return names[v]; }
     
   constexpr explicit Vaxstatus(uint8_t v) noexcept : v(v) {}  // constructor
   constexpr operator uint8_t() const noexcept { return v; }
@@ -172,65 +173,23 @@ namespace Vaxstat {
   inline const Vaxstatus booster{3};
 } // namespace Vaxstat
 
-template<typename T, typename Tag>
-struct PrimitiveCol {
-  using value_type = T;
-  using tag_type = Tag;
+struct Duration {
+  uint8_t v{};
 
-  T v{};
-
-  constexpr PrimitiveCol() noexcept = default;
-  constexpr PrimitiveCol(const PrimitiveCol&) noexcept = default;
-  constexpr PrimitiveCol& operator=(const PrimitiveCol&) noexcept = default;
-  constexpr PrimitiveCol(PrimitiveCol&&) noexcept = default;
-  constexpr PrimitiveCol& operator=(PrimitiveCol&&) noexcept = default;
-
-  explicit constexpr PrimitiveCol(T value) noexcept : v(value) {}
-
-  template<std::integral U>
-    requires (!std::same_as<std::remove_cvref_t<U>, PrimitiveCol> &&
-              !std::same_as<std::remove_cvref_t<U>, PrimitiveCol<T, Tag>>)
-  explicit constexpr PrimitiveCol(U value) : v(checked_cast(value)) {}
-
-  template<std::integral U>
-    requires (!std::same_as<std::remove_cvref_t<U>, PrimitiveCol<T, Tag>>)
-  constexpr PrimitiveCol& operator=(U value) {
-    v = checked_cast(value);
-    return *this;
-  }
+  constexpr Duration() noexcept = default;
+  explicit constexpr Duration(uint8_t value) noexcept : v(value) {}
+  constexpr Duration& operator=(uint8_t value) noexcept { v = value; return *this; }
 
   std::string show() const {
-    if constexpr (std::same_as<T, uint8_t>) {
-      return fmt::format("{}", static_cast<unsigned int>(v));
-    } else {
-      return fmt::format("{}", v);
-    }
+    return fmt::format("{}", static_cast<unsigned int>(v));
   }
 
-  constexpr operator T() const noexcept { return v; }
-  constexpr bool operator==(const PrimitiveCol&) const noexcept = default;
-  constexpr auto operator<=>(const PrimitiveCol&) const noexcept = default;
-
- protected:
-  template<std::integral U>
-  static constexpr T checked_cast(U value) {
-    if (!std::in_range<T>(value)) {
-      throw std::out_of_range(
-          fmt::format("Value {} is out of range for {}", value, typeid(T).name()));
-    }
-    return static_cast<T>(value);
-  }
-};
-
-struct DurationTag;
-using DurationBase = PrimitiveCol<uint8_t, DurationTag>;
-
-struct Duration : DurationBase {
-  using DurationBase::DurationBase;
-  using DurationBase::operator=;
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Duration&) const noexcept = default;
+  constexpr auto operator<=>(const Duration&) const noexcept = default;
 
   constexpr Duration& operator++() {
-    v = checked_cast(static_cast<int>(v) + 1);
+    ++v;
     return *this;
   }
 
@@ -240,25 +199,94 @@ struct Duration : DurationBase {
     return copy;
   }
 
-  template<std::integral U>
-  constexpr Duration& operator+=(U rhs) {
-    v = checked_cast(static_cast<long long>(v) + static_cast<long long>(rhs));
+  constexpr Duration& operator+=(int rhs) {
+    v = static_cast<uint8_t>(v + rhs);
     return *this;
   }
 
-  template<std::integral U>
-  friend constexpr Duration operator+(Duration lhs, U rhs) {
+  friend constexpr Duration operator+(Duration lhs, int rhs) {
     lhs += rhs;
     return lhs;
   }
 };
 
-using Sickday = PrimitiveCol<int16_t, struct SickdayTag>;
-using Recovday = PrimitiveCol<int16_t, struct RecovdayTag>;
-using Deadday = PrimitiveCol<int16_t, struct DeaddayTag>;
-using Testday = PrimitiveCol<int16_t, struct TestdayTag>;
-using Quarday = PrimitiveCol<int16_t, struct QuardayTag>;
-using Vaxday = PrimitiveCol<int16_t, struct VaxdayTag>;
+struct Sickday {
+  int16_t v{};
+
+  constexpr Sickday() noexcept = default;
+  explicit constexpr Sickday(int16_t value) noexcept : v(value) {}
+  constexpr Sickday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Sickday&) const noexcept = default;
+  constexpr auto operator<=>(const Sickday&) const noexcept = default;
+};
+
+struct Recovday {
+  int16_t v{};
+
+  constexpr Recovday() noexcept = default;
+  explicit constexpr Recovday(int16_t value) noexcept : v(value) {}
+  constexpr Recovday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Recovday&) const noexcept = default;
+  constexpr auto operator<=>(const Recovday&) const noexcept = default;
+};
+
+struct Deadday {
+  int16_t v{};
+
+  constexpr Deadday() noexcept = default;
+  explicit constexpr Deadday(int16_t value) noexcept : v(value) {}
+  constexpr Deadday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Deadday&) const noexcept = default;
+  constexpr auto operator<=>(const Deadday&) const noexcept = default;
+};
+
+struct Testday {
+  int16_t v{};
+
+  constexpr Testday() noexcept = default;
+  explicit constexpr Testday(int16_t value) noexcept : v(value) {}
+  constexpr Testday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Testday&) const noexcept = default;
+  constexpr auto operator<=>(const Testday&) const noexcept = default;
+};
+
+struct Quarday {
+  int16_t v{};
+
+  constexpr Quarday() noexcept = default;
+  explicit constexpr Quarday(int16_t value) noexcept : v(value) {}
+  constexpr Quarday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Quarday&) const noexcept = default;
+  constexpr auto operator<=>(const Quarday&) const noexcept = default;
+};
+
+struct Vaxday {
+  int16_t v{};
+
+  constexpr Vaxday() noexcept = default;
+  explicit constexpr Vaxday(int16_t value) noexcept : v(value) {}
+  constexpr Vaxday& operator=(int16_t value) noexcept { v = value; return *this; }
+
+  std::string show() const { return fmt::format("{}", v); }
+  constexpr operator int16_t() const noexcept { return v; }
+  constexpr bool operator==(const Vaxday&) const noexcept = default;
+  constexpr auto operator<=>(const Vaxday&) const noexcept = default;
+};
 
 //
 // runtime building of trait classes
@@ -511,57 +539,15 @@ struct VaxdayHist {
   }
 };
 
-// print any vector of trait class instances (types with .show() method)
-template<typename T>
-  requires requires(const T& t) { { t.show() } -> std::convertible_to<std::string>; }
-void print_trait_vector(const vector<T>& vec) {
-  for (size_t i = 0; i < vec.size(); ++i) {
-    fmt::print("{:>2}: {}\n", i, vec[i].show());
-  }
-}
-
-// enable fmt to format trait classes
-template <typename T>
-concept TraitType = std::same_as<T, Status> || std::same_as<T, Agegrp> ||
-                    std::same_as<T, Condition> ||
-                    std::same_as<T, Progressionmap> ||
-                    std::same_as<T, Vaxstatus>;
-template<TraitType T>
-struct fmt::formatter<T> : fmt::formatter<uint8_t> {
-    auto format(const T& val, fmt::format_context& ctx) const {
-        return fmt::formatter<uint8_t>::format(static_cast<uint8_t>(val), ctx);
-    }
-};
-
-template <typename T>
-concept PrimitiveColType = requires(const T& value) {
-  typename T::value_type;
-  typename T::tag_type;
-  { value.v };
-};
-
-template<PrimitiveColType T>
-struct fmt::formatter<T> : fmt::formatter<std::conditional_t<std::same_as<typename T::value_type, uint8_t>,
-                                                              unsigned int,
-                                                              typename T::value_type>> {
-  auto format(const T& val, fmt::format_context& ctx) const {
-    if constexpr (std::same_as<typename T::value_type, uint8_t>) {
-      return fmt::formatter<unsigned int>::format(static_cast<unsigned int>(val.v), ctx);
-    } else {
-      return fmt::formatter<typename T::value_type>::format(val.v, ctx);
-    }
-  }
-};
-
 /* trait_from_string<T>(s) -- converts a string name to a trait value.
-   T must be a TraitType (Agegrp, Status, Condition, etc.).
+   T must provide a static names member and accept a uint8_t value constructor.
    Returns std::nullopt if s is not found in T::names.
    Usage:
      auto ret = trait_from_string<Agegrp>("age20_39");
      if (!ret) { // handle bad input }
      Agegrp ag = *ret;
 */
-template<TraitType T>
+template<typename T>
 std::optional<T> trait_from_string(const std::string& s) {
     auto tolower_str = [](const std::string& str) {
         std::string out = str;
