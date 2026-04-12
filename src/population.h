@@ -97,10 +97,10 @@ class PopData {
   
   struct PopColumnSpec {
     ColumnName name;
-    std::string (*to_txt_cell)(AgentView person);
+    std::string (*to_txt_cell)(AgentView person);  // function pointer
   };
 
-  using PopColumnRenderer = std::string (*)(AgentView);
+  using PopColumnRenderer = std::string (*)(AgentView);  // yet another way to create alias to function pointer type
   using PopColumnMap = absl::flat_hash_map<std::string_view, PopColumnSpec>;
 
   //

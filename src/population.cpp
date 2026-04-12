@@ -26,6 +26,7 @@ std::string csv_escape(std::string_view cell) {
     return std::string{cell};
   }
 
+  // surround cell with double quotes
   std::string escaped;
   escaped.reserve(cell.size() + 2);
   escaped.push_back('"');
@@ -34,6 +35,7 @@ std::string csv_escape(std::string_view cell) {
     escaped.push_back(ch);
   }
   escaped.push_back('"');
+
   return escaped;
 }
 
@@ -198,17 +200,17 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
   }
 
   // Unknown names are skipped (with a hint); duplicates resolve to the first occurrence.
-  std::vector<PopColumnRenderer> cols;
+  std::vector<PopColumnRenderer> col_fns;  // vector of textify functions for each column
   std::vector<std::string> header_labels;
   std::vector<std::string> invalid;
   std::array<bool, static_cast<size_t>(ColumnName::COUNT)> used{};
-  cols.reserve(selections.size());
+  col_fns.reserve(selections.size());
   header_labels.reserve(selections.size());
 
-  for (const auto& raw : selections) {
-    const PopColumnSpec* spec = find_column(std::string_view{raw});
+  for (const auto& col_lbl : selections) {
+    const PopColumnSpec* spec = find_column(std::string_view{col_lbl});
     if (spec == nullptr) {
-      invalid.push_back(raw);
+      invalid.push_back(col_lbl);
       continue;
     }
     const auto ord = static_cast<size_t>(spec->name);
@@ -219,18 +221,18 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
       continue;
     }
     used[ord] = true;
-    cols.push_back(spec->to_txt_cell);
-    header_labels.push_back(raw);
+    col_fns.push_back(spec->to_txt_cell);  // must use pointer -> deref instead of member . deref
+    header_labels.push_back(col_lbl);
   }
 
-  auto print_column_hints = [&] {
+  auto print_column_hints = [&] {      // TODO Does this have to be a lambda?  is it to do the closure? only enclosing var invalid
     if (!invalid.empty()) {
       fmt::println("Skipping unknown PopData column(s): {}", fmt::join(invalid, ", "));
     }
     print_valid_popdata_column_names_hint();
   };
 
-  if (cols.empty()) {
+  if (col_fns.empty()) {
     fmt::println("\nNo valid columns selected for population CSV output.");
     print_column_hints();
     return;
@@ -254,33 +256,33 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
   fpath /= make_timestamped_filename(base_fname) + ".csv";
   ensure_parent_dir(fpath);
 
-  std::ofstream out(fpath);
+  std::ofstream out(fpath);  // only create the file handle after verifying we have things to write
   if (!out) {
     throw std::runtime_error(fmt::format("Could not write population CSV to '{}'",
                                          fpath.string()));
   }
 
-  std::vector<std::string> row;
-  row.reserve(cols.size() + 1);
+  std::vector<std::string> row_str;  // allocate and re-use for all row_strs: vector of per-column strings
+  row_str.reserve(col_fns.size() + 1);
 
-  row.clear();
-  row.push_back(csv_escape(std::string_view{"row"}));
+  row_str.clear();
+  row_str.push_back(csv_escape(std::string_view{"row_str"}));   // TODO we don't need to check a string constant!
   for (const auto& label : header_labels) {
-    row.push_back(csv_escape(std::string_view{label}));
+    row_str.push_back(csv_escape(std::string_view{label}));
   }
-  fmt::println(out, "{}", fmt::join(row, ","));
+  fmt::println(out, "{}", fmt::join(row_str, ","));
 
   for (size_t person_idx = 1; person_idx <= popn; ++person_idx) {
-    row.clear();
+    row_str.clear();
     const std::string idx_str = fmt::format("{}", person_idx);
-    row.push_back(csv_escape(std::string_view{idx_str}));
+    row_str.push_back(csv_escape(std::string_view{idx_str}));
     const auto person = agent(person_idx);
-    for (const auto col_fn : cols) {
+    for (const auto col_fn : col_fns) {
       const std::string cell = col_fn(person);
-      row.push_back(csv_escape(std::string_view{cell}));
+      row_str.push_back(csv_escape(std::string_view{cell}));
     }
-    fmt::println(out, "{}", fmt::join(row, ","));
+    fmt::println(out, "{}", fmt::join(row_str, ","));
   }
 
-  fmt::println("Wrote selected population CSV to '{}'", fpath.string());
+  fmt::println("\nWrote selected population CSV to '{}'", fpath.string());
 }

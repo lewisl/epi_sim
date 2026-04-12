@@ -5,7 +5,7 @@
 #include "../src/setup.h"
 #include "../src/sim.h"
 #include "../src/population.h"
-#include "../src/agent_pop_print.h"
+#include "../src/pop_serialize.h"
 #include "../src/helpers.h"
 #include "../src/random.h"
 #include "../src/series.h"

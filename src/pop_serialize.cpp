@@ -1,4 +1,4 @@
-#include "agent_pop_print.h"
+#include "pop_serialize.h"
 
 #include <algorithm>
 #include <array>
@@ -173,6 +173,11 @@ RenderLines render_vaxday_hist(RowView person, bool multi_values) {
       scalar_value);
 }
 
+/*
+note:  bool multi_values arg provided by outer function print_agent_pop_table,
+       if not false (default value)
+label, print_width, serial_func, multi_value_func 
+*/
 constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {"status", 10, render_status},
     {"agegrp", 10, render_agegrp},
