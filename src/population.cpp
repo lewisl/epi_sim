@@ -1,43 +1,7 @@
 #include "population.h"
+#include "pop_serialize.h"
 
 namespace {
-
-std::string bool_text(uint8_t value) {
-  return value == 0 ? std::string{"false"} : std::string{"true"};
-}
-
-std::string format_variant_name(Variant value) {
-  const auto rendered = value.show();
-  if (!rendered.empty()) return rendered;
-  return idx(value) == 0 ? std::string{} :
-                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
-}
-
-std::string format_vax_name(Vax value) {
-  const auto rendered = value.show();
-  if (!rendered.empty()) return rendered;
-  return idx(value) == 0 ? std::string{} :
-                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
-}
-
-// Escape a field for CSV (RFC 4180-style): quote if needed, double internal quotes.
-std::string csv_escape(std::string_view cell) {
-  if (cell.find_first_of(",\"\n\r") == std::string_view::npos) {
-    return std::string{cell};
-  }
-
-  // surround cell with double quotes
-  std::string escaped;
-  escaped.reserve(cell.size() + 2);
-  escaped.push_back('"');
-  for (const char ch : cell) {
-    if (ch == '"') escaped.push_back('"');
-    escaped.push_back(ch);
-  }
-  escaped.push_back('"');
-
-  return escaped;
-}
 
 void ensure_parent_dir(const std::filesystem::path& output_path) {
   const auto parent = output_path.parent_path();
@@ -46,85 +10,28 @@ void ensure_parent_dir(const std::filesystem::path& output_path) {
   }
 }
 
-std::string txt_status(AgentView person) { return person.status().show(); }
-
-std::string txt_agegrp(AgentView person) { return person.agegrp().show(); }
-
-std::string txt_cond(AgentView person) { return person.cond().show(); }
-
-std::string txt_duration(AgentView person) {
-  return person.duration().show();
-}
-
-std::string txt_variant(AgentView person) {
-  return person.variant().show();
-}
-
-std::string txt_variant_hist(AgentView person) {
-  return person.variant_hist().show();
-}
-
-std::string txt_sickday(AgentView person) {
-  return person.sickday() == 0 ? std::string{} : person.sickday().show();
-}
-
-std::string txt_sickday_hist(AgentView person) {
-  return person.sickday_hist().show();
-}
-
-std::string txt_recovday(AgentView person) {
-  return person.recovday().show();
-}
-
-std::string txt_recovday_hist(AgentView person) {
-  return person.recovday_hist().show();
-}
-
-std::string txt_deadday(AgentView person) {
-  return person.deadday().show();
-}
-
-std::string txt_ring(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.ring()));
-}
-
-std::string txt_sdcase(AgentView person) {
-  return fmt::format("{}", static_cast<unsigned int>(person.sdcase()));
-}
-
-std::string txt_testday_hist(AgentView person) {
-  return person.testday_hist().show();
-}
-
-std::string txt_testday(AgentView person) {
-  return person.testday() == 0 ? std::string{} : person.testday().show();
-}
-
-std::string txt_quar(AgentView person) {
-  return bool_text(person.quar());
-}
-
-std::string txt_quarday(AgentView person) {
-  return person.quarday().show();
-}
-
-std::string txt_vaxstatus(AgentView person) { return person.vaxstatus().show(); }
-
-std::string txt_vax(AgentView person) {
-  return format_vax_name(person.vax());
-}
-
-std::string txt_vax_hist(AgentView person) {
-  return person.vax_hist().show();
-}
-
-std::string txt_vaxday(AgentView person) {
-  return person.vaxday().show();
-}
-
-std::string txt_vaxday_hist(AgentView person) {
-  return person.vaxday_hist().show();
-}
+std::string txt_status(AgentView person) { return render_agent_pop_cell("status", person); }
+std::string txt_agegrp(AgentView person) { return render_agent_pop_cell("agegrp", person); }
+std::string txt_cond(AgentView person) { return render_agent_pop_cell("cond", person); }
+std::string txt_duration(AgentView person) { return render_agent_pop_cell("duration", person); }
+std::string txt_variant(AgentView person) { return render_agent_pop_cell("variant", person); }
+std::string txt_variant_hist(AgentView person) { return render_agent_pop_cell("variant_hist", person); }
+std::string txt_sickday(AgentView person) { return render_agent_pop_cell("sickday", person); }
+std::string txt_sickday_hist(AgentView person) { return render_agent_pop_cell("sickday_hist", person); }
+std::string txt_recovday(AgentView person) { return render_agent_pop_cell("recovday", person); }
+std::string txt_recovday_hist(AgentView person) { return render_agent_pop_cell("recovday_hist", person); }
+std::string txt_deadday(AgentView person) { return render_agent_pop_cell("deadday", person); }
+std::string txt_ring(AgentView person) { return render_agent_pop_cell("ring", person); }
+std::string txt_sdcase(AgentView person) { return render_agent_pop_cell("sdcase", person); }
+std::string txt_testday_hist(AgentView person) { return render_agent_pop_cell("testday_hist", person); }
+std::string txt_testday(AgentView person) { return render_agent_pop_cell("testday", person); }
+std::string txt_quar(AgentView person) { return render_agent_pop_cell("quar", person); }
+std::string txt_quarday(AgentView person) { return render_agent_pop_cell("quarday", person); }
+std::string txt_vaxstatus(AgentView person) { return render_agent_pop_cell("vaxstatus", person); }
+std::string txt_vax(AgentView person) { return render_agent_pop_cell("vax", person); }
+std::string txt_vax_hist(AgentView person) { return render_agent_pop_cell("vax_hist", person); }
+std::string txt_vaxday(AgentView person) { return render_agent_pop_cell("vaxday", person); }
+std::string txt_vaxday_hist(AgentView person) { return render_agent_pop_cell("vaxday_hist", person); }
 
 // Registry keys must match ColumnName / column_name_labels; static_assert below guards COUNT.
 const PopData::PopColumnMap COLUMN_SPECS{
@@ -200,12 +107,10 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
   }
 
   // Unknown names are skipped (with a hint); duplicates resolve to the first occurrence.
-  std::vector<PopColumnRenderer> col_fns;  // vector of textify functions for each column
-  std::vector<std::string> header_labels;
+  std::vector<std::string_view> selected_columns;
   std::vector<std::string> invalid;
   std::array<bool, static_cast<size_t>(ColumnName::COUNT)> used{};
-  col_fns.reserve(selections.size());
-  header_labels.reserve(selections.size());
+  selected_columns.reserve(selections.size());
 
   for (const auto& col_lbl : selections) {
     const PopColumnSpec* spec = find_column(std::string_view{col_lbl});
@@ -221,8 +126,7 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
       continue;
     }
     used[ord] = true;
-    col_fns.push_back(spec->to_txt_cell);  // must use pointer -> deref instead of member . deref
-    header_labels.push_back(col_lbl);
+    selected_columns.push_back(col_lbl);
   }
 
   auto print_column_hints = [&] {      // TODO Does this have to be a lambda?  is it to do the closure? only enclosing var invalid
@@ -232,7 +136,7 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
     print_valid_popdata_column_names_hint();
   };
 
-  if (col_fns.empty()) {
+  if (selected_columns.empty()) {
     fmt::println("\nNo valid columns selected for population CSV output.");
     print_column_hints();
     return;
@@ -262,27 +166,14 @@ void PopData::serialize_selected_columns(std::vector<string> selections,
                                          fpath.string()));
   }
 
-  std::vector<std::string> row_str;  // allocate and re-use for all row_strs: vector of per-column strings
-  row_str.reserve(col_fns.size() + 1);
-
-  row_str.clear();
-  row_str.push_back(csv_escape(std::string_view{"row_str"}));   // TODO we don't need to check a string constant!
-  for (const auto& label : header_labels) {
-    row_str.push_back(csv_escape(std::string_view{label}));
-  }
-  fmt::println(out, "{}", fmt::join(row_str, ","));
-
+  std::vector<size_t> rows;
+  rows.reserve(popn);
   for (size_t person_idx = 1; person_idx <= popn; ++person_idx) {
-    row_str.clear();
-    const std::string idx_str = fmt::format("{}", person_idx);
-    row_str.push_back(csv_escape(std::string_view{idx_str}));
-    const auto person = agent(person_idx);
-    for (const auto col_fn : col_fns) {
-      const std::string cell = col_fn(person);
-      row_str.push_back(csv_escape(std::string_view{cell}));
-    }
-    fmt::println(out, "{}", fmt::join(row_str, ","));
+    rows.push_back(person_idx);
   }
+
+  write_agent_pop_data(*this, rows, selected_columns, out, PopOutputLayout::serialized, false,
+                       ",", true);
 
   fmt::println("\nWrote selected population CSV to '{}'", fpath.string());
 }

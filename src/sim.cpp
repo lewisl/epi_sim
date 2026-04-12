@@ -154,8 +154,8 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   for (size_t p = 1; p <= pop.popn; ++p) {
     if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
   }
-  print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}); // args with defaults
-
+  // print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}); // args with defaults
+  print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "variant_hist"}, std::cout, true);
 
   // print some series and a summary
   // print_selected_series({ {"now_infected", "total"},
