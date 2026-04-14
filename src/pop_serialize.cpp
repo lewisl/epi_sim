@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <vector>
 
-namespace {
 
 std::string bool_text(uint8_t value) {
   return value == 0 ? std::string{"false"} : std::string{"true"};
@@ -18,36 +17,6 @@ std::string bool_text(uint8_t value) {
 using RenderLines = std::vector<std::string>;
 using RenderFn = RenderLines (*)(AgentView, bool);
 
-
-struct ColumnSpec {
-  ColumnName name;
-  std::string_view key;
-  size_t width;
-  RenderFn render;
-};
-
-template <typename T, size_t N>
-const T *stored_value(const std::array<T, N> &values, uint8_t count, size_t entry_idx) {
-  const size_t stored_entries = std::min<size_t>(count, N);
-  if (entry_idx >= stored_entries) return nullptr;
-  return &values[entry_idx];
-}
-
-template <typename T, size_t N, typename Formatter>
-RenderLines render_history(const std::array<T, N> &values, uint8_t count,
-                           bool multi_values, Formatter formatter,
-                           std::string scalar_value) {
-  const size_t entry_count = std::min<size_t>(count, N);
-  if (!multi_values || entry_count == 0) return {std::move(scalar_value)};
-
-  RenderLines lines;
-  lines.reserve(entry_count);
-  for (size_t entry_idx = 0; entry_idx < entry_count; ++entry_idx) {
-    const T *value = stored_value(values, count, entry_idx);
-    lines.push_back(value == nullptr ? "" : formatter(*value));
-  }
-  return lines;
-}
 
 std::string format_variant_name(Variant value) {
   const auto rendered = value.show();
@@ -69,9 +38,7 @@ RenderLines render_agegrp(AgentView person, bool) { return {person.agegrp().show
 
 RenderLines render_cond(AgentView person, bool) { return {person.cond().show()}; }
 
-RenderLines render_duration(AgentView person, bool) {
-  return {person.duration().show()};
-}
+RenderLines render_duration(AgentView person, bool) { return {person.duration().show()}; }
 
 RenderLines render_variant(AgentView person, bool) {
   return {format_variant_name(person.variant())};
@@ -113,17 +80,13 @@ RenderLines render_recovday_hist(AgentView person, bool multi_values) {
       scalar_value);
 }
 
-RenderLines render_deadday(AgentView person, bool) {
-  return {person.deadday().show()};
-}
+RenderLines render_deadday(AgentView person, bool) { return {person.deadday().show()}; }
 
 RenderLines render_ring(AgentView person, bool) {
   return {fmt::format("{}", static_cast<unsigned int>(person.ring()))};
 }
 
-RenderLines render_sdcase(AgentView person, bool) {
-  return {bool_text(person.sdcase())};
-}
+RenderLines render_sdcase(AgentView person, bool) { return {bool_text(person.sdcase())}; }
 
 RenderLines render_testday_hist(AgentView person, bool multi_values) {
   const auto& history = person.testday_hist();
@@ -139,13 +102,9 @@ RenderLines render_testday(AgentView person, bool multi_values) {
   return {person.testday() == 0 ? std::string{"-"} : person.testday().show()};
 }
 
-RenderLines render_quar(AgentView person, bool) {
-  return {bool_text(person.quar())};
-}
+RenderLines render_quar(AgentView person, bool) { return {bool_text(person.quar())}; }
 
-RenderLines render_quarday(AgentView person, bool) {
-  return {person.quarday().show()};
-}
+RenderLines render_quarday(AgentView person, bool) { return {person.quarday().show()}; }
 
 RenderLines render_vaxstatus(AgentView person, bool) { return {person.vaxstatus().show()}; }
 
@@ -175,12 +134,14 @@ RenderLines render_vaxday_hist(AgentView person, bool multi_values) {
       scalar_value);
 }
 
+
 /*
-note:  bool multi_values arg provided by outer function print_agent_pop_table,
+note:  bool multi_values arg provided by outer function print_pop_table,
        if not false (default value)
-struct ColumnSpec key is string label, width, serial_fn       ? multi_value_func ?
+struct ColumnSpec Column enum,  key is string label, width, render as string function       
+accessed with linear search on key:  maybe a little better than breakeven perf. with a flat_hash_map
 */
-constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
+static inline constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {ColumnName::status, "status", 10, render_status},
     {ColumnName::agegrp, "agegrp", 10, render_agegrp},
     {ColumnName::cond, "cond", 10, render_cond},
@@ -204,6 +165,7 @@ constexpr std::array<ColumnSpec, 22> COLUMN_SPECS{{
     {ColumnName::vaxday, "vaxday", 6, render_vaxday},
     {ColumnName::vaxday_hist, "vaxday_hist", 11, render_vaxday_hist},
 }};
+
 
 constexpr size_t ROW_LABEL_WIDTH = 6;
 
@@ -240,7 +202,9 @@ std::string csv_escape(std::string_view cell) {
   return escaped;
 }
 
-std::vector<ColumnSpec> resolve_columns(std::vector<std::string_view> col_names) {
+
+// method called with vector of column name strings
+std::vector<ColumnSpec> resolve_columns(std::vector<std::string> col_names) {
   std::vector<ColumnSpec> columns;
   columns.reserve(col_names.size());
   for (const auto name : col_names) {
@@ -253,7 +217,8 @@ std::vector<ColumnSpec> resolve_columns(std::vector<std::string_view> col_names)
   return columns;
 }
 
-std::vector<ColumnSpec> resolve_columns(std::initializer_list<std::string_view> col_names) {
+// method called with vector literal of column names
+std::vector<ColumnSpec> resolve_columns(std::initializer_list<std::string> col_names) {
   return resolve_columns(col_names);
 }
 
@@ -296,7 +261,38 @@ void print_row_line(std::ostream &out, std::string_view format, std::string_view
   fmt::vprint(out, format, args);
 }
 
-void print_serialized_line(std::ostream &out, std::string_view row_label,
+void ensure_parent_dir(const std::filesystem::path& output_path) {
+  const auto parent = output_path.parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent);
+  }
+}
+
+std::filesystem::path set_output_file(string base_fname, vector<string> path_steps) {
+  std::filesystem::path fpath {};
+
+  if (path_steps.empty()) {
+    fpath = std::filesystem::current_path() / "population_output";
+  } else {
+    const char* home = std::getenv("HOME");
+    if (!home) throw std::runtime_error("HOME not set");
+    fpath = home;
+    for (const auto& step : path_steps) fpath /= step;
+  }
+  fpath /= make_timestamped_filename(base_fname) + ".csv";
+  ensure_parent_dir(fpath);
+
+  std::ofstream out(fpath);  // move this only create the file handle after verifying we have things to write
+  if (!out) {
+    throw std::runtime_error(fmt::format("Could not write population CSV to '{}'",
+                                         fpath.string()));
+    }                                  
+  return fpath;
+}
+
+
+// writes single line
+void write_serialized_line(std::ostream &out, std::string_view row_label,
                            std::span<const ColumnSpec> columns,
                            std::span<const RenderLines> rendered_columns, size_t line_idx,
                            std::string_view separator, bool escape_cells) {
@@ -317,7 +313,7 @@ void print_serialized_line(std::ostream &out, std::string_view row_label,
   fmt::println(out, "{}", fmt::join(parts, separator));
 }
 
-void print_serialized_header(std::ostream &out, std::span<const ColumnSpec> columns,
+void write_serialized_header(std::ostream &out, std::span<const ColumnSpec> columns,
                              std::string_view separator, bool escape_cells) {
   std::vector<std::string> parts;
   parts.reserve(columns.size() + 1);
@@ -333,9 +329,8 @@ void print_serialized_header(std::ostream &out, std::span<const ColumnSpec> colu
   fmt::println(out, "{}", fmt::join(parts, separator));
 }
 
-} // namespace
 
-std::string render_agent_pop_cell(std::string_view col_name, AgentView person) {
+std::string render_pop_cell(std::string_view col_name, AgentView person) {
   const ColumnSpec *spec = find_column(col_name);
   if (spec == nullptr) {
     throw std::invalid_argument(fmt::format("Unknown PopData column '{}'", col_name));
@@ -346,22 +341,47 @@ std::string render_agent_pop_cell(std::string_view col_name, AgentView person) {
   return lines.front();
 }
 
-void write_agent_pop_data(PopData &pop, std::span<const size_t> rows,
-                          vector<std::string_view> col_names, std::ostream &out,
-                          PopOutputLayout layout, bool multi_values,
-                          std::string_view serialized_separator,
-                          bool escape_serialized_cells) {
+
+vector<std::string> get_all_column_names() {
+  vector<std::string> names;
+  for (auto spec : COLUMN_SPECS) {
+    names.push_back(spec.key);
+  }
+  return names;
+}
+
+
+void write_pop_data(
+        PopData &pop,                  // instance of trait vectors for the population
+        std::span<const size_t> rows,  // row indices
+        ColSpec col_names,             // vector of string column labels, literal vector of labels, or "all" 
+        OutSpec target,                // file path or stdout
+        Style layout,                  // serialize or pretty
+        bool multi_values,             // true nicer for pretty; false more compact for serialize
+        std::string_view serialized_separator,   // typically ","
+        bool escape_serialized_cells )           // whatever
+{
   validate_rows(pop, rows);
-  const auto columns = resolve_columns(col_names);
-  const bool pretty_layout = layout == PopOutputLayout::pretty;
+  const auto columns = resolve_columns(col_names.names);
+
+  std::ofstream fpath;
+  std::ostream *out; 
+  if (target.kind == OutSpec::Kind::Path) {
+    fpath.open(target.path);
+    out = &fpath;
+} else {
+    out = target.out;
+}
+
+  const bool pretty_layout = layout == Style::pretty;
   const auto header_format = pretty_layout ? build_line_format(columns, false) : std::string{};
   const auto row_format = pretty_layout ? build_line_format(columns, true) : std::string{};
 
   if (pretty_layout) {
-    print_header_line(out, header_format, columns);
-    fmt::println(out, "{:-<{}}", "", separator_width(columns));
+    print_header_line(*out, header_format, columns);
+    fmt::println(*out, "{:-<{}}", "", separator_width(columns));
   } else {
-    print_serialized_header(out, columns, serialized_separator, escape_serialized_cells);
+    write_serialized_header(*out, columns, serialized_separator, escape_serialized_cells);
   }
 
   for (const auto row : rows) {
@@ -378,43 +398,11 @@ void write_agent_pop_data(PopData &pop, std::span<const size_t> rows,
     for (size_t line_idx = 0; line_idx < line_count; ++line_idx) {
       const std::string row_label = line_idx == 0 ? fmt::format("{}", row) : std::string{"*"};
       if (pretty_layout) {
-        print_row_line(out, row_format, row_label, columns, rendered_columns, line_idx);
+        print_row_line(*out, row_format, row_label, columns, rendered_columns, line_idx);
       } else {
-        print_serialized_line(out, row_label, columns, rendered_columns, line_idx,
+        write_serialized_line(*out, row_label, columns, rendered_columns, line_idx,
                               serialized_separator, escape_serialized_cells);
       }
     }
   }
-}
-
-void print_agent_pop_table(PopData &pop, std::span<const size_t> rows,
-                           vector<std::string_view> col_names,
-                           std::ostream &out, bool multi_values) {
-  write_agent_pop_data(pop, rows, std::move(col_names), out, PopOutputLayout::pretty,
-                       multi_values);
-}
-
-void print_agent_pop_table(PopData &pop, std::span<const size_t> rows,
-                           std::initializer_list<std::string_view> col_names,
-                           std::ostream &out, bool multi_values) {
-  write_agent_pop_data(pop, rows,
-                       std::vector<std::string_view>{col_names.begin(), col_names.end()}, out,
-                       PopOutputLayout::pretty, multi_values);
-}
-
-
-void print_agent_pop_table(PopData &pop, std::span<const size_t> rows,
-                           std::string col_name, std::ostream &out,
-                           bool multi_values) {
-  if (col_name == "all") {
-    std::vector<std::string_view> all_names;
-    all_names.reserve(COLUMN_SPECS.size());
-    for (const auto &spec : COLUMN_SPECS) all_names.push_back(spec.key);
-    write_agent_pop_data(pop, rows, all_names, out, PopOutputLayout::pretty, multi_values);
-    return;
-  }
-
-  throw std::invalid_argument(
-      fmt::format("'{}' is not supported here; use \"all\" or an initializer_list of columns",
-                  col_name));
 }

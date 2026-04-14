@@ -126,7 +126,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
           if (rows.size() == 20) break;
         }
       }
-      print_agent_pop_table(pop, rows, {"status", "agegrp", "cond", "duration"});
+      write_pop_data(pop, rows, {"status", "agegrp", "cond", "duration"}, std::cout, Style::pretty, true, ",", false);
     }
 
 
@@ -154,8 +154,8 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   for (size_t p = 1; p <= pop.popn; ++p) {
     if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
   }
-  // print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}); // args with defaults
-  print_agent_pop_table(pop, reinfected_rows, {"status", "agegrp", "variant_hist"}, std::cout, true);
+  // print_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}); // args with defaults
+  write_pop_data(pop, reinfected_rows, {"status", "agegrp", "variant_hist"}, std::cout, Style::pretty, true, ",", false);
 
   // print some series and a summary
   // print_selected_series({ {"now_infected", "total"},
@@ -170,9 +170,19 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
                                   {"new_infected","total"},{"new_recovered", "total"},{"new_dead","total"}}, 
     series, "test_series", {"code", "epi_sim", "series_output"});
 
-  pop.serialize_selected_columns(
-      {"status", "agegrp", "cond", "duration", "variant_hist", "sickday_hist"}, "test_pop",
-      {"code", "epi_sim", "pop_output"});
+  // write some of the PopData columns to file
+  auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
+  write_pop_data(
+      pop, 
+      pop.all_idx, 
+      // {"status", "agegrp", "cond", "duration", "variant_hist", "sickday_hist"}, 
+      "all",
+      output, 
+      Style::serialized, 
+      false,
+      ",",
+      false
+    );
 
   SummaryData sumstruct = print_summary(pop);
 

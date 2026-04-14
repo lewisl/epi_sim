@@ -315,7 +315,7 @@ void run_category_tests() {
 
 
 
-void test_agent_pop_print() {
+void test_pop_print() {
     fmt::print("\n=== Testing Agent Pop Printer ===\n\n");
 
     vector<string> saved_variant_names = Variant::names;
@@ -323,7 +323,7 @@ void test_agent_pop_print() {
     vector<size_t> rows = {1, 2, 3};
 
     std::ostringstream scalar_out;
-    print_agent_pop_table(pop, rows,
+    print_pop_table(pop, rows,
                           {"status", "agegrp", "cond", "duration", "ring"},
                           scalar_out);
     const auto scalar_lines = poptable_test::split_trimmed_lines(scalar_out.str());
@@ -341,7 +341,7 @@ void test_agent_pop_print() {
     assert(scalar_lines == expected_scalar);
 
     std::ostringstream mixed_out;
-    print_agent_pop_table(pop, rows,
+    print_pop_table(pop, rows,
                           {"variant", "variant_hist", "sickday", "sickday_hist",
                            "recovday", "recovday_hist", "testday", "testday_hist"},
                           mixed_out);
@@ -360,7 +360,7 @@ void test_agent_pop_print() {
     assert(mixed_lines == expected_mixed);
 
     std::ostringstream multi_out;
-    print_agent_pop_table(pop, rows,
+    print_pop_table(pop, rows,
                           {"variant", "variant_hist", "sickday", "sickday_hist",
                            "recovday", "recovday_hist", "testday", "testday_hist"},
                           multi_out, true);
@@ -380,16 +380,16 @@ void test_agent_pop_print() {
     assert(multi_lines == expected_multi);
 
     std::ostringstream init_list_out;
-    print_agent_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_out);
+    print_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_out);
     std::ostringstream init_list_expected_out;
-    print_agent_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_expected_out);
+    print_pop_table(pop, rows, {"status", "variant", "sickday"}, init_list_expected_out);
     assert(poptable_test::split_trimmed_lines(init_list_out.str()) ==
            poptable_test::split_trimmed_lines(init_list_expected_out.str()));
 
     Variant::names = {"none", "alpha_variant_extra", "delta"};
     std::ostringstream truncation_out;
     const vector<size_t> truncation_rows = {1};
-    print_agent_pop_table(pop, truncation_rows, {"variant"}, truncation_out);
+    print_pop_table(pop, truncation_rows, {"variant"}, truncation_out);
     const vector<string> expected_truncation = {
         "row  variant",
         "---------------",
@@ -401,8 +401,8 @@ void test_agent_pop_print() {
     const string all_cols_runtime = "all";
     std::ostringstream all_out;
     std::ostringstream all_expected_out;
-    print_agent_pop_table(pop, rows, all_cols_runtime, all_out);
-    print_agent_pop_table(
+    print_pop_table(pop, rows, all_cols_runtime, all_out);
+    print_pop_table(
         pop, rows,
         {"status", "agegrp", "cond", "duration", "variant", "variant_hist",
          "sickday", "sickday_hist",
@@ -416,7 +416,7 @@ void test_agent_pop_print() {
     bool bad_zero_row_threw = false;
     try {
         const vector<size_t> bad_rows = {0, 1};
-        print_agent_pop_table(pop, bad_rows,
+        print_pop_table(pop, bad_rows,
                               {"status", "agegrp", "cond", "duration", "ring"});
     } catch (const std::invalid_argument&) {
         bad_zero_row_threw = true;
@@ -426,7 +426,7 @@ void test_agent_pop_print() {
     bool bad_big_row_threw = false;
     try {
         const vector<size_t> bad_rows = {1, 4};
-        print_agent_pop_table(pop, bad_rows,
+        print_pop_table(pop, bad_rows,
                               {"status", "agegrp", "cond", "duration", "ring"});
     } catch (const std::invalid_argument&) {
         bad_big_row_threw = true;
@@ -435,7 +435,7 @@ void test_agent_pop_print() {
 
     bool bad_column_threw = false;
     try {
-        print_agent_pop_table(pop, rows, {"status", "does_not_exist"});
+        print_pop_table(pop, rows, {"status", "does_not_exist"});
     } catch (const std::invalid_argument&) {
         bad_column_threw = true;
     }
@@ -443,7 +443,7 @@ void test_agent_pop_print() {
 
     bool bad_runtime_selector_threw = false;
     try {
-        print_agent_pop_table(pop, rows, string{"status"});
+        print_pop_table(pop, rows, string{"status"});
     } catch (const std::invalid_argument&) {
         bad_runtime_selector_threw = true;
     }
@@ -1673,7 +1673,7 @@ int main() {
   test_pop_column_registry();
   test_popdata_csv_serialization_escape();
   test_popdata_csv_partial_and_dedupe_selections();
-  test_agent_pop_print();
+  test_pop_print();
   test_make_sick_and_seedcase_duration_indexing();
   test_seedcase_infectious_change_requires_variant();
   test_make_well_recovday_history();

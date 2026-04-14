@@ -47,26 +47,29 @@ class PopData {
     std::size_t popn; // actual population size
     std::size_t popz; // popn+1: array sizing for 1 indexing all vectors
     vector<int> agegrp_parts; // apportioned population counts for age0_19..age80_up
+    vector<size_t> all_idx;
 
     // constructor
     // clang-format off
     PopData(size_t n, const vector<double>& age_dist=AGE_DIST)
-          : popn(n), popz(n+1),
+          : popn(n), popz(n+1), 
             agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
+            all_idx([n](){std::vector<size_t> v; v.reserve(n); 
+                          for (size_t i = 1; i <= n; ++i) v.push_back(i); return v;}()),
             status(n+1, UNEXPOSED),
             agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
             cond(n+1, UNINFECTED), duration(n+1, Duration{0}),
             variant(n+1), variant_hist(n+1), sickday(n+1, Sickday{0}), sickday_hist(n+1),
             recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, 0),
             sdcase(n+1, 0), testday(n+1, Testday{0}), testday_hist(n+1), quar(n+1, 0), quarday(n+1, Quarday{0}),
-            vaxstatus(n+1, Vaxstat::none), vax(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1)
-            // clang-format on
-      {
-          if (n <= 0) {
-              throw std::invalid_argument(
-                  "Bad size input. Must be a positive integer.");
+            vaxstatus(n+1, Vaxstat::none), vax(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1) 
+          {
+              if (n == 0) {
+                  throw std::invalid_argument(
+                      "Bad size input. Must be a positive integer.");
+              }
           }
-      }
+      // clang-format on
 
   // THE VECTORS
   // vectors of pseudo enums as uint8_t or trait classes or
@@ -95,26 +98,7 @@ class PopData {
   vector<VaxdayHist> vaxday_hist;
 
   
-  struct PopColumnSpec {
-    ColumnName name;
-    std::string (*to_txt_cell)(AgentView person);  // function pointer
-  };
-
-  using PopColumnRenderer = std::string (*)(AgentView);  // yet another way to create alias to function pointer type
-  using PopColumnMap = absl::flat_hash_map<std::string_view, PopColumnSpec>;
-
-  //
-  // enables easy use of AgentView with any instance variable of class PopData
-  //     called with an instance of PopData because it's a PopData method:   auto a = pop.agent(i)
-  // encapsulates the person's PopData index. allows fast access to "column" values
   AgentView agent(std::size_t i);
-
-  static std::optional<ColumnName> column_name_from_string(std::string_view text);
-  static const PopColumnMap& column_map();
-  static const PopColumnSpec* find_column(ColumnName name);
-  static const PopColumnSpec* find_column(std::string_view key);
-  void serialize_selected_columns(std::vector<string> selections, string base_fname,
-                                  vector<string> path_steps = {});
 
     vector<Agegrp> age_distribution(int popn, const vector<int>& counts) {
       assert(counts.size() == 5);

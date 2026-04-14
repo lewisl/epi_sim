@@ -14,6 +14,7 @@
     constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
 
 ## Done
+- unify printing and serialization of popdata: after lots of reworking
 - serialization of popdata
 - serialization of series
 - make key series functions class functions for HistorySeries. Result:  major speed up!
