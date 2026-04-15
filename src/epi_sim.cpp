@@ -16,7 +16,7 @@ fs::path resolve_config_path(const fs::path& config_dir, const json& config_json
 
 
 int main(int argc, char** argv) {
-  fmt::println("Deeply Under Construction.");
+
   std::string config_path;
   std::string seed_path;
 
@@ -55,10 +55,13 @@ int main(int argc, char** argv) {
       .vax_sched_dir = resolve_config_path(config_dir, config_json, "vax_sched_dir"),
   };
 
+  fmt::println("Setup simulation...");
   Model model = setup_sim(config);
+  fmt::println("Setup complete.");
 
   vector<SeedCase> seedcases = load_seed_cases(seed_json, model.pop, model.mp);
 
+  fmt::println("Starting simulation...");
   runsim(model, std::move(seedcases));
   
   return 0;

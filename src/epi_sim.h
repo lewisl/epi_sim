@@ -11,13 +11,13 @@
 // DONE: infectparams
 // DONE: SocialParams
 // DONE: progression params
-//  vax
+// DONE: vax
 //  test_and_trace
 
 // CLOSE: setup code
 
 // simulation code
-//  simulation runner
+//  DONE: simulation runner
 //    browser support and commands
 //       cpp-httplib examples:  https://github.com/yhirose/cpp-httplib and
 //       DONE: nlohmann/json (most common C++ JSON library)
@@ -30,4 +30,4 @@
 //    update totvaccinated series
 
 // DONE: plotting via local browser
-// serialize
+// DONE: serialize

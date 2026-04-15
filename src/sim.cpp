@@ -112,28 +112,19 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
     } // end persons loop
 
-    // update history series
-    // history_timing.start();
-    // update_series(pop, series);
-    // history_timing.cum();
+    // simple debug print to console
+    // if (d_i == 90) {
+    //   std::vector<size_t> rows;
+    //   for (size_t p = 1; p <= pop.popn; ++p) {
+    //     auto person = pop.agent(p);
+    //     if (person.status() == RECOVERED && person.agegrp() == AGE80_UP) {
+    //       rows.push_back(p);
+    //       if (rows.size() == 10) break;
+    //     }
+    //   }
+    //   pop_print(pop, rows, {"status", "agegrp", "cond", "variant_hist"}, std::cout);
+    // }
 
-    if (d_i == 90) {
-      std::vector<size_t> rows;
-      for (size_t p = 1; p <= pop.popn; ++p) {
-        auto person = pop.agent(p);
-        if (person.status() == RECOVERED && person.agegrp() == AGE80_UP) {
-          rows.push_back(p);
-          if (rows.size() == 20) break;
-        }
-      }
-      write_pop_data(pop, rows, {"status", "agegrp", "cond", "duration"}, std::cout, Style::pretty, true, ",", false);
-    }
-
-
-    // Print daily outcomes
-    // fmt::println("Day {:4}: spreaders: {:6}, contacts: {:7}, touched: {:7}, newly infected: {:6}, recovered: {:6}, died: {:5}",
-    //              sim::ds.day, sim::ds.starting_spreaders, sim::ds.num_contacts, sim::ds.num_touched,
-    //              sim::ds.num_new_infected, sim::ds.num_new_recovered, sim::ds.num_died);
 
     // run end of day cases
 
@@ -150,12 +141,14 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   // at end of simulation
   // 
 
-  std::vector<size_t> reinfected_rows;
-  for (size_t p = 1; p <= pop.popn; ++p) {
-    if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
-  }
-  // print_pop_table(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}); // args with defaults
-  write_pop_data(pop, reinfected_rows, {"status", "agegrp", "variant_hist"}, std::cout, Style::pretty, true, ",", false);
+  // a debug example to print people who have been reinfected
+  // std::vector<size_t> reinfected_rows;
+  // for (size_t p = 1; p <= pop.popn; ++p) {
+  //   if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
+  //   if (reinfected_rows.size() == 10) break;
+  // }
+  // 
+  // pop_print(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}, std::cout);
 
   // print some series and a summary
   // print_selected_series({ {"now_infected", "total"},
@@ -172,19 +165,11 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   // write some of the PopData columns to file
   auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
-  write_pop_data(
-      pop, 
-      pop.all_idx, 
+  pop_to_csv(pop, pop.all_idx, "all", output);
       // {"status", "agegrp", "cond", "duration", "variant_hist", "sickday_hist"}, 
-      "all",
-      output, 
-      Style::serialized, 
-      false,
-      ",",
-      false
-    );
 
-  SummaryData sumstruct = print_summary(pop);
+
+  SummaryData sumstruct = print_summary(pop); fmt::println("");
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());

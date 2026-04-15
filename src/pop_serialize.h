@@ -56,23 +56,30 @@ std::string render_pop_cell(std::string_view col_name, AgentView person);
 
 vector<std::string> get_all_column_names();
 
+
+/*
+input argument type for columns to be printed/serialized
+*/
 struct ColSpec {
     std::vector<std::string> names;
 
-    ColSpec(std::vector<std::string> v) : names(std::move(v)) {}
-    ColSpec(std::initializer_list<std::string> v) : names(v) {}
-    ColSpec(const char* s)  { // ColSpec(std::string_view s)
+    ColSpec(std::vector<std::string> v) : names(std::move(v)) {}  // vector of strings
+    ColSpec(std::initializer_list<std::string> v) : names(v) {}   // literal vector of strings, ex: {"one", "two"} etc.
+    ColSpec(const char* s)  { // ColSpec(std::string_view s)      // sentinel string value "all" for all columns
         if (std::string_view(s) == "all") names = std::move(get_all_column_names());
         else throw std::invalid_argument("only valid sentinel value is \"all\""); }
 };
 
+/*
+input argument type for print or serialization output destination
+*/
 struct OutSpec {
     enum class Kind { Stream, Path } kind;
     std::ostream* out = nullptr;
     std::filesystem::path path;
 
-    OutSpec(std::ostream& s) : kind(Kind::Stream), out(&s) {}
-    OutSpec(std::filesystem::path p) : kind(Kind::Path), path(std::move(p)) {}
+    OutSpec(std::ostream& s) : kind(Kind::Stream), out(&s) {}                     // for std::cout
+    OutSpec(std::filesystem::path p) : kind(Kind::Path), path(std::move(p)) {}    // for a path to a file
 };
 
 void write_pop_data(
@@ -84,3 +91,21 @@ void write_pop_data(
         bool multi_values,
         std::string_view serialized_separator,
         bool escape_serialized_cells); 
+
+/*
+convenience wrapper for csv serialization
+*/
+void pop_to_csv(
+  PopData &pop,
+  std::span<const size_t> rows,
+  ColSpec col_names,
+  OutSpec target);
+  
+/*
+convenience wrapper for pretty printing
+*/
+void pop_print(
+  PopData &pop,
+  std::span<const size_t> rows,
+  ColSpec col_names,
+  OutSpec target);   

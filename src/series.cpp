@@ -47,7 +47,7 @@ void HistorySeries::init_history_series(size_t day) {
 }
 
 
-void HistorySeries::delta_series(SeriesName name, Agegrp agegrp, size_t day, int change) {
+void HistorySeries::update_series(SeriesName name, Agegrp agegrp, size_t day, int change) {
   at(name, AgeBucket::total)[day] += change;
   at(name, bucket_from_age(agegrp))[day] += change;
 }

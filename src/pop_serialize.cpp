@@ -405,4 +405,31 @@ void write_pop_data(
       }
     }
   }
+
+  if (!target.path.empty()) fmt::println("Wrote Population Data to \'{}\'", string(target.path));
+}
+
+/*
+convenience wrapper for csv serialization
+*/
+void pop_to_csv(
+  PopData &pop,
+  std::span<const size_t> rows,
+  ColSpec col_names,
+  OutSpec target) 
+{
+  write_pop_data(pop, rows, col_names, target, Style::serialized, false, ",", true);
+}
+
+
+/*
+convenience wrapper for pretty printing
+*/
+void pop_print(
+  PopData &pop,
+  std::span<const size_t> rows,
+  ColSpec col_names,
+  OutSpec target) 
+{
+  write_pop_data(pop, rows, col_names, target, Style::pretty, true, ",", false);
 }

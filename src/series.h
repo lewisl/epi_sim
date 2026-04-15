@@ -95,7 +95,7 @@ struct HistorySeries {
     // externally defined functions
     void finalize_series();
     void init_history_series(size_t day);
-    void delta_series(SeriesName name, Agegrp agegrp, size_t day, int change);
+    void update_series(SeriesName name, Agegrp agegrp, size_t day, int change);
 
 };
 

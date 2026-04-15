@@ -41,7 +41,7 @@ namespace sim {
 
     inline void reset_day() { current_day = 0; }
 
-    struct daystats {
+    struct daystats {  // a useful midstream debug tool: not being used; needs accumulators in the right places
       int day{};
       int starting_spreaders{};
       int num_contacts{};
