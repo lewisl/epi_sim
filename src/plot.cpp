@@ -37,13 +37,6 @@ std::string html_template = R"TAG(<!doctype html>
     const layout = {"title":"Plotly Browser Test"}
 */
 
-
-/*
-const std::filesystem::path& output_path = 
-    std::filesystem::path(std::getenv("HOME")) / "code" / "epi_sim" / "plot_output"
-    */
-
-
 std::filesystem::path write_file(const std::string& content, std::string filename,
   std::vector<string> path_steps) {
 

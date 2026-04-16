@@ -40,30 +40,31 @@ float require_effectiveness(const VaxParams& params,
 // declaration is in population.h
 void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
-  series.new_status.update(INFECTIOUS, agegrp(), today, 1);
-  series.now_status.update(INFECTIOUS, agegrp(), today, 1);
-  series.now_variant.update(var, agegrp(), today, 1);
-  series.new_variant.update(var, agegrp(), today, 1);
+  auto this_age = agegrp();
+  series.new_status.update(INFECTIOUS, this_age, today, 1);
+  series.now_status.update(INFECTIOUS, this_age, today, 1);
+  series.now_variant.update(var, this_age, today, 1);
+  series.new_variant.update(var, this_age, today, 1);
 
   if (status() == RECOVERED) {
-    series.now_status.update(RECOVERED, agegrp(), today, -1);
+    series.now_status.update(RECOVERED, this_age, today, -1);
   } else {
     if (status() == UNEXPOSED) {
-      series.now_status.update(UNEXPOSED, agegrp(), today, -1);
+      series.now_status.update(UNEXPOSED, this_age, today, -1);
     }
   }
   cond() = condition;
   duration() = spr_duration;
   status() = INFECTIOUS;
   variant() = var;
-  sickday() = sim::get_day();
+  sickday() = today;
 
   auto &history = variant_hist();
   auto &day_history = sickday_hist();
   const bool history_overflow = history.count >= 16;
 
   history.set(var);
-  day_history.set(sim::get_day());
+  day_history.set(today);
 
   if (history_overflow && sim::debug) {
     std::cerr << "Variant and sickday overflow for person " << id
@@ -82,10 +83,11 @@ as a method of AgentView, the instance variable is not used to apply methods or 
 */
 void AgentView::make_well(AllSeries & series) {    // the object is person--the implied argument
   auto today = sim::get_day();
-  series.now_status.update(RECOVERED,  agegrp(), today,  1);
-  series.new_status.update(RECOVERED,  agegrp(), today,  1);
-  series.now_status.update(INFECTIOUS, agegrp(), today, -1);
-  series.now_variant.update(variant(),agegrp(), today, -1);
+  auto this_age = agegrp();
+  series.now_status.update(RECOVERED,  this_age, today,  1);
+  series.new_status.update(RECOVERED,  this_age, today,  1);
+  series.now_status.update(INFECTIOUS, this_age, today, -1);
+  series.now_variant.update(variant(), this_age, today, -1);
 
   cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
   status() = RECOVERED; 
@@ -106,10 +108,11 @@ void AgentView::make_well(AllSeries & series) {    // the object is person--the 
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
 void AgentView::make_dead(AllSeries & series) {
     auto today = sim::get_day();
-    series.now_status.update(DEAD,       agegrp(), today,  1);
-    series.new_status.update(DEAD,       agegrp(), today,  1);
-    series.now_status.update(INFECTIOUS, agegrp(), today, -1);
-    series.now_variant.update(variant(), agegrp(), today, -1);
+    auto this_age = agegrp();
+    series.now_status.update(DEAD,       this_age, today,  1);
+    series.new_status.update(DEAD,       this_age, today,  1);
+    series.now_status.update(INFECTIOUS, this_age, today, -1);
+    series.now_variant.update(variant(), this_age, today, -1);
 
   // update the person: update deadday and status for the person
   deadday() = today;   
@@ -240,10 +243,10 @@ float vax_recov(float vaxfactor, float recovfactor) {
   return std::min(vaxfactor, recovfactor);
 }
 
-// gradual decay of vaccine effectiveness or recovery immunity based on assumed half-life
-// and rise
-
 /*
+gradual decay of vaccine effectiveness or recovery immunity based on assumed half-life
+and rise
+
     effect_rise(days_since; mineff=0.65, delay_days=14)
   
 Immunity effectiveness from vaccination or recovery ramps up.
@@ -251,10 +254,10 @@ Returns a value between mineff and 1.0. Linear increase.
 Default mineff = 0.65, delay_days = 14
 */
 float effect_rise(size_t days_since, float mineff, float delay_days) {
-  float y = 0.0f;
-  if (days_since >= delay_days) y = 1.0f;
-  else y = mineff + (days_since/delay_days * (1.0f - mineff));  // rises from mineff to just below 1.0
-  return y;
+    float y = 0.0f;
+    if (days_since >= delay_days) y = 1.0f;
+    else y = mineff + (days_since/delay_days * (1.0f - mineff));  // rises from mineff to just below 1.0
+    return y;
 }
 
 float lindecay(size_t t, float h, float lower) {
@@ -264,23 +267,23 @@ float lindecay(size_t t, float h, float lower) {
 }
 
 float expdecay(size_t t, float h) {
-  float y = exp(-(log(2) / h) * t);
-  return y;
+    float y = exp(-(log(2) / h) * t);
+    return y;
 }
 
 float sigdecay(size_t t, float h, float csig, float decay_lower) {
-  float tfl = static_cast<float>(t);
-  float y =
-      fmax(1.0 / (1.0 + exp((tfl - h) / (tfl / csig + (h / csig)))), decay_lower);
-  return y;
+    float tfl = static_cast<float>(t);
+    float y =
+        fmax(1.0 / (1.0 + exp((tfl - h) / (tfl / csig + (h / csig)))), decay_lower);
+    return y;
 }
 
 float tbrk(float h, float lower) {
-  float y = 2.0f * h - (2.0f * h * lower);
-  return y;
+    float y = 2.0f * h - (2.0f * h * lower);
+    return y;
 }
 
 float intercept(size_t t, float hl) {
-  float tfl = static_cast<float>(t);
-  return -0.3 * tfl / hl + 1.0;
+    float tfl = static_cast<float>(t);
+    return -0.3 * tfl / hl + 1.0;
 }

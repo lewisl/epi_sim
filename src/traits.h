@@ -13,16 +13,14 @@ the population table for the simulation.
 */
 
 
-//
-// Compile time classes for traits with values that can't be changed
-//
 /*
+Compile time classes for traits with values that can't be changed
+
 use as:
 
-Status person_status = UNEXPOSED;
-person_status = INFECTIOUS;    
-person_status = RECOVERED;   
-
+  Status person_status = UNEXPOSED;
+  person_status = INFECTIOUS;    
+  person_status = RECOVERED;   
 */
 
 

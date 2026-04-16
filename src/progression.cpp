@@ -17,37 +17,37 @@ they move to recovered or dead. Note: p is the contacted person.
 */ 
 void progression(AgentView person, AllSeries & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
                  array<float, 6> &probvec, bool dovax, VaxSet &vaxset) {
-  auto today = sim::get_day();
-  // extract traits for current person -- won't update these
-  const auto p_variant = person.variant();   
-  const auto p_vaxstatus = person.vaxstatus();  
+    auto today = sim::get_day();
+    // extract traits for current person -- won't update these
+    const auto p_variant = person.variant();   
+    const auto p_vaxstatus = person.vaxstatus();  
 
-  // set scope to function level
-  float risk{};
-  float recoveff{};
+    // set scope to function level
+    float risk{};
+    float recoveff{};
 
-  const auto &probtree = progset.progression[p_variant].tree;
-  const auto & age_probs = probtree.at(zidx(person.agegrp()));
-  if (auto it = age_probs.find(person.duration()); it != age_probs.end()) {
-    const auto& src = it->second[zidx(person.cond())];  // zidx copies the input value
-    std::copy(src.begin(), src.end(), probvec.begin());  // make a copy so we can alter this person's probs
+    const auto &probtree = progset.progression[p_variant].tree;
+    const auto & age_probs = probtree.at(zidx(person.agegrp()));
+    if (auto it = age_probs.find(person.duration()); it != age_probs.end()) {
+      const auto& src = it->second[zidx(person.cond())];  // zidx copies the input value
+      std::copy(src.begin(), src.end(), probvec.begin());  // make a copy so we can alter this person's probs
 
-    recoveff = recoveffect(person, today, p_variant, infectparams);                            
-                                                    
-    float vaxeff = 1.0f;
+      recoveff = recoveffect(person, today, p_variant, infectparams);                            
+                                                      
+      float vaxeff = 1.0f;
 
-    risk = riskfactor(recoveff, vaxeff);
-    if (dovax && p_vaxstatus != Vaxstat::none) {
-      vaxeff = vaxeffect(today, person, vaxset, p_variant);
+      risk = riskfactor(recoveff, vaxeff);
+      if (dovax && p_vaxstatus != Vaxstat::none) {
+        vaxeff = vaxeffect(today, person, vaxset, p_variant);
+      }
+
+      risk = riskfactor(recoveff, vaxeff);
+      redistribute_probability(probvec, risk, person.duration());  // update probvec in place
+      do_progression(person, series, probvec, today);  // update person in place even passed as value--change is in row of PopData
+      
+    } else {   // not at a break point; no probvec applies
+      ++person.duration();
     }
-
-    risk = riskfactor(recoveff, vaxeff);
-    redistribute_probability(probvec, risk, person.duration());  // update probvec in place
-    do_progression(person, series, probvec, today);  // update person in place even passed as value--change is in row of PopData
-    
-  } else {   // not at a break point; no probvec applies
-    ++person.duration();
-  }
 }
 
 /*
