@@ -1,0 +1,59 @@
+{
+    "vaxesincluded": {
+        "Pfizer": {
+            "mix": 0.5,
+            "starting_doses": 40000,
+            "pct2ndshot": 0.9,
+            "pctboost": 0.6,
+            "alternate": [
+                "Moderna",
+                "JnJ"
+            ]
+        },
+        "Moderna": {
+            "mix": 0.45,
+            "starting_doses": 36000,
+            "pct2ndshot": 0.9,
+            "pctboost": 0.6,
+            "alternate": [
+                "Pfizer",
+                "JnJ"
+            ]
+        },
+        "JnJ": {
+            "mix": 0.05,
+            "starting_doses": 4000,
+            "pct2ndshot": 0,
+            "pctboost": 0.4,
+            "alternate": [
+                "Pfizer",
+                "Moderna"
+            ]
+        }
+    },
+    "dayrange": [
+        150,
+        250
+    ],
+    "targetpct": 0.95,
+    "filtervec": [
+        "age80_up",
+        "age60_79"
+    ],
+    "shotmode": "all",
+    "pattern": [
+        0,
+        0.02,
+        0.05,
+        0.1,
+        0.15,
+        0.19,
+        0.21,
+        0.16,
+        0.08,
+        0.03,
+        0.01,
+        0
+    ],
+    "spreadfunc": null
+}

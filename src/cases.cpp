@@ -70,7 +70,7 @@ bool matches_filter(AgentView person, const Filter& filt) {
 // make_sick / make_well / make_dead to preserve all invariants.
 // Guard: make_sick is only applied to unexposed or recovered persons and
 // requires an explicit variant term in the change.
-void apply_change(AgentView person, const Change& chg, HistorySeries& series) {
+void apply_change(AgentView person, const Change& chg, AllSeries& series) {
   // Find a status term if present
   auto status_it = std::find_if(chg.terms.begin(), chg.terms.end(),
                                 [](const Term& t) { return t.trait == "status"; });
@@ -122,7 +122,7 @@ void apply_change(AgentView person, const Change& chg, HistorySeries& series) {
 
 
 // SeedCase::operator(): find candidates via filter, apply change to up to change.count of them.
-vector<size_t> SeedCase::operator()(HistorySeries& series) {
+vector<size_t> SeedCase::operator()(AllSeries& series) {
   vector<size_t> seeded;
   int matched = 0;
   for (size_t i = 1; i <= pop.popn && matched < change.count; ++i) {

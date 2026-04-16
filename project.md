@@ -1,5 +1,4 @@
 ## TODO
-- add variant and vax columns to HistorySeries
 - test and trace
 - social distancing cases
 - r0 calculations
@@ -14,6 +13,7 @@
     constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
 
 ## Done
+- add variant and vax columns to HistorySeries
 - unify printing and serialization of popdata: after lots of reworking
 - serialization of popdata
 - serialization of series

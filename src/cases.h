@@ -40,11 +40,11 @@ struct SeedCase {
         filter(std::move(filt)), change(std::move(chg)), pop(pop) {}
   SeedCase() = delete;
 
-  vector<size_t> operator()(HistorySeries& series);
+  vector<size_t> operator()(AllSeries& series);
 };
 
 
-void apply_change(AgentView person, const Change& chg, HistorySeries& series);
+void apply_change(AgentView person, const Change& chg, AllSeries& series);
 bool matches_filter(AgentView person, const Filter& filt);
 // Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
 vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp);

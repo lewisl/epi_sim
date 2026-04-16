@@ -28,7 +28,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   xo::seed(99999);  // have used 12345
 
   // create vector set for series statistics
-  HistorySeries series(model.ndays, pop);
+  AllSeries series(model.ndays, pop, Variant::names.size(), Vax::names.size());
 
   // reset day counter to zero
   sim::reset_day();
@@ -135,6 +135,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   history_timing.start();
   series.finalize_series();
+  series.validate_variant_invariant();
   history_timing.cum();
 
   //
@@ -151,17 +152,14 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   // pop_print(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}, std::cout);
 
   // print some series and a summary
-  // print_selected_series({ {"now_infected", "total"},
-  //                         {"new_infected", "total"},
+  // print_selected_series({ {"now_infectious", "total"},
+  //                         {"new_infectious", "total"},
   //                         {"new_recovered", "total"},
   //                         {"new_dead", "total"} },
   //                       series);
 
   // write the some series columns to csv
-  serialize_selected_series(
-    { {"now_unexposed", "total"}, {"now_infected","total"},{"now_recovered", "total"},{"now_dead","total"},
-                                  {"new_infected","total"},{"new_recovered", "total"},{"new_dead","total"}}, 
-    series, "test_series", {"code", "epi_sim", "series_output"});
+  serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
 
   // write some of the PopData columns to file
   auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
@@ -174,17 +172,17 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());
 
-  if (!model.dovax) 
-    seriesplot({{"now_infected", "total"},
-              {"now_unexposed", "total"}, 
-              {"now_recovered", "total"}, 
-              {"now_dead", "total"}}, 
+  if (!model.dovax)
+    seriesplot({{"now_infectious", "total"},
+              {"now_unexposed", "total"},
+              {"now_recovered", "total"},
+              {"now_dead", "total"}},
               series, model.caldays, sumstruct, "Cumulative Covid Outcome");
   else
-      seriesplot({{"now_infected", "total"},
-              {"now_unexposed", "total"}, 
-              {"now_recovered", "total"}, 
-              {"now_dead", "total"}, 
+      seriesplot({{"now_infectious", "total"},
+              {"now_unexposed", "total"},
+              {"now_recovered", "total"},
+              {"now_dead", "total"},
               {"now_vaccinated", "total"}},
               series, model.caldays, sumstruct, "Cumulative Covid Outcome");
 
@@ -199,11 +197,11 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  seriesplot({{"new_infected", "total"}},
-          // {"now_dead", "age20_39"}, 
-          // {"now_dead", "age40_59"}, 
+  seriesplot({{"new_infectious", "total"}},
+          // {"now_dead", "age20_39"},
+          // {"now_dead", "age40_59"},
           // {"now_dead", "age60_79"},
-          // {"now_dead", "age80_up"}}, 
+          // {"now_dead", "age80_up"}},
           series, model.caldays, sumstruct, "New Infection Cases", false);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -217,12 +215,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  seriesplot({{"net_infected", "total"},
-          {"now_infected", "total"}, 
-          {"new_infected", "total"}}, 
-          // {"now_dead", "age60_79"},
-          // {"now_dead", "age80_up"}}, 
-          series, model.caldays, sumstruct, "Compare Infection Metrics", false);
+  // net_infected removed (Step 1 refactor)
         
 } // end runsim function
 

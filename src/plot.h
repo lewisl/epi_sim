@@ -14,7 +14,7 @@ std::string render_plot_html(
 
 bool open_plot_in_browser(const std::filesystem::path& path);
 
-void seriesplot(std::vector<SeriesSelection> selections, const HistorySeries& series,
+void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     std::string plot_title, const bool dostack=false);
 

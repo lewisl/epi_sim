@@ -12,7 +12,6 @@ namespace fs = std::filesystem;
 
 // Forward declaration
 struct Model;
-struct HistorySeries;
 
 struct Config {
   int days {180};

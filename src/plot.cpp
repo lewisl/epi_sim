@@ -102,31 +102,28 @@ void produce_plot(std::string base_fname, std::string end_message, json data, js
 //
 // standard plot types for simulation history output
 //
-void seriesplot(std::vector<SeriesSelection> selections, const HistorySeries& series,
+void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack) {
+  auto& selections = spec.selections;
 
   // step 1: assemble data from simulation run
-  vector<std::pair<SeriesName, AgeBucket>> cols;
-  vector<std::string> labels;
+  struct ResolvedCol { string label; vector<int> data; };
+  vector<ResolvedCol> cols;
   cols.reserve(selections.size());
-  labels.reserve(selections.size());
   vector<string> invalid_selections;
-  // x axis values    
+  // x axis values
   std::vector<std::string> daystrs;
   daystrs.reserve(caldays.size());
-  for (const auto& day :  caldays)
+  for (const auto& day : caldays)
       daystrs.push_back(absl::FormatCivilTime(day));
-  // y axis values
+  // y axis values: resolve each (name, bucket) pair
   for (const auto& [name_text, bucket_text] : selections) {
-    auto name = series_name_from_string(name_text);
     auto bucket = age_bucket_from_string(bucket_text);
-    if (!name || !bucket) {
-      invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text));
-      continue;
-    }
-    cols.emplace_back(*name, *bucket);
-    labels.emplace_back(fmt::format("{}:{}", name_text, bucket_text));
+    if (!bucket) { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
+    auto data = resolve_series(series, name_text, *bucket);
+    if (!data)   { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
+    cols.push_back({fmt::format("{}:{}", name_text, bucket_text), std::move(*data)});
   }
   // summary totals for plot inset text box
   int died = sumstruct.dead[6];
@@ -135,25 +132,23 @@ void seriesplot(std::vector<SeriesSelection> selections, const HistorySeries& se
   int infected = sumstruct.infected[6];
 
   // step 2: create the json objects
-  json data = json::array();
-  for (auto [label, col] : std::views::zip(labels, cols) ) {
-    const auto& [name, bucket] = col;
-    const auto& y_series = series.at(name, bucket);
-    std::vector<int> y_values(y_series.begin() + 1, y_series.end());
+  json data_json = json::array();
+  for (const auto& col : cols) {
+    std::vector<int> y_values(col.data.begin() + 1, col.data.end());
 
     json trace = {
       {"x", daystrs},
       {"y", y_values},
       {"type", "scatter"},
       {"mode", "lines"},
-      {"name", label}
+      {"name", col.label}
     };
 
     if (dostack) {
       trace["stackgroup"] = "stk";
     }
 
-    data.push_back(std::move(trace));
+    data_json.push_back(std::move(trace));
   }
 
   // this is the ideal and most reliable way to do this
@@ -181,7 +176,7 @@ void seriesplot(std::vector<SeriesSelection> selections, const HistorySeries& se
       }
   });
 
-  produce_plot(plot_title, "Close the tab and return to terminal.", data, layout);
+  produce_plot(plot_title, "Close the tab and return to terminal.", data_json, layout);
 }
 
 

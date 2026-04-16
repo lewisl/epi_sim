@@ -3,13 +3,8 @@
 #include "lib_includes.h"
 #include "parameters.h"
 #include "population.h"
+#include <initializer_list>
 
-
-enum class SeriesName : uint8_t { now_infected, now_unexposed, now_recovered, now_dead,
-                                  now_vaccinated,
-                                  new_infected, new_recovered, new_dead, new_vaccinated,
-                                  net_infected, 
-                                  COUNT };
 
 enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, age80_up, COUNT };
 
@@ -19,30 +14,14 @@ inline constexpr auto all_age_buckets = std::array{
     AgeBucket::total, AgeBucket::age0_19, AgeBucket::age20_39,
     AgeBucket::age40_59, AgeBucket::age60_79, AgeBucket::age80_up};
 
-inline constexpr auto series_name_labels = std::array{
-    "now_infected", "now_unexposed", "now_recovered", "now_dead", "now_vaccinated",
-    "new_infected", "new_recovered", "new_dead", "new_vaccinated", "net_infected"};
-
 inline constexpr auto age_bucket_labels = std::array{
     "total", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
 
 static_assert(all_age_buckets.size() == size_t(AgeBucket::COUNT));
-static_assert(series_name_labels.size() == size_t(SeriesName::COUNT));
 static_assert(age_bucket_labels.size() == size_t(AgeBucket::COUNT));
-
-constexpr std::string_view to_string(SeriesName name) {
-    return series_name_labels[size_t(name)];
-}
 
 constexpr std::string_view to_string(AgeBucket bucket) {
     return age_bucket_labels[size_t(bucket)];
-}
-
-inline std::optional<SeriesName> series_name_from_string(std::string_view text) {
-    for (size_t i = 0; i < series_name_labels.size(); ++i) {
-        if (series_name_labels[i] == text) return static_cast<SeriesName>(i);
-    }
-    return std::nullopt;
 }
 
 inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
@@ -54,55 +33,107 @@ inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
 
 
 /*
-Use as follows:
-create instance variable:         HistorySeries series(day_count, pop);   // seeds day-1 now_unexposed from PopData age buckets
-update a specific vector and day: series.at(SeriesName::now_infected, AgeBucket::total)[12]++;
-read a value:                     series.at(SeriesName::now_infected, AgeBucket::total)[12]
+SeriesGroup: one group of series data, indexed first by subject (trait uint8_t value),
+then by age bucket, then by simulation day (1-based; slot 0 unused).
 
-`new_*` series are transition-time flows, while `now_*` series are end-of-day stocks.
-`HistorySeries` stores them by semantic name first, then by age bucket.
+Usage:
+  SeriesGroup sg(n_subjects, day_cnt);
+  sg.update(INFECTIOUS, agegrp, today, 1);     // increments specific age bucket AND total
+  int v = sg.at(INFECTIOUS, AgeBucket::total)[day];
 */
-struct HistorySeries {
-    using BucketSeries = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;
+struct SeriesGroup {
+    using BucketArray = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;
 
-    size_t day_cnt;  // actual simulated day count; vectors allocate one extra slot for unused index 0
-    std::array<BucketSeries, size_t(SeriesName::COUNT)> cols;
+    std::vector<BucketArray> subjects;  // indexed by trait's uint8_t value
+    size_t day_cnt{};
 
-    HistorySeries(size_t day_cnt) : day_cnt(day_cnt) {
-        for (auto& group : cols) {
-            for (auto& v : group) v.assign(day_cnt + 1, 0);  // days are 1 indexed
-        }
+    SeriesGroup() = default;
+    SeriesGroup(size_t n_subjects, size_t day_cnt);
+
+    // Increments subjects[subject_idx] for both the specific age bucket
+    // AND the total bucket (index 0). Every call site uses this —
+    // no caller should touch BucketArray directly for updates.
+    void update(uint8_t subject_idx, Agegrp agegrp, size_t day, int change);
+
+    auto& at(uint8_t subject_idx, AgeBucket bucket) {
+        return subjects[subject_idx][size_t(bucket)];
     }
-
-    // this is the constructor--there aren't normal names for the columns--just an array of columns
-    HistorySeries(size_t day_cnt, const PopData& pop) : HistorySeries(day_cnt) {
-        if (day_cnt == 0) return;
-
-        cols[size_t(SeriesName::now_unexposed)][size_t(AgeBucket::total)][1] = static_cast<int>(pop.popn);
-        for (size_t i = 0; i < pop.agegrp_parts.size(); ++i) {
-            cols[size_t(SeriesName::now_unexposed)][i + 1][1] = pop.agegrp_parts[i];
-        }
+    auto const& at(uint8_t subject_idx, AgeBucket bucket) const {
+        return subjects[subject_idx][size_t(bucket)];
     }
+};
 
-    auto& at(SeriesName name, AgeBucket bucket) { return cols[size_t(name)][size_t(bucket)]; }
-    auto const& at(SeriesName name, AgeBucket bucket) const {
-        return cols[size_t(name)][size_t(bucket)];
-    }
+/*
+AllSeries: top-level container for all time-series data in the simulation.
 
-    auto& group(SeriesName name) { return cols[size_t(name)]; }
-    auto const& group(SeriesName name) const { return cols[size_t(name)]; }
+Nesting:
+  AllSeries (one instance, passed by reference everywhere)
+    6 SeriesGroup members (compile-time named fields)
+      vector of BucketArray (indexed by trait uint8_t: Status, Vax, or Variant)
+        array of 6 vector<int> (indexed by AgeBucket enum)
+          vector<int> (indexed by simulation day, 1-based; slot 0 unused)
+*/
+struct AllSeries {
+    SeriesGroup now_status, new_status;
+    SeriesGroup now_vax,    new_vax;
+    SeriesGroup now_variant, new_variant;
+    size_t day_cnt;
 
-    // externally defined functions
-    void finalize_series();
+    AllSeries(size_t day_cnt, const PopData& pop,
+              size_t n_variants, size_t n_vax);
+
     void init_history_series(size_t day);
-    void update_series(SeriesName name, Agegrp agegrp, size_t day, int change);
+    void finalize_series();
 
+    // Checks that sum(now_variant[v][total][day]) == now_status[INFECTIOUS][total][day]
+    // for every simulated day. Throws on the first mismatch; prints OK if all pass.
+    void validate_variant_invariant() const;
 };
 
 
 AgeBucket bucket_from_age(Agegrp agegrp);
-void print_total_status_series(const HistorySeries& series, size_t days_per_block = 15);
-void print_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
+
+// Resolves a (name, bucket) pair to a day-indexed vector<int>.
+// For vax series, sums across all non-none brands (index > 0).
+// Returns nullopt if name is not recognized.
+std::optional<vector<int>> resolve_series(const AllSeries& series,
+                                          std::string_view name, AgeBucket bucket);
+
+/*
+Input argument type for series columns to be printed/serialized/plotted.
+
+Usage:
+  SeriesColSpec("all")                         → all subjects × all age buckets
+  SeriesColSpec("all", "total")                → all subjects × total bucket only
+  SeriesColSpec("all", {"total", "age20_39"})  → all subjects × listed buckets
+  SeriesColSpec({{"now_infectious","total"}, {"now_recovered","total"}})  → explicit list
+  SeriesColSpec{{"now_infectious","total"}, {"now_recovered","total"}}    → initializer list
+*/
+struct SeriesColSpec {
+    std::vector<SeriesSelection> selections;
+
+    // explicit vector of (name, bucket) pairs
+    SeriesColSpec(std::vector<SeriesSelection> v) : selections(std::move(v)) {}
+
+    // initializer list of (name, bucket) pairs
+    SeriesColSpec(std::initializer_list<SeriesSelection> v) : selections(v) {}
+
+    // "all" sentinel → all subjects × all age buckets
+    SeriesColSpec(const char* sentinel);
+
+    // "all" sentinel × single bucket
+    SeriesColSpec(const char* sentinel, const char* bucket);
+
+    // "all" sentinel × multiple buckets
+    SeriesColSpec(const char* sentinel, std::vector<std::string> buckets);
+
+private:
+    static void validate_sentinel(const char* s);
+    static std::vector<SeriesSelection> build_for_buckets(const std::vector<std::string>& buckets);
+};
+
+void print_total_status_series(const AllSeries& series, size_t days_per_block = 15);
+void print_selected_series(SeriesColSpec spec, const AllSeries& series,
                            size_t days_per_block = 15);
-void serialize_selected_series(std::vector<SeriesSelection> selections, const HistorySeries& series,
+void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
                            string base_fname, vector<string> path_steps={});

@@ -6,7 +6,7 @@
 #include "sim.h"
 
   // simplified early version of spread  TODO need vaxset, dovax sdcases
-  void spread(PopData &pop, HistorySeries & series, AgentView person, SocialParams &social,
+  void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq) {
