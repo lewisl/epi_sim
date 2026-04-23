@@ -1,11 +1,9 @@
 ## TODO
-
-- social distancing cases
 - r0 calculations
 - implement rings
+- consolidate the series serialization code for printing and serialization
 - fix cumbersome seedcase code?
 - use comments in json files!
-- clean up test:  update for latest API changes.
 - test and trace
 - revisit whether severe people shoulkd stahy in the socialk didstancing case.
 - revisit if compliance is an upfront thing or on any day a person is spreading or contactable
@@ -16,6 +14,8 @@
     constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
 
 ## Done
+- clean up test:  update for latest API changes.
+- social distancing cases
 - add variant and vax columns to HistorySeries
 - unify printing and serialization of popdata: after lots of reworking
 - serialization of popdata

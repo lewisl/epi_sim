@@ -11,14 +11,6 @@ Date: 2026-04-03
 - day-by-day simulation kernels
 - persisted run outputs for later analysis
 
-The current architecture is better than it first appeared because a few important cleanup steps have already been made:
-
-- obsolete `series_type` state was removed from `Model`
-- `AgentView` bounds checking was fixed
-- dead trace CSV output was removed
-
-Those changes clarified the intended design and removed real sources of confusion.
-
 ## Structure
 
 ### Setup and model assembly

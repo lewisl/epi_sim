@@ -8,8 +8,8 @@ std::string render_plot_html(
     std::string template_html,
     const std::string& title,
     const std::string& endmessage,
-    const nlohmann::json& data,
-    const nlohmann::json& layout
+    const json& data,
+    const json& layout
 );
 
 bool open_plot_in_browser(const std::filesystem::path& path);

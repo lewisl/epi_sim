@@ -2,41 +2,6 @@
 === Testing ModelParams Loading ===
 
 
-WARNING: variant effectiveness missing for vax: Pfizer variant none
-
-
-WARNING: variant effectiveness missing for vax: Pfizer shot first variant none
-
-
-WARNING: variant effectiveness missing for vax: Pfizer shot full variant none
-
-
-WARNING: variant effectiveness missing for vax: Pfizer shot booster variant none
-
-
-WARNING: variant effectiveness missing for vax: Moderna variant none
-
-
-WARNING: variant effectiveness missing for vax: Moderna shot first variant none
-
-
-WARNING: variant effectiveness missing for vax: Moderna shot full variant none
-
-
-WARNING: variant effectiveness missing for vax: Moderna shot booster variant none
-
-
-WARNING: variant effectiveness missing for vax: JnJ variant none
-
-
-WARNING: variant effectiveness missing for vax: JnJ shot first variant none
-
-
-WARNING: variant effectiveness missing for vax: JnJ shot full variant none
-
-
-WARNING: variant effectiveness missing for vax: JnJ shot booster variant none
-
 ==================== Model Parameters ==================
     fips    county            city              state   sizecat   pop       density   anchor      indoor_st   indoor_end  
  0: 6075    San Francisco     San Francisco     CA      2         881549    1.04      2020-02-01  0001-09-15  0002-05-30  
