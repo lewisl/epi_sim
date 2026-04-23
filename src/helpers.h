@@ -11,6 +11,10 @@ using std::vector;
 
 void shifter(vector<float> &arr, const float newmin, const float newmax);
 
+void shifter(std::array<std::array<float, 5>, 4>& arr, const float newmin, const float newmax);
+
+void shifter(std::array<std::array<float, 5>, 6>& arr, const float newmin, const float newmax);
+
 bool approx_equal(double a, double b, double tolerance);
 
 absl::CivilDay parse_date(const std::string& s);

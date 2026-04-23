@@ -10,7 +10,7 @@
 using std::vector;
 
 
-void shifter(vector<float> &arr, const float newmin, const float newmax) {  
+void shifter(vector<float> &arr, const float newmin, const float newmax) {
 
   auto minposition = std::min_element(arr.begin(), arr.end());
   auto maxposition = std::max_element(arr.begin(), arr.end());
@@ -23,6 +23,48 @@ void shifter(vector<float> &arr, const float newmin, const float newmax) {
   } else {
     for (auto &element : arr) {
       element = newmin + (newmax - newmin) / (oldmax - oldmin) * (element - oldmin); // we can put this in a function if needed
+    }
+  }
+}
+
+void shifter(std::array<std::array<float, 5>, 4>& arr, const float newmin, const float newmax) {
+  float oldmin = arr[0][0];
+  float oldmax = arr[0][0];
+  for (const auto& row : arr) {
+    for (const auto& element : row) {
+      if (element < oldmin) oldmin = element;
+      if (element > oldmax) oldmax = element;
+    }
+  }
+
+  if (oldmax == oldmin) {
+    for (auto& row : arr) std::fill(row.begin(), row.end(), 1.0f);
+  } else {
+    for (auto& row : arr) {
+      for (auto& element : row) {
+        element = newmin + (newmax - newmin) / (oldmax - oldmin) * (element - oldmin);
+      }
+    }
+  }
+}
+
+void shifter(std::array<std::array<float, 5>, 6>& arr, const float newmin, const float newmax) {
+  float oldmin = arr[0][0];
+  float oldmax = arr[0][0];
+  for (const auto& row : arr) {
+    for (const auto& element : row) {
+      if (element < oldmin) oldmin = element;
+      if (element > oldmax) oldmax = element;
+    }
+  }
+
+  if (oldmax == oldmin) {
+    for (auto& row : arr) std::fill(row.begin(), row.end(), 1.0f);
+  } else {
+    for (auto& row : arr) {
+      for (auto& element : row) {
+        element = newmin + (newmax - newmin) / (oldmax - oldmin) * (element - oldmin);
+      }
     }
   }
 }

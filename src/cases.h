@@ -43,8 +43,37 @@ struct SeedCase {
   vector<size_t> operator()(AllSeries& series);
 };
 
+struct SocialDistancing {
+  string name;
+  int startday{0};
+  float comply{0.0f};
+  vector<float> contact_delta;
+  vector<float> touch_delta;
+  vector<Agegrp> include_ages;
+  array<array<float, 5>, 4> contactfactors {};  // 4 rows (contact_rows) × 5 cols (age groups)
+  array<array<float, 5>, 6> touchfactors {};    // 6 rows (touch_rows) × 5 cols (age groups)
+  int endday{INT_MAX};
+};
+
 
 void apply_change(AgentView person, const Change& chg, AllSeries& series);
 bool matches_filter(AgentView person, const Filter& filt);
+// Load a single seed case from a parsed JSON object; requires ModelParams for variant lookup.
+SeedCase load_seed_case(const json& sc, PopData& pop, const ModelParams& mp);
 // Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
 vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp);
+// Load a single social-distancing case from a parsed JSON object.
+SocialDistancing load_sd_case(const json& sdc);
+// Load social-distancing cases from a parsed JSON array. Each case's
+// contactfactors/touchfactors are seeded from `social` and rescaled into
+// [contact_delta[0], contact_delta[1]] and [touch_delta[0], touch_delta[1]].
+// Also (re)registers SDCase trait names: index 0 = "none", indices 1..N
+// match case positions in the returned vector.
+vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& social);
+void print_sd_cases(const vector<SocialDistancing>& sd_cases);
+// For each case k (0-based): on day == startday, tag compliers among agents
+// passing filter1 (status in {UNEXPOSED, RECOVERED} OR cond in {NIL, MILD})
+// and agegrp in include_ages (empty include_ages => all ages) with
+// SDCase{k+1}. On day == endday, clear agents currently marked SDCase{k+1}
+// back to SDCase{}. Between startday and endday: no-op (marks persist).
+void apply_sd_cases_for_day(int day, const vector<SocialDistancing>& sd_cases, PopData& pop);

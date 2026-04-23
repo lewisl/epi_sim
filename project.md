@@ -1,11 +1,14 @@
 ## TODO
-- test and trace
+
 - social distancing cases
 - r0 calculations
 - implement rings
 - fix cumbersome seedcase code?
 - use comments in json files!
 - clean up test:  update for latest API changes.
+- test and trace
+- revisit whether severe people shoulkd stahy in the socialk didstancing case.
+- revisit if compliance is an upfront thing or on any day a person is spreading or contactable
 - Decide what to do about Touch factors where we ignore people who are sick because they can't get infected again?--this
     only matters if we model viral load and if contact affects progression to more severe condition
 - maybe add contruction time guards to trait structs as in:

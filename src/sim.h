@@ -76,4 +76,4 @@ struct SummaryData {
 
 
 // Simulation runner
-void runsim(Model& model, vector<SeedCase> seedcases);
+void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases);

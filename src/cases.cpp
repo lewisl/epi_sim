@@ -3,9 +3,17 @@
 #include "parameters.h"
 #include "population.h"
 #include "cases.h"
+#include "helpers.h"
+#include "random.h"
+#include "sim.h"
 
 using std::string;
 
+////////////////////////////////
+/*
+Seed Cases
+*/
+////////////////////////////////
 
 // Allowed trait names for Filter and Change terms, validated at load time.
 const std::unordered_set<string> FILTER_TRAITS = {
@@ -139,32 +147,150 @@ vector<size_t> SeedCase::operator()(AllSeries& series) {
 }
 
 
+SeedCase load_seed_case(const json& sc, PopData& pop, const ModelParams& mp) {
+  int  triggerday  = sc["triggerday"];
+  bool startofday  = sc.value("startofday", true);
+
+  // --- parse filter terms ---
+  Filter filt;
+  for (const auto& t : sc["filter"]) {
+    string trait = t["trait"].get<string>();
+    if (!FILTER_TRAITS.count(trait))
+      throw std::runtime_error("Disallowed filter trait: '" + trait + "'");
+    filt.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
+  }
+
+  // --- parse change terms + count ---
+  Change chg;
+  chg.count = sc["change"]["count"].get<int>();
+  for (const auto& t : sc["change"]["terms"]) {
+    string trait = t["trait"].get<string>();
+    if (!CHANGE_TRAITS.count(trait))
+      throw std::runtime_error("Disallowed change trait: '" + trait + "'");
+    chg.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
+  }
+
+  return SeedCase(triggerday, startofday, std::move(filt), std::move(chg), pop);
+}
+
 vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp) {
   vector<SeedCase> seedcases;
+  seedcases.reserve(jdata.size());
   for (const auto& sc : jdata) {
-    int  triggerday  = sc["triggerday"];
-    bool startofday  = sc.value("startofday", true);
-
-    // --- parse filter terms ---
-    Filter filt;
-    for (const auto& t : sc["filter"]) {
-      string trait = t["trait"].get<string>();
-      if (!FILTER_TRAITS.count(trait))
-        throw std::runtime_error("Disallowed filter trait: '" + trait + "'");
-      filt.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
-    }
-
-    // --- parse change terms + count ---
-    Change chg;
-    chg.count = sc["change"]["count"].get<int>();
-    for (const auto& t : sc["change"]["terms"]) {
-      string trait = t["trait"].get<string>();
-      if (!CHANGE_TRAITS.count(trait))
-        throw std::runtime_error("Disallowed change trait: '" + trait + "'");
-      chg.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
-    }
-
-    seedcases.emplace_back(triggerday, startofday, std::move(filt), std::move(chg), pop);
+    seedcases.push_back(load_seed_case(sc, pop, mp));
   }
   return seedcases;
+}
+
+
+
+////////////////////////
+/*
+Social Distancing Cases
+*/
+////////////////////////
+
+
+SocialDistancing load_sd_case(const json& sdc) {
+  vector<Agegrp> inc_ages;
+  for (const auto& str_age : sdc["include_ages"]) {
+    inc_ages.push_back(Agegrp(Agegrp::resolve_name(str_age)));
+  }
+  SocialDistancing sd{sdc["name"], sdc["startday"], sdc["comply"],
+                      sdc["contact_delta"], sdc["touch_delta"], std::move(inc_ages)};
+  sd.endday = sdc.value("endday", INT_MAX);
+  return sd;
+}
+
+vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& social) {
+  vector<SocialDistancing> sd_cases;
+  sd_cases.reserve(jdata.size());
+  for (const auto& sdc : jdata) {
+    sd_cases.push_back(load_sd_case(sdc));
+  }
+
+  for (auto& sdc : sd_cases) {
+    if (sdc.contact_delta.size() != 2)
+      throw std::runtime_error(fmt::format(
+          "SocialDistancing '{}' contact_delta must have 2 elements, got {}",
+          sdc.name, sdc.contact_delta.size()));
+    if (sdc.touch_delta.size() != 2)
+      throw std::runtime_error(fmt::format(
+          "SocialDistancing '{}' touch_delta must have 2 elements, got {}",
+          sdc.name, sdc.touch_delta.size()));
+
+    sdc.contactfactors = social.contactfactors;
+    shifter(sdc.contactfactors, sdc.contact_delta[0], sdc.contact_delta[1]);
+
+    sdc.touchfactors = social.touchfactors;
+    shifter(sdc.touchfactors, sdc.touch_delta[0], sdc.touch_delta[1]);
+  }
+
+  SDCase::names.clear();
+  SDCase{"none"};
+  for (const auto& sdc : sd_cases) {
+    SDCase{sdc.name};
+  }
+
+  return sd_cases;
+}
+
+void print_sd_cases(const vector<SocialDistancing>& sd_cases) {
+  std::vector<std::string> age_names;
+  for (auto sdc : sd_cases) {
+    fmt::println("\nname = \"{}\"", sdc.name);
+    fmt::println("startday = {}", sdc.startday);
+    fmt::println("endday = {}", sdc.endday);
+    fmt::println("comply = {}", sdc.comply);
+    fmt::println("contact_delta = [{}]", fmt::join(sdc.contact_delta, ","));
+    fmt::println("touch_delta = [{}]", fmt::join(sdc.touch_delta, ","));
+
+    age_names.reserve(sdc.include_ages.size());
+    for (const auto& a : sdc.include_ages) age_names.push_back(a.show());
+    fmt::println("include ages = [{}]", fmt::join(age_names , ","));
+    age_names.clear();
+
+    fmt::println("contactfactors ({}x{}):", sdc.contactfactors.size(), sdc.contactfactors[0].size());
+    for (const auto& row : sdc.contactfactors)
+      fmt::println("  [{}]", fmt::join(row, ", "));
+
+    fmt::println("touchfactors ({}x{}):", sdc.touchfactors.size(), sdc.touchfactors[0].size());
+    for (const auto& row : sdc.touchfactors)
+      fmt::println("  [{}]", fmt::join(row, ", "));
+  }
+}
+
+
+void apply_sd_cases_for_day(int day, const vector<SocialDistancing>& sd_cases, PopData& pop) {
+  for (size_t k = 0; k < sd_cases.size(); ++k) {
+    const auto& sdc = sd_cases[k];
+    const uint8_t case_idx = static_cast<uint8_t>(k + 1);
+
+    if (day == sdc.startday) {
+      for (size_t i = 1; i <= pop.popn; ++i) {
+        const bool eligible_state =
+            pop.status[i] == UNEXPOSED || pop.status[i] == RECOVERED ||
+            pop.cond[i]   == NIL       || pop.cond[i]   == MILD;
+        if (!eligible_state) continue;
+
+        if (!sdc.include_ages.empty()) {
+          bool in_ages = false;
+          for (const auto& ag : sdc.include_ages) {
+            if (pop.agegrp[i] == ag) { in_ages = true; break; }
+          }
+          if (!in_ages) continue;
+        }
+
+        if (xo::bernoulli(sdc.comply)) {
+          pop.sdcase[i] = SDCase{case_idx};
+        }
+      }
+    } else if (day == sdc.endday) {
+      for (size_t i = 1; i <= pop.popn; ++i) {
+        if (pop.sdcase[i].v == case_idx) {
+          pop.sdcase[i] = SDCase{};
+        }
+      }
+    }
+  }
 }

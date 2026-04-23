@@ -20,7 +20,7 @@
 SummaryData print_summary(PopData & pop);
 
 
-void runsim(Model& model, vector<SeedCase> seedcases) {
+void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases) {
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
 
@@ -71,8 +71,19 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
     // run beginning of day seed cases
     for (auto& sc : seedcases)
-      if (sc.startofday && sc.triggerday == sim::ds.day)
-        sc(series);
+      if (sc.startofday && sc.triggerday == sim::ds.day) {
+        auto seeds = sc(series);
+        std::string filt;
+        for (const auto& t : sc.filter.terms)
+          filt += fmt::format("{}{}={}", filt.empty() ? "" : ",", t.trait, t.val);
+        std::string chg;
+        for (const auto& t : sc.change.terms)
+          chg += fmt::format("{}{}={}", chg.empty() ? "" : ",", t.trait, t.val);
+        fmt::println("Seed day {} count: {} filter: [{}] change: [{}]", d_i, seeds.size(), filt, chg);
+      }
+
+    // run social distancing cases
+    apply_sd_cases_for_day(sim::ds.day, sd_cases, pop);
 
     // do vaccination if using vaccination
     if (model.dovax) {
@@ -101,7 +112,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
         spread(pop, series, person, mp.socialdata, mp.infectparams, mp.vaxset,
-               model.dovax, contacts, density_factor, model.indoor_seq);
+               model.dovax, contacts, density_factor, model.indoor_seq, sd_cases);
       }
       spread_timing.cum();
 
@@ -135,7 +146,7 @@ void runsim(Model& model, vector<SeedCase> seedcases) {
 
   history_timing.start();
   series.finalize_series();
-  series.validate_variant_invariant();
+  // debugging only: series.validate_variant_invariant();
   history_timing.cum();
 
   //

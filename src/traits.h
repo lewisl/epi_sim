@@ -341,6 +341,31 @@ struct Vax {
   constexpr bool operator==(const Vax &) const = default;
 };
 
+struct SDCase {
+  uint8_t v{};
+  inline static std::vector<std::string> names;
+
+  SDCase() = default;
+  constexpr explicit SDCase(uint8_t v) noexcept : v(v) {}
+  constexpr SDCase(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  explicit SDCase(std::string_view name) {
+    if (names.empty()) {
+      assert(name == "none" && "First SDCase constructed must be \"none\"");
+    } else {
+      assert(name != "none" && "\"none\" SDCase already exists");
+    }
+    names.push_back(std::string{name});
+    v = static_cast<uint8_t>(names.size() - 1);
+  }
+
+  std::string show() const noexcept {
+    if (static_cast<size_t>(v) >= names.size()) return "";
+    return names[v];
+  }
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const SDCase &) const = default;
+};
+
 struct VariantHist {
   std::array<Variant, 16> arr{};
   uint8_t count{};

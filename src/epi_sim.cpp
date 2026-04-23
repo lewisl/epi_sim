@@ -1,3 +1,4 @@
+#include "cases.h"
 #include "lib_includes.h"
 #include "epi_sim.h"
 #include "setup.h"
@@ -19,24 +20,28 @@ int main(int argc, char** argv) {
 
   std::string config_path;
   std::string seed_path;
+  std::string sd_seed_path;
 
+  // process cmdline --param and its value
   for (int i = 1; i < argc - 1; i += 2) {
       std::string flag = argv[i];
       std::string val  = argv[i + 1];
       if (flag == "--config") config_path = val;
       else if (flag == "--seed") seed_path = val;
+      else if (flag == "--sd_seed") sd_seed_path = val;
       else {
           fmt::println(stderr, "Unknown flag: {}", flag);
           return 1;
       }
   }
 
+  // end now if missing any required input
   if (config_path.empty() || seed_path.empty()) {
-      fmt::println(stderr, "Usage: epi_sim --config <path> --seed <path>");
+      fmt::println(stderr, "Usage: epi_sim --config <path> --seed <path> [--sd_seed <path>]");
       return 1;
   }
 
-  // load config and seed json
+  // payloads for the required input parameters: load config_json and seed_json
   json config_json = load_json_params(config_path);
   json seed_json   = load_json_params(seed_path);
 
@@ -57,12 +62,15 @@ int main(int argc, char** argv) {
 
   fmt::println("Setup simulation...");
   Model model = setup_sim(config);
+  vector<SeedCase> seedcases = load_seed_cases(seed_json, model.pop, model.mp);
+  vector<SocialDistancing> sd_cases;  // default constructor leaves this empty
+  if (!sd_seed_path.empty()) {
+    sd_cases = load_sd_cases(load_json_params(sd_seed_path), model.mp.socialdata);
+  }
   fmt::println("Setup complete.");
 
-  vector<SeedCase> seedcases = load_seed_cases(seed_json, model.pop, model.mp);
-
   fmt::println("Starting simulation...");
-  runsim(model, std::move(seedcases));
+  runsim(model, seedcases, sd_cases);
   
   return 0;
 }
