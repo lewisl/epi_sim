@@ -1,5 +1,7 @@
 #include "test_support.h"
 
+// forward declaration of component test fuctions
+// no includes needed for these because the files are added to the test build
 void run_pop_serialize_tests(const test_support::TestRunOptions& options);
 void run_parameter_tests(const test_support::TestRunOptions& options);
 void run_disease_modeling_tests(const test_support::TestRunOptions& options);

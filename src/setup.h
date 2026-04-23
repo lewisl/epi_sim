@@ -14,6 +14,7 @@ struct Model {
   int locale{};
   bool dovax{};
   bool debug{};
+  bool headless{false};  // when true, runsim skips disk writes and browser plots; set by tests
   ModelParams mp{};
   PopData pop;
 };

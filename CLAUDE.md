@@ -6,8 +6,8 @@ Before doing anything else — before proposing a plan, before reading any speci
 
 1. Read `AGENTS.md` (project conventions: indexing, AgentView, naming, build system)
 2. Read `CONTRIBUTING.md`
-3. Read `docs/data-structures.md`
-4. Read `docs/code_organization.md`
+3. Read `design/data-structures.md`
+4. Read `design/code_organization.md`
 5. Scan `src/` and list the files to establish what exists
 
 Only after completing these steps should you engage with the user's task.
