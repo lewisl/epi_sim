@@ -1,0 +1,12 @@
+{
+    "days": 30,
+    "locale": 99999,
+    "calendar_start": "2020-01-01",
+    "dovax": false,
+    "debug": false,
+    "geodata": "testgeo.csv",
+    "variants": "../../../sample_parameters/variants.json",
+    "social": "../../../sample_parameters/socialparams.json",
+    "vaccines": "../../../sample_parameters/vaccines.json",
+    "vax_sched_dir": "../../../sample_parameters/vaccine_100k"
+}
