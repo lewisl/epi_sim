@@ -123,9 +123,6 @@ Practical guidance:
 - Use `const PopData::AgentView person` only if the API is intentionally designed so the proxy itself should not be changed in the callee
 - If a function must be truly read-only with respect to person state, the `AgentView` API itself must provide read-only accessors or a separate const view type
 
-## Other Conventions
-
-(Add other coding conventions here as the project develops)
 
 ### File Organization
 - Header files (`.h`) in `src/`
@@ -133,6 +130,7 @@ Practical guidance:
 - Tests in `test/`
 - Parameter files in `sample_parameters/`
 - Documentation in `docs/`
+- Design documents and development focused explanations in `design/`
 
 ### Naming Conventions
 - Structs: PascalCase (e.g., `ModelParams`, `PopData`)
@@ -149,3 +147,39 @@ Practical guidance:
 
 ### Code management
 - Don't delete code unless requested by the user or clearly part of another requested code change 
+
+## Codex Workflow Instructions
+
+### Intent And Scope
+
+- If the user asks to inspect, evaluate, review, or explain, do not edit files unless explicitly asked.
+- Do not add features, refactor, or improve beyond the request.
+- Preserve unrelated dirty worktree changes.
+- Prefer small, targeted patches over structural rewrites.
+- When in doubt, ask before changing files.
+
+### Before Editing
+
+- Read the relevant source files before editing.
+- For non-trivial changes, trace callers, custom argument types, and where key data originates.
+- State important assumptions or invariants before broad changes.
+
+### Build And Test
+
+- Use `xmake` only. Do not use cmake, make, or git worktrees.
+- Run the narrowest relevant `xmake run test <group>` first when available.
+- Run full `xmake run test` after changes to shared headers, core simulation behavior, or test harness code.
+- Do not add new test groups or test harness structure unless requested.
+
+### Hot Paths
+
+- Treat `spread`, `progression`, `runsim`, vaccination, and population loops as hot paths.
+- Do not add helper calls, allocations, extra bounds checks, or abstractions inside hot loops unless requested or justified by a measured bug/risk.
+- Prefer existing inline/local logic in hot paths unless profiling or correctness requires otherwise.
+
+### Communication
+
+- Keep responses concise and directly tied to the request.
+- Lead with the answer or result.
+- Avoid long explanations unless asked for detail.
+- For code changes, report only: what changed, where, tests run, and remaining risks.

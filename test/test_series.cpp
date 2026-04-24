@@ -34,10 +34,10 @@ void test_init_history_series_carries_forward_stock_series() {
 
   series.init_history_series(2);
 
-  assert(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] == 3);
-  assert(series.now_status.at(uint8_t(RECOVERED), AgeBucket::total)[2] == 1);
-  assert(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] == 2);
-  assert(series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] == 1);
+  CHECK(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] == 3);
+  CHECK(series.now_status.at(uint8_t(RECOVERED), AgeBucket::total)[2] == 1);
+  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] == 2);
+  CHECK(series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] == 1);
 }
 
 void test_resolve_series_supports_status_vaccinated_and_variant_views() {
@@ -56,13 +56,13 @@ void test_resolve_series_supports_status_vaccinated_and_variant_views() {
   const auto vaccinated = resolve_series(series, "now_vaccinated", AgeBucket::total);
   const auto delta = resolve_series(series, "now_variant:delta", AgeBucket::total);
 
-  assert(unexposed.has_value());
-  assert(vaccinated.has_value());
-  assert(delta.has_value());
-  assert((*unexposed)[1] == 3 && (*unexposed)[2] == 1 && (*unexposed)[3] == 0);
-  assert((*vaccinated)[2] == 3);
-  assert((*delta)[2] == 2);
-  assert(!resolve_series(series, "now_variant:missing", AgeBucket::total).has_value());
+  REQUIRE(unexposed.has_value());
+  REQUIRE(vaccinated.has_value());
+  REQUIRE(delta.has_value());
+  CHECK((*unexposed)[1] == 3 && (*unexposed)[2] == 1 && (*unexposed)[3] == 0);
+  CHECK((*vaccinated)[2] == 3);
+  CHECK((*delta)[2] == 2);
+  CHECK(!resolve_series(series, "now_variant:missing", AgeBucket::total).has_value());
 }
 
 void test_series_colspec_all_total_expands_current_runtime_names() {
@@ -76,11 +76,11 @@ void test_series_colspec_all_total_expands_current_runtime_names() {
   const SeriesSelection expected_vaccinated{"now_vaccinated", "total"};
   const SeriesSelection expected_pfizer{"new_vax:pfizer", "total"};
   const SeriesSelection expected_delta{"new_variant:delta", "total"};
-  assert(spec.selections.size() == 18);
-  assert(spec.selections.front() == expected_first);
-  assert(std::find(spec.selections.begin(), spec.selections.end(), expected_vaccinated) != spec.selections.end());
-  assert(std::find(spec.selections.begin(), spec.selections.end(), expected_pfizer) != spec.selections.end());
-  assert(std::find(spec.selections.begin(), spec.selections.end(), expected_delta) != spec.selections.end());
+  REQUIRE(spec.selections.size() == 18);
+  CHECK(spec.selections.front() == expected_first);
+  CHECK(std::find(spec.selections.begin(), spec.selections.end(), expected_vaccinated) != spec.selections.end());
+  CHECK(std::find(spec.selections.begin(), spec.selections.end(), expected_pfizer) != spec.selections.end());
+  CHECK(std::find(spec.selections.begin(), spec.selections.end(), expected_delta) != spec.selections.end());
 }
 
 void test_serialize_selected_series_writes_current_csv_layout() {
@@ -107,10 +107,11 @@ void test_serialize_selected_series_writes_current_csv_layout() {
 
   const auto csv_path = first_csv_in_dir(out_dir);
   const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
-  assert(lines[0] == "now_unexposed:total,now_vaccinated:total,now_variant:delta:total");
-  assert(lines[1] == "3,0,0");
-  assert(lines[2] == "1,3,2");
-  assert(lines[3] == "0,0,0");
+  REQUIRE(lines.size() >= 4);
+  CHECK(lines[0] == "now_unexposed:total,now_vaccinated:total,now_variant:delta:total");
+  CHECK(lines[1] == "3,0,0");
+  CHECK(lines[2] == "1,3,2");
+  CHECK(lines[3] == "0,0,0");
 
   test_support::fs::remove_all(out_dir);
 }
@@ -134,7 +135,7 @@ void test_validate_variant_invariant_checks_current_layout() {
   } catch (const std::runtime_error&) {
     threw = true;
   }
-  assert(threw);
+  CHECK(threw);
 }
 
 void write_series_artifacts(const test_support::TestRunOptions& options) {

@@ -83,7 +83,7 @@ RenderLines render_recovday_hist(AgentView person, bool multi_values) {
 RenderLines render_deadday(AgentView person, bool) { return {person.deadday().show()}; }
 
 RenderLines render_ring(AgentView person, bool) {
-  return {fmt::format("{}", static_cast<unsigned int>(person.ring()))};
+  return {person.ring().show()};
 }
 
 RenderLines render_sdcase(AgentView person, bool) { return {bool_text(person.sdcase())}; }

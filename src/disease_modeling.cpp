@@ -37,7 +37,7 @@ float require_effectiveness(const VaxParams& params,
 } // namespace
 
 // make_sick: make one person sick
-// declaration is in population.h
+// AgentView class declaration is in population.h
 void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
   auto this_age = agegrp();
@@ -77,7 +77,7 @@ void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition,
 
 /* 
   make_well: make one person better->recovered and uninfected
-declaration is in population.h AgentView
+AgentView class declaration is in population.h AgentView
 method applied to an AgentView instance:  person.make_well()
 as a method of AgentView, the instance variable is not used to apply methods or access members 
 */

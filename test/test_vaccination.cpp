@@ -74,10 +74,10 @@ void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
   xo::seed(1);
   vaccinate(10, schedset, vaxset, pop, series);
 
-  assert(vaccinated_count(pop) == 1);
-  assert(schedset.schedules[0].second.vaxesincluded[0].doses == 0);
-  assert(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
-  assert(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
+  CHECK(vaccinated_count(pop) == 1);
+  CHECK(schedset.schedules[0].second.vaxesincluded[0].doses == 0);
+  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
+  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
 }
 
 void test_vaccinate_uses_scalar_recovday_eligibility() {
@@ -100,13 +100,13 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   xo::seed(2);
   vaccinate(20, schedset, vaxset, pop, series);
 
-  assert(pop.vaxstatus[1] == Vaxstat::full);
-  assert(pop.vaxstatus[2] == Vaxstat::full);
-  assert(pop.vaxstatus[3] == Vaxstat::none);
-  assert(pop.vax_hist[1].count == 1);
-  assert(pop.vax_hist[2].count == 1);
-  assert(pop.vax_hist[3].count == 0);
-  assert(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 2);
+  CHECK(pop.vaxstatus[1] == Vaxstat::full);
+  CHECK(pop.vaxstatus[2] == Vaxstat::full);
+  CHECK(pop.vaxstatus[3] == Vaxstat::none);
+  CHECK(pop.vax_hist[1].count == 1);
+  CHECK(pop.vax_hist[2].count == 1);
+  CHECK(pop.vax_hist[3].count == 0);
+  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 2);
 }
 
 void test_vaccinate_second_shot_after_delay() {
@@ -129,12 +129,12 @@ void test_vaccinate_second_shot_after_delay() {
 
   vaccinate(10, schedset, vaxset, pop, series);
 
-  assert(pop.vaxstatus[1] == Vaxstat::full);
-  assert(pop.vaxday[1] == 10);
-  assert(pop.vax_hist[1].count == 2);
-  assert(pop.vax_hist[1].latest() == Vax{1});
-  assert(pop.vaxday_hist[1].latest() == 10);
-  assert(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 0);
+  CHECK(pop.vaxstatus[1] == Vaxstat::full);
+  CHECK(pop.vaxday[1] == 10);
+  CHECK(pop.vax_hist[1].count == 2);
+  CHECK(pop.vax_hist[1].latest() == Vax{1});
+  CHECK(pop.vaxday_hist[1].latest() == 10);
+  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 0);
 }
 
 void test_vaccinate_booster_after_delay() {
@@ -157,11 +157,11 @@ void test_vaccinate_booster_after_delay() {
 
   vaccinate(20, schedset, vaxset, pop, series);
 
-  assert(pop.vaxstatus[1] == Vaxstat::booster);
-  assert(pop.vaxday[1] == 20);
-  assert(pop.vax_hist[1].count == 2);
-  assert(pop.vaxday_hist[1].latest() == 20);
-  assert(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
+  CHECK(pop.vaxstatus[1] == Vaxstat::booster);
+  CHECK(pop.vaxday[1] == 20);
+  CHECK(pop.vax_hist[1].count == 2);
+  CHECK(pop.vaxday_hist[1].latest() == 20);
+  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
 }
 
 void test_vax_history_overflow_retains_latest_days() {
@@ -176,12 +176,12 @@ void test_vax_history_overflow_retains_latest_days() {
     pop.vaxday_hist[1].set(static_cast<int16_t>(day));
   }
 
-  assert(pop.vax_hist[1].count == 17);
-  assert(pop.vax_hist[1].stored_count() == 16);
-  assert(pop.vaxday_hist[1].count == 17);
-  assert(pop.vaxday_hist[1].stored_count() == 16);
-  assert(pop.vaxday_hist[1].arr[0] == 2);
-  assert(pop.vaxday_hist[1].arr[15] == 17);
+  CHECK(pop.vax_hist[1].count == 17);
+  CHECK(pop.vax_hist[1].stored_count() == 16);
+  CHECK(pop.vaxday_hist[1].count == 17);
+  CHECK(pop.vaxday_hist[1].stored_count() == 16);
+  CHECK(pop.vaxday_hist[1].arr[0] == 2);
+  CHECK(pop.vaxday_hist[1].arr[15] == 17);
 }
 
 void write_vaccination_artifact(const test_support::TestRunOptions& options) {

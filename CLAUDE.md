@@ -18,7 +18,9 @@ Only after completing these steps should you engage with the user's task.
 - Build file is `xmake.lua` in the project root.
 - C++23, LLVM/Clang toolchain.
 - External libraries are installed via vcpkg with manually configured paths — do not assume a clean build will work without that environment in place.
-- xmake documentation: https://xmake.io/guide/introduction.html
+- Run the narrowest relevant `xmake run test <group>` first when available.
+- Run full `xmake run test` after changes to shared headers, core simulation behavior, or test harness code.
+- Do not add new test groups or test harness structure unless requested.
 
 ## Before Making Any Change
 
@@ -34,3 +36,24 @@ Only after completing these steps should you engage with the user's task.
 - Do not delete code unless explicitly requested.
 - Do not add features, refactor, or "improve" beyond what was asked.
 - Do not guess at xmake syntax — read `xmake.lua` and acknowledge uncertainty rather than bluffing.
+
+### Intent And Scope
+
+- If the user asks to inspect, evaluate, review, or explain, do not edit files unless explicitly asked.
+- Do not add features, refactor, or improve beyond the request.
+- Preserve unrelated dirty worktree changes.
+- Prefer small, targeted patches over structural rewrites.
+- When in doubt, ask before changing files.
+
+### Hot Paths
+
+- Treat `spread`, `progression`, `runsim`, vaccination, and population loops as hot paths.
+- Do not add helper calls, allocations, extra bounds checks, or abstractions inside hot loops unless requested or justified by a measured bug/risk.
+- Prefer existing inline/local logic in hot paths unless profiling or correctness requires otherwise.
+
+### Communication
+
+- Keep responses concise and directly tied to the request.
+- Lead with the answer or result.
+- Avoid long explanations unless asked for detail.
+- For code changes, report only: what changed, where, tests run, and remaining risks.

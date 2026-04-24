@@ -208,6 +208,22 @@ struct Duration {
   }
 };
 
+struct Ring {
+  uint8_t v{};
+
+  constexpr Ring() noexcept = default;
+  explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
+  constexpr Ring& operator=(uint8_t value) noexcept { v = value; return *this; }
+
+  std::string show() const {
+    return fmt::format("{}", static_cast<unsigned int>(v));
+  }
+
+  constexpr operator uint8_t() const noexcept { return v; }
+  constexpr bool operator==(const Ring&) const noexcept = default;
+  constexpr auto operator<=>(const Ring&) const noexcept = default;
+};
+
 struct Sickday {
   int16_t v{};
 

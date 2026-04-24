@@ -60,7 +60,7 @@ class PopData {
             agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
             cond(n+1, UNINFECTED), duration(n+1, Duration{0}),
             variant(n+1), variant_hist(n+1), sickday(n+1, Sickday{0}), sickday_hist(n+1),
-            recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, 0),
+            recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, Ring{0}),
             sdcase(n+1), testday(n+1, Testday{0}), testday_hist(n+1), quar(n+1, 0), quarday(n+1, Quarday{0}),
             vaxstatus(n+1, Vaxstat::none), vax(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1) 
           {
@@ -85,7 +85,7 @@ class PopData {
   vector<Recovday> recovday;
   vector<RecovdayHist> recovday_hist;
   vector<Deadday> deadday;
-  vector<uint8_t> ring;
+  vector<Ring> ring;
   vector<SDCase> sdcase;
   vector<Testday> testday;
   vector<TestdayHist> testday_hist;
@@ -196,7 +196,7 @@ class PopData {
       Recovday &recovday() { return pop.recovday[i]; }
       RecovdayHist & recovday_hist() { return pop.recovday_hist[i]; }
       Deadday &deadday() { return pop.deadday[i]; }
-      std::uint8_t &ring() { return pop.ring[i]; }
+      Ring &ring() { return pop.ring[i]; }
       SDCase &sdcase() { return pop.sdcase[i]; }
       Testday &testday() { return pop.testday[i]; }
       TestdayHist & testday_hist() { return pop.testday_hist[i]; }

@@ -268,7 +268,7 @@ SummaryData print_summary(PopData & pop)
     fmt::println("{:<12} {:>11} {:>10} {:>12} {:>11} {:>8} {:>9.2f}%", "Total",
                  sd.unexposed[6], sd.infected[6], sd.reinfected[6], sd.recovered[6], sd.dead[6], total_death_pct);
     fmt::println("(Note: Remaining still infected across all ages: {})",
-                 std::count_if(pop.status.begin(), pop.status.end(),
+                 std::count_if(pop.status.begin() + 1, pop.status.end(),
                               [](auto s) { return s == INFECTIOUS; }));
     return sd;
 }

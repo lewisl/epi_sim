@@ -6,30 +6,7 @@ namespace {
 
 constexpr std::string_view GROUP = "setup";
 
-void test_sendrisk_indexing() {
-  test_support::VariantNamesGuard variant_guard;
-  Variant::names.clear();
-
-  nlohmann::ordered_json jdata = {
-      {"base", {{"spread", {{"sendrisk", std::vector<float>{0.0f, 0.0f, 0.3f, 0.65f, 0.75f, 0.85f}}, {"recvrisk", std::vector<float>{0.0f, 0.1f, 0.39f, 0.44f, 0.54f, 0.56f}}, {"basemultiplier", 1.0}}}, {"immunity", {{"recovery_immunity", {{"base", 0.8f}}}, {"immunehalflife", 360}}}}},
-  };
-
-  const auto [variants, infectparams] = load_variants_data(jdata);
-  assert(variants.size() == infectparams.size());
-  assert(variants.size() == 2);
-  assert(variants[1].show() == "base");
-  assert(infectparams[1].sendrisk.size() == 6);
-  assert(approx_equal(infectparams[1].sendrisk[0], 0.0, 1e-9));
-  assert(approx_equal(infectparams[1].sendrisk[2], 0.3, 1e-9));
-  assert(approx_equal(infectparams[1].sendrisk[5], 0.85, 1e-9));
-}
-
-void test_setup_sim_builds_expected_model_shape() {
-  test_support::VariantNamesGuard variant_guard;
-  test_support::VaxNamesGuard vax_guard;
-  Variant::names.clear();
-  Vax::names.clear();
-
+Config sample_config() {
   const auto paths = test_support::sample_paths();
   Config config;
   config.days = 366;
@@ -41,23 +18,52 @@ void test_setup_sim_builds_expected_model_shape() {
   config.social = paths.social;
   config.vaccines = paths.vaccines;
   config.vax_sched_dir = paths.vax_sched_dir;
+  return config;
+}
 
-  Model model = setup_sim(config);
+Model make_sample_model() {
+  Variant::names.clear();
+  Vax::names.clear();
+  return setup_sim(sample_config());
+}
 
-  assert(model.ndays == 366);
-  assert(model.locale == 38015);
-  assert(model.caldays.size() == size_t(model.ndays));
-  assert(model.indoor_seq.size() == size_t(model.ndays));
-  assert(model.day1 == absl::CivilDay(2020, 1, 1));
-  assert(model.caldays.front() == absl::CivilDay(2020, 1, 1));
-  assert(model.caldays.back() == absl::CivilDay(2020, 12, 31));
+void test_sendrisk_indexing() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Model model = make_sample_model();
+  REQUIRE(model.mp.variants.size() > 1);
+  REQUIRE(model.mp.infectparams.size() > 1);
+
+  const auto& sendrisk = model.mp.infectparams[1].sendrisk;
+  CHECK(model.mp.variants[1].show() == "base");
+  REQUIRE(sendrisk.size() == 25);
+  CHECK(approx_equal(sendrisk[0], 0.0, 1e-6));
+  CHECK(approx_equal(sendrisk[1], 0.3, 1e-6));
+  CHECK(approx_equal(sendrisk[2], 0.65, 1e-6));
+  CHECK(approx_equal(sendrisk[5], 0.85, 1e-6));
+  CHECK(approx_equal(sendrisk[24], 0.0, 1e-6));
+  CHECK(model.mp.trvec.size() == 6);
+}
+
+void test_setup_sim_builds_expected_model_shape() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Model model = make_sample_model();
+
+  CHECK(model.ndays == 366);
+  CHECK(model.locale == 38015);
+  CHECK(model.caldays.size() == size_t(model.ndays));
+  CHECK(model.indoor_seq.size() == size_t(model.ndays));
+  CHECK(model.day1 == absl::CivilDay(2020, 1, 1));
+  CHECK(model.caldays.front() == absl::CivilDay(2020, 1, 1));
+  CHECK(model.caldays.back() == absl::CivilDay(2020, 12, 31));
 
   const auto locale_it = std::find(model.mp.geodata.fips.begin(), model.mp.geodata.fips.end(), model.locale);
-  assert(locale_it != model.mp.geodata.fips.end());
+  REQUIRE(locale_it != model.mp.geodata.fips.end());
   const size_t locale_idx = static_cast<size_t>(std::distance(model.mp.geodata.fips.begin(), locale_it));
-  assert(model.pop.popn == size_t(model.mp.geodata.pop[locale_idx]));
-  assert(model.pop.popz == model.pop.popn + 1);
-  assert(model.mp.variants[1].show() == "base");
+  CHECK(model.pop.popn == size_t(model.mp.geodata.pop[locale_idx]));
+  CHECK(model.pop.popz == model.pop.popn + 1);
+  CHECK(model.mp.variants[1].show() == "base");
 }
 
 void write_setup_artifacts(const test_support::TestRunOptions& options) {
@@ -65,34 +71,20 @@ void write_setup_artifacts(const test_support::TestRunOptions& options) {
 
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
-  Variant::names.clear();
-  Vax::names.clear();
-
-  nlohmann::ordered_json jdata = {
-      {"base", {{"spread", {{"sendrisk", std::vector<float>{0.0f, 0.0f, 0.3f, 0.65f, 0.75f, 0.85f}}, {"recvrisk", std::vector<float>{0.0f, 0.1f, 0.39f, 0.44f, 0.54f, 0.56f}}, {"basemultiplier", 1.0}}}, {"immunity", {{"recovery_immunity", {{"base", 0.8f}}}, {"immunehalflife", 360}}}}},
-  };
-  const auto [variants, infectparams] = load_variants_data(jdata);
-
-  const auto paths = test_support::sample_paths();
-  Config config;
-  config.days = 366;
-  config.locale = 38015;
-  config.calendar_start = "2020-01-01";
-  config.dovax = false;
-  config.geodata = paths.geodata;
-  config.variants = paths.variants;
-  config.social = paths.social;
-  config.vaccines = paths.vaccines;
-  config.vax_sched_dir = paths.vax_sched_dir;
-  Model model = setup_sim(config);
+  Model model = make_sample_model();
+  const auto& sendrisk = model.mp.infectparams[1].sendrisk;
 
   std::ostringstream artifact;
   artifact << "Setup summary\n";
   artifact << "=============\n\n";
-  artifact << "sendrisk fixture:\n";
-  artifact << "  variants/infectparams: " << variants.size() << "/" << infectparams.size() << "\n";
-  artifact << "  base sendrisk[0,2,5]: " << infectparams[1].sendrisk[0] << ", "
-           << infectparams[1].sendrisk[2] << ", " << infectparams[1].sendrisk[5] << "\n\n";
+  artifact << "setup_sim sendrisk:\n";
+  artifact << "  variants/infectparams: " << model.mp.variants.size() << "/"
+           << model.mp.infectparams.size() << "\n";
+  artifact << "  base sendrisk size: " << sendrisk.size() << "\n";
+  artifact << "  base sendrisk[0,1,2,5,24]: " << sendrisk[0] << ", "
+           << sendrisk[1] << ", " << sendrisk[2] << ", " << sendrisk[5]
+           << ", " << sendrisk[24] << "\n";
+  artifact << "  progression trvec size: " << model.mp.trvec.size() << "\n\n";
   artifact << "setup_sim fixture:\n";
   artifact << "  ndays/locale: " << model.ndays << "/" << model.locale << "\n";
   artifact << "  first/last calday: " << absl::FormatCivilTime(model.caldays.front()) << " -> "

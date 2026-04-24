@@ -1,5 +1,7 @@
 #pragma once
 
+#include "test_utils.h"
+
 #include "../src/lib_includes.h"
 
 #include "../src/parameters.h"
@@ -101,34 +103,34 @@ inline SampleParamPaths sample_paths() {
 
 inline size_t require_locale_index(const GeoData& geodata, int locale) {
   const auto it = std::find(geodata.fips.begin(), geodata.fips.end(), locale);
-  assert(it != geodata.fips.end());
+  REQUIRE(it != geodata.fips.end());
   return static_cast<size_t>(std::distance(geodata.fips.begin(), it));
 }
 
 inline const VaxParams& require_vax(const VaxSet& vaxset, string_view name) {
   const auto it = std::find(Vax::names.begin(), Vax::names.end(), name);
-  assert(it != Vax::names.end());
+  REQUIRE(it != Vax::names.end());
   return vaxset.at(Vax{static_cast<uint8_t>(std::distance(Vax::names.begin(), it))});
 }
 
 inline const PerVaxSpec& require_sched_vax(const VaxSched& sched, string_view name) {
   const auto it = std::find_if(sched.vaxesincluded.begin(), sched.vaxesincluded.end(),
                                [name](const auto& entry) { return entry.vax.show() == name; });
-  assert(it != sched.vaxesincluded.end());
+  REQUIRE(it != sched.vaxesincluded.end());
   return *it;
 }
 
 inline const VaxSched& require_sched(const VaxSchedSet& schedset, string_view name) {
   const auto it = std::find_if(schedset.schedules.begin(), schedset.schedules.end(),
                                [name](const auto& entry) { return entry.first == name; });
-  assert(it != schedset.schedules.end());
+  REQUIRE(it != schedset.schedules.end());
   return it->second;
 }
 
 inline float require_named_factor(const vector<std::pair<string, float>>& entries, string_view name) {
   const auto it = std::find_if(entries.begin(), entries.end(),
                                [name](const auto& entry) { return entry.first == name; });
-  assert(it != entries.end());
+  REQUIRE(it != entries.end());
   return it->second;
 }
 

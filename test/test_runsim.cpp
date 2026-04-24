@@ -42,6 +42,7 @@ std::string current_minute_prefix() {
                      lt.tm_hour, lt.tm_min);
 }
 
+// TODO need to get rid of hardcoded file paths
 // Move any .html files in plot_output/ whose filename contains one of the
 // given minute-prefixes (MM_DD_YYYY_HH_MM) into dest_dir. Captures the plots
 // produced by this test run without needing to know their base titles.
@@ -55,7 +56,7 @@ void move_plot_htmls_for_minutes(const fs::path& dest_dir,
     const std::string name = entry.path().filename().string();
     for (const auto& p : minute_prefixes) {
       if (name.find(p) != std::string::npos) {
-        fs::rename(entry.path(), dest_dir / entry.path().filename());
+        fs::rename(entry.path(), dest_dir / entry.path().filename());  // risky way to do a move
         break;
       }
     }
@@ -112,11 +113,11 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
 
   const RunsimResult r = tally(model.pop);
 
-  assert(r.popn == 1000);
-  assert(r.ever_infectious > seeded);
-  assert(r.n_unexposed + r.n_infectious + r.n_recovered + r.n_dead == static_cast<int>(r.popn));
-  assert(r.n_recovered > 0);
-  assert(r.n_recovered < r.ever_infectious);
+  CHECK(r.popn == 1000);
+  CHECK(r.ever_infectious > seeded);
+  CHECK(r.n_unexposed + r.n_infectious + r.n_recovered + r.n_dead == static_cast<int>(r.popn));
+  CHECK(r.n_recovered > 0);
+  CHECK(r.n_recovered < r.ever_infectious);
 
   if (options.write_artifacts) {
     const fs::path dest = test_support::artifact_group_dir(options, GROUP);

@@ -7,13 +7,13 @@ set_optimize("fastest")
 
 target("epi_sim")
     set_kind("binary")
-    set_default("false")
+    set_default(false)
     add_files("src/*.cpp")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 
 target("test")
     set_kind("binary")
-    set_default("false")
+    set_default(false)
     add_files("test/test_main.cpp", "test/test_pop_serialize.cpp", "test/test_parameters.cpp",
         "test/test_disease_modeling.cpp", "test/test_vaccination.cpp", "test/test_traits.cpp",
         "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp")
@@ -22,20 +22,20 @@ target("test")
 
 target("this")
     set_kind("binary")
-    set_default("false")
+    set_default(false)
     add_packages("vcpkg::fmt", "vcpkg::nlohmann-json")
    add_files("scratch/load_sdcases.cpp", "src/*.cpp|epi_sim.cpp")
 
 target("randstuff")
     set_kind("binary")
-    set_default("false")
+    set_default(false)
     add_files("scratch/benchmark_rand.cpp")
     add_files("src/helpers.cpp")
     add_packages("vcpkg::abseil", "vcpkg::fmt")
 
 target("dates")
     set_kind("binary")
-    set_default("false")
+    set_default(false)
     add_files("scratch/date-tests.cpp")
     add_packages("vcpkg::abseil")
 

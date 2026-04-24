@@ -23,7 +23,7 @@ void test_write_pop_data_pretty_compact_to_stream(const test_support::TestRunOpt
       "     2  infectious  age40_59    mild        5         3",
       "     3  unexposed   age80_up    uninfected  0         0",
   };
-  assert(lines == expected);
+  CHECK(lines == expected);
 }
 
 void test_pop_print_multi_value_output(const test_support::TestRunOptions& options) {
@@ -40,10 +40,10 @@ void test_pop_print_multi_value_output(const test_support::TestRunOptions& optio
   test_support::write_artifact_text(options, GROUP, "pretty_multivalue.txt", out.str());
 
   const auto lines = test_support::split_trimmed_lines(out.str());
-  assert(!lines.empty());
-  assert(lines[0].find("variant") != string::npos);
-  assert(lines[0].find("testday_hist") != string::npos);
-  assert(std::find(lines.begin(), lines.end(), "     *  delta       delta                  11                                      12") != lines.end());
+  REQUIRE(!lines.empty());
+  CHECK(lines[0].find("variant") != string::npos);
+  CHECK(lines[0].find("testday_hist") != string::npos);
+  CHECK(std::find(lines.begin(), lines.end(), "     *              delta                  11                                             12") != lines.end());
 }
 
 void test_write_pop_data_serialized_to_stream(const test_support::TestRunOptions& options) {
@@ -63,7 +63,7 @@ void test_write_pop_data_serialized_to_stream(const test_support::TestRunOptions
       "1,recovered,alpha,2",
       "2,infectious,delta,11",
   };
-  assert(lines == expected);
+  CHECK(lines == expected);
 }
 
 void test_pop_to_csv_writes_file_and_escapes_cells(const test_support::TestRunOptions& options) {
@@ -88,10 +88,10 @@ void test_pop_to_csv_writes_file_and_escapes_cells(const test_support::TestRunOp
 
   pop_to_csv(pop, vector<size_t>{1}, {"variant"}, OutSpec(out_path));
 
-  assert(test_support::fs::exists(out_path));
+  CHECK(test_support::fs::exists(out_path));
   const string content = test_support::read_file_text(out_path);
-  assert(content.find("row,variant") != string::npos);
-  assert(content.find("\"delta,epsilon\"") != string::npos);
+  CHECK(content.find("row,variant") != string::npos);
+  CHECK(content.find("\"delta,epsilon\"") != string::npos);
 
   if (!options.write_artifacts) test_support::fs::remove_all(out_dir);
 }
@@ -109,7 +109,7 @@ void test_write_pop_data_rejects_bad_rows_and_columns() {
   } catch (const std::invalid_argument&) {
     bad_zero_row_threw = true;
   }
-  assert(bad_zero_row_threw);
+  CHECK(bad_zero_row_threw);
 
   bool bad_big_row_threw = false;
   try {
@@ -118,7 +118,7 @@ void test_write_pop_data_rejects_bad_rows_and_columns() {
   } catch (const std::invalid_argument&) {
     bad_big_row_threw = true;
   }
-  assert(bad_big_row_threw);
+  CHECK(bad_big_row_threw);
 
   bool bad_column_threw = false;
   try {
@@ -127,7 +127,7 @@ void test_write_pop_data_rejects_bad_rows_and_columns() {
   } catch (const std::invalid_argument&) {
     bad_column_threw = true;
   }
-  assert(bad_column_threw);
+  CHECK(bad_column_threw);
 }
 
 }  // namespace

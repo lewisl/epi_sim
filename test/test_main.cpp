@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
-    if (arg == "--artifacts") {
+    if (arg == "--artifacts" || arg == "--artifact") {
       options.write_artifacts = true;
       continue;
     }
@@ -51,56 +51,29 @@ int main(int argc, char** argv) {
     run_series_tests(options);
     run_setup_tests(options);
     run_plot_tests(options);
-    return 0;
+  } else {
+    const std::string& selected = *selected_group;
+    if (selected == "pop_serialize") {
+      run_pop_serialize_tests(options);
+    } else if (selected == "parameters") {
+      run_parameter_tests(options);
+    } else if (selected == "disease_modeling") {
+      run_disease_modeling_tests(options);
+    } else if (selected == "vaccination") {
+      run_vaccination_tests(options);
+    } else if (selected == "traits") {
+      run_traits_tests(options);
+    } else if (selected == "series") {
+      run_series_tests(options);
+    } else if (selected == "setup") {
+      run_setup_tests(options);
+    } else if (selected == "plot") {
+      run_plot_tests(options);
+    } else if (selected == "runsim") {
+      run_runsim_tests(options);
+    }
   }
 
-  const std::string& selected = *selected_group;
-  if (selected == "pop_serialize") {
-    run_pop_serialize_tests(options);
-    return 0;
-  }
-
-  if (selected == "parameters") {
-    run_parameter_tests(options);
-    return 0;
-  }
-
-  if (selected == "disease_modeling") {
-    run_disease_modeling_tests(options);
-    return 0;
-  }
-
-  if (selected == "vaccination") {
-    run_vaccination_tests(options);
-    return 0;
-  }
-
-  if (selected == "traits") {
-    run_traits_tests(options);
-    return 0;
-  }
-
-  if (selected == "series") {
-    run_series_tests(options);
-    return 0;
-  }
-
-  if (selected == "setup") {
-    run_setup_tests(options);
-    return 0;
-  }
-
-  if (selected == "plot") {
-    run_plot_tests(options);
-    return 0;
-  }
-
-  if (selected == "runsim") {
-    run_runsim_tests(options);
-    return 0;
-  }
-
-  fmt::println(stderr, "Unknown test group '{}'. Available groups: {}",
-               selected, fmt::join(groups, ", "));
-  return 1;
+  test_summary();
+  return test_failure_count() > 0 ? 1 : 0;
 }

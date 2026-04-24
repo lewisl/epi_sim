@@ -49,17 +49,17 @@ void test_render_plot_html_replaces_template_tokens() {
   const string html = render_plot_html(plot_html_template(), "Unit Test Plot 2026",
                                        "Simple plot render test", data, layout);
 
-  assert(html.find("<title>Unit Test Plot 2026</title>") != string::npos);
-  assert(html.find("<h2>Simple plot render test</h2>") != string::npos);
-  assert(html.find("https://cdn.plot.ly/plotly-2.35.2.min.js") != string::npos);
-  assert(html.find("<div id=\"plot\"") != string::npos);
-  assert(html.find("\"name\":\"quadratic\"") != string::npos);
-  assert(html.find("\"title\":\"Unit Test Plot 2026\"") != string::npos);
-  assert(html.find("Plotly.newPlot(\"plot\", data, layout)") != string::npos);
-  assert(html.find("{{TITLE}}") == string::npos);
-  assert(html.find("{{ENDMESSAGE}}") == string::npos);
-  assert(html.find("{{DATA}}") == string::npos);
-  assert(html.find("{{LAYOUT}}") == string::npos);
+  CHECK(html.find("<title>Unit Test Plot 2026</title>") != string::npos);
+  CHECK(html.find("<h2>Simple plot render test</h2>") != string::npos);
+  CHECK(html.find("https://cdn.plot.ly/plotly-2.35.2.min.js") != string::npos);
+  CHECK(html.find("<div id=\"plot\"") != string::npos);
+  CHECK(html.find("\"name\":\"quadratic\"") != string::npos);
+  CHECK(html.find("\"title\":\"Unit Test Plot 2026\"") != string::npos);
+  CHECK(html.find("Plotly.newPlot(\"plot\", data, layout)") != string::npos);
+  CHECK(html.find("{{TITLE}}") == string::npos);
+  CHECK(html.find("{{ENDMESSAGE}}") == string::npos);
+  CHECK(html.find("{{DATA}}") == string::npos);
+  CHECK(html.find("{{LAYOUT}}") == string::npos);
 }
 
 void write_plot_artifacts(const test_support::TestRunOptions& options) {

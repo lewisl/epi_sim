@@ -1,7 +1,7 @@
 ## TODO
+- consolidate the series serialization code for printing and serialization
 - r0 calculations
 - implement rings
-- consolidate the series serialization code for printing and serialization
 - fix cumbersome seedcase code?
 - use comments in json files!
 - test and trace
