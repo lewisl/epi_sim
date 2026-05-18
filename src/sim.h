@@ -24,6 +24,7 @@ struct Config {
   fs::path social {"socialparams.json"};
   fs::path vaccines {"vaccines.json"};
   fs::path vax_sched_dir {"vaccine_100k"};
+  fs::path rings {};  // empty = rings disabled
 };
 
 // parameters used throughout the simulation that are better global

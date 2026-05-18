@@ -12,11 +12,12 @@ Overall TODO
 #include "parameters.h"
 #include "helpers.h"
 #include "population.h"
+#include "random.h"
 #include "setup.h"
 
 
 
-ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir)
+ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir, string rings_path)
 {
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
@@ -33,6 +34,10 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
     }
   auto socialdata = load_social_params(social_path);
 
+  RingTraits ringtraits{};
+  if (!rings_path.empty()) {
+    ringtraits = load_ring_traits(rings_path);
+  }
 
   // Use aggregate initialization to construct model_params with all members at once
   // note the curly braces: this is initialization, NOT a call to the default constructor
@@ -45,7 +50,59 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxdata),
       .vaxschedset = std::move(vaxschedset),
+      .ringtraits = std::move(ringtraits),
   };
+}
+
+// Stratified ring assignment: for each agegrp, apportion that agegrp's
+// people across rings using pct_of_population, then shuffle and slice.
+// Preserves the population-wide age mix within each ring (subject to rounding).
+// No-op when rings are disabled (pct_of_population empty or sentinel-only).
+void assign_rings(PopData& pop, const std::vector<float>& pct_of_population) {
+  if (pct_of_population.size() <= 1) return;
+
+  const size_t nrings = pct_of_population.size() - 1;
+  vector<float> splits(pct_of_population.begin() + 1, pct_of_population.end());
+
+  const size_t NAGE = Agegrp::names.size();
+  vector<vector<size_t>> by_age(NAGE);
+  for (size_t i = 1; i <= pop.popn; ++i) {
+    by_age[static_cast<size_t>(pop.agegrp[i].v)].push_back(i);
+  }
+
+  auto& gen = xo::get_gen();
+
+  for (size_t g = 1; g < NAGE; ++g) {
+    auto& idxs = by_age[g];
+    if (idxs.empty()) continue;
+
+    vector<int> counts = pop.apportion(static_cast<int>(idxs.size()), splits);
+    std::shuffle(idxs.begin(), idxs.end(), gen);
+
+    size_t cursor = 0;
+    for (size_t r = 0; r < nrings; ++r) {
+      const int cnt = counts[r];
+      for (int k = 0; k < cnt; ++k) {
+        pop.ring[idxs[cursor++]] = Ring{static_cast<uint8_t>(r + 1)};
+      }
+    }
+  }
+}
+
+// Build the per-ring membership index from the assigned ring column.
+// Returns ring_members[r] = sorted-by-person-id list of 1-based person ids in ring r.
+// Outer index is 1-based to match Ring ids; ring_members[0] stays empty.
+// Returns an empty outer vector when ring_count == 0 (rings disabled).
+std::vector<std::vector<size_t>> build_ring_members(const PopData& pop, size_t ring_count) {
+  if (ring_count == 0) return {};
+
+  std::vector<std::vector<size_t>> members(ring_count + 1);
+  for (size_t i = 1; i <= pop.popn; ++i) {
+    const size_t r = static_cast<size_t>(pop.ring[i].v);
+    if (r == 0 || r > ring_count) continue;  // unassigned or out-of-range
+    members[r].push_back(i);
+  }
+  return members;
 }
 
 vector <absl::CivilDay> build_caldays(int n_days, absl::CivilDay day1) {
@@ -116,7 +173,8 @@ Model setup_sim(Config config)
         config.variants.string(),
         config.social.string(),
         config.vaccines.string(),
-        config.vax_sched_dir.string());
+        config.vax_sched_dir.string(),
+        config.rings.string());
 
     // access population of chosen locale or error
     auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), locale);
@@ -127,6 +185,8 @@ Model setup_sim(Config config)
     int popn = mp.geodata.pop[locale_idx];
 
     PopData pop(popn);
+    assign_rings(pop, mp.ringtraits.pct_of_population);
+    auto ring_members = build_ring_members(pop, mp.ringtraits.ring_count());
     auto day1 = parse_date(date);
 
     // series_type series = build_series(ndays, day1, std::vector<std::string>{});
@@ -143,6 +203,7 @@ Model setup_sim(Config config)
       .dovax = dovax,
       .debug = debug,
       .mp = std::move(mp),
-      .pop = std::move(pop)};
+      .pop = std::move(pop),
+      .ring_members = std::move(ring_members)};
 }
 // clang-format on

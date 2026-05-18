@@ -453,6 +453,97 @@ SocialParams load_social_params(string social_path) {
   return socialp;
 }
 
+//
+// ring traits
+//
+RingTraits load_ring_traits(string fpath) {
+  RingTraits rt{};
+  Ring::names.clear();
+
+  json data = load_json_params(fpath);
+  if (!data.contains("rings")) {
+    return rt;  // rings disabled
+  }
+
+  const auto& ring_arr = data["rings"];
+  if (!ring_arr.is_array()) {
+    throw std::runtime_error("rings: expected an array under top-level 'rings' key.");
+  }
+  if (ring_arr.empty()) {
+    return rt;
+  }
+
+  const size_t nrings = ring_arr.size();
+  // index 0 in both vectors is the unused 1-based sentinel
+  rt.pct_of_population.assign(nrings + 1, 0.0f);
+  rt.out_ring_prob.assign(nrings + 1, vector<float>(Agegrp::names.size(), 0.0f));
+
+  double pct_sum = 0.0;
+  for (size_t n = 1; n <= nrings; ++n) {
+    const auto& entry = ring_arr[n - 1];
+
+    string name = entry.contains("name") && !entry["name"].is_null()
+                      ? entry["name"].get<string>()
+                      : fmt::format("ring_{}", n);
+    if (std::find(Ring::names.begin(), Ring::names.end(), name) != Ring::names.end()) {
+      throw std::runtime_error(fmt::format("rings: duplicate ring name '{}'.", name));
+    }
+    Ring registered{std::string_view{name}};
+    if (static_cast<size_t>(registered.v) != n) {
+      throw std::runtime_error(fmt::format(
+          "rings: registration order mismatch for '{}' (got id {}, expected {}).",
+          name, static_cast<unsigned>(registered.v), n));
+    }
+
+    if (!entry.contains("pct_of_population")) {
+      throw std::runtime_error(fmt::format("rings: '{}' missing pct_of_population.", name));
+    }
+    const float pct = entry["pct_of_population"].get<float>();
+    if (pct < 0.0f || pct > 1.0f) {
+      throw std::runtime_error(fmt::format(
+          "rings: '{}' pct_of_population={} out of [0,1].", name, pct));
+    }
+    rt.pct_of_population[n] = pct;
+    pct_sum += pct;
+
+    if (!entry.contains("out_ring_prob_by_agegrp")) {
+      throw std::runtime_error(fmt::format(
+          "rings: '{}' missing out_ring_prob_by_agegrp.", name));
+    }
+    const auto& probs = entry["out_ring_prob_by_agegrp"];
+    for (const auto& [agename, val] : probs.items()) {
+      Agegrp ag = agegrp_from_string(agename);
+      if (ag == UNKNOWN) {
+        throw std::runtime_error(fmt::format(
+            "rings: '{}' has unknown agegrp '{}' in out_ring_prob_by_agegrp.",
+            name, agename));
+      }
+      float p = val.get<float>();
+      if (p < 0.0f || p > 1.0f) {
+        throw std::runtime_error(fmt::format(
+            "rings: '{}' agegrp '{}' out_ring_prob={} out of [0,1].",
+            name, agename, p));
+      }
+      rt.out_ring_prob[n][static_cast<size_t>(ag.v)] = p;
+    }
+    // require all five real agegrps (1..5) supplied
+    for (uint8_t g = 1; g < Agegrp::names.size(); ++g) {
+      if (!probs.contains(Agegrp::names[g])) {
+        throw std::runtime_error(fmt::format(
+            "rings: '{}' missing out_ring_prob for agegrp '{}'.",
+            name, Agegrp::names[g]));
+      }
+    }
+  }
+
+  if (!approx_equal(pct_sum, 1.0, 1e-6)) {
+    throw std::runtime_error(fmt::format(
+        "rings: pct_of_population values must sum to 1.0 (got {}).", pct_sum));
+  }
+
+  return rt;
+}
+
 // Helper function to print infectparams
 void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant> & variants) {
   fmt::println("========== InfectParams =============");

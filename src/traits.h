@@ -210,12 +210,24 @@ struct Duration {
 
 struct Ring {
   uint8_t v{};
+  inline static std::vector<std::string> names;
 
   constexpr Ring() noexcept = default;
   explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
+  explicit Ring(std::string_view name) {
+    if (names.empty()) {
+      names.emplace_back("");  // index 0 reserved as unused sentinel
+    }
+    assert(!name.empty() && "Ring name must not be empty");
+    names.emplace_back(std::string{name});
+    v = static_cast<uint8_t>(names.size() - 1);
+  }
   constexpr Ring& operator=(uint8_t value) noexcept { v = value; return *this; }
 
   std::string show() const {
+    if (static_cast<size_t>(v) < names.size() && !names[v].empty()) {
+      return names[v];
+    }
     return fmt::format("{}", static_cast<unsigned int>(v));
   }
 

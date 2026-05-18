@@ -36,6 +36,11 @@ struct VaxNamesGuard {
   ~VaxNamesGuard() { Vax::names = saved_names; }
 };
 
+struct RingNamesGuard {
+  vector<string> saved_names = Ring::names;
+  ~RingNamesGuard() { Ring::names = saved_names; }
+};
+
 inline string rtrim_copy(string value) {
   while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
     value.pop_back();

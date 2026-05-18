@@ -3,6 +3,7 @@
 #include "lib_includes.h"
 
 #include "traits.h"
+#include "ring_traits.h"
 #include "helpers.h"    // for shifter
 #include <functional>
 
@@ -511,6 +512,7 @@ struct ModelParams {
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
   VaxSchedSet vaxschedset;
+  RingTraits ringtraits;
 };
 
 // here we define all of the containers for the model parameters, load them,
@@ -545,6 +547,8 @@ VaxSchedSet load_vax_sched_set(const string &dirpath);
 
 
 SocialParams load_social_params(string social_path);
+
+RingTraits load_ring_traits(string fpath);
 
 // Helper function to print infectparams
 void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant>& variants);
