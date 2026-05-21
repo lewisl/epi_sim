@@ -152,7 +152,3 @@ read_only_memory_patterns: []
 # Extends the list from the global configuration, merging the two lists.
 # Example: ["_archive/.*", "_episodes/.*"]
 ignored_memory_patterns: []
-
-language_servers:
-  cpp:
-    clangd_path: /opt/homebrew/opt/llvm/bin/clangd

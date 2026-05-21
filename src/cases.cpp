@@ -17,7 +17,7 @@ Seed Cases
 
 // Allowed trait names for Filter and Change terms, validated at load time.
 const std::unordered_set<string> FILTER_TRAITS = {
-    "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested"};
+    "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested", "ring"};
 const std::unordered_set<string> CHANGE_TRAITS = {
     "status", "cond", "duration", "variant", "vaxstatus", "quar"};
 
@@ -54,6 +54,16 @@ int32_t parse_term_val(const string& trait, const json& jval, const ModelParams&
       throw std::runtime_error("Variant 'none' (index 0) is not valid in seed terms");
     return int32_t(vidx);
   }
+  if (trait == "ring") {
+    const string rname = jval.get<string>();
+    auto opt = trait_from_string<Ring>(rname);
+    if (!opt)
+      throw std::runtime_error("Unknown ring: " + rname);
+    uint8_t ridx = static_cast<uint8_t>(*opt);
+    if (ridx == 0)
+      throw std::runtime_error("Ring index 0 (unused sentinel) is not valid in seed terms");
+    return int32_t(ridx);
+  }
   // Numeric traits: duration, quar
   return jval.get<int32_t>();
 }
@@ -69,6 +79,7 @@ bool matches_filter(AgentView person, const Filter& filt) {
     else if (f.trait == "vaxstatus") pval = int32_t(uint8_t(person.vaxstatus()));
     else if (f.trait == "quar")      pval = int32_t(person.quar());
     else if (f.trait == "tested")    pval = int32_t(person.testday() != 0);
+    else if (f.trait == "ring")      pval = int32_t(uint8_t(person.ring()));
     if (pval != f.val) return false;
   }
   return true;

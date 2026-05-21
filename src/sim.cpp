@@ -112,7 +112,8 @@ void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>&
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
         spread(pop, series, person, mp.socialdata, mp.infectparams, mp.vaxset,
-               model.dovax, contacts, density_factor, model.indoor_seq, sd_cases);
+               model.dovax, contacts, density_factor, model.indoor_seq, sd_cases,
+               mp.ringtraits, model.ring_members, model.ring_lengths);
       }
       spread_timing.cum();
 
@@ -169,19 +170,20 @@ void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>&
   //                         {"new_dead", "total"} },
   //                       series);
 
-  // write the some series columns to csv
-  serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
+  // write series + PopData columns to csv (skipped in headless runs)
+  if (!model.headless) {
+    serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
 
-  // write some of the PopData columns to file
-  auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
-  pop_to_csv(pop, pop.all_idx, "all", output);
-      // {"status", "agegrp", "cond", "duration", "variant_hist", "sickday_hist"}, 
-
+    auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
+    pop_to_csv(pop, pop.all_idx, "all", output);
+  }
 
   SummaryData sumstruct = print_summary(pop); fmt::println("");
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());
+
+  if (model.headless) return;  // headless runs skip browser plots
 
   if (!model.dovax)
     seriesplot({{"now_infectious", "total"},

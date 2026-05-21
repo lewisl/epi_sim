@@ -45,6 +45,12 @@ inline size_t zidx(uint8_t i) {
     return static_cast<size_t>(i-1);
 }
 
+// static cast to size_t and add 1
+// to convert 0 based indices to one-based, copies value argument
+inline size_t nidx(uint8_t i) {
+    return static_cast<size_t>(i+1);
+}
+
 // simple way to replace this:  std::accumulate(unexposed.begin(), unexposed.end(), 0)
 template <std::ranges::input_range R>
 auto sum(R &&r) {

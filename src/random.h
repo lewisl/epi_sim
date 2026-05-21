@@ -81,10 +81,11 @@ inline int get(int min, int max) {
 //   return peeps;
 // }
 
-// updates passed in buffer reference in place
+// appends n draws to the passed-in buffer. 
+// does NOT clear the buffer: the caller is responsible for clearing when a fresh fill is wanted.
+// caller can fill one buffer from multiple rings.
 template<typename IntType = int>
-void get_n_draws(IntType min, IntType max, int n, std::vector<IntType> &buffer) {
-  buffer.clear();
+void append_n_draws(IntType min, IntType max, int n, std::vector<IntType> &buffer) {
   std::uniform_int_distribution<IntType> dist{min, max};
   for (int i = 0; i < n; ++i) {
     buffer.push_back(dist(get_gen()));
@@ -93,16 +94,16 @@ void get_n_draws(IntType min, IntType max, int n, std::vector<IntType> &buffer) 
 
 
 // returns vector result:  don't know if we'll use
-template<typename IntType = int>
-std::vector<IntType> get_n_draws(IntType min, IntType max, int n) {
-  std::vector<IntType> buffer;
-  buffer.reserve(n);  // one allocation
-  std::uniform_int_distribution<IntType> dist{min, max};
-  for (int i = 0; i < n; ++i) {
-    buffer.push_back(dist(get_gen()));
-  }
-  return buffer;
-}
+// template<typename IntType = int>
+// std::vector<IntType> get_n_draws(IntType min, IntType max, int n) {
+//   std::vector<IntType> buffer;
+//   buffer.reserve(n);  // one allocation
+//   std::uniform_int_distribution<IntType> dist{min, max};
+//   for (int i = 0; i < n; ++i) {
+//     buffer.push_back(dist(get_gen()));
+//   }
+//   return buffer;
+// }
 
 
 

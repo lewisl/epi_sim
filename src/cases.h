@@ -12,7 +12,7 @@ struct Term {
 };
 
 // Filter: all terms must match (AND semantics) for a person to be a candidate.
-// Allowed traits: "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested"
+// Allowed traits: "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested", "ring"
 // "tested" is derived from latest testday != 0.
 struct Filter {
   vector<Term> terms;

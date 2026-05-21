@@ -208,7 +208,7 @@ std::optional<vector<int>> resolve_series(const AllSeries& series,
 // Print functions
 // ---------------------------------------------------------------
 
-void print_total_status_series(const AllSeries& series, size_t days_per_block) {
+void print_total_status_series(const AllSeries & series, size_t days_per_block) {
   if (series.day_cnt == 0) {
     fmt::println("\nNo day series to print.");
     return;
@@ -298,9 +298,9 @@ void print_selected_series(SeriesColSpec spec, const AllSeries& series,
 // Serialization
 // ---------------------------------------------------------------
 
-void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
+void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
                            string base_fname, vector<string> path_steps) {
-  auto& selections = spec.selections;
+  auto & selections = spec.selections;
   if (series.day_cnt == 0) {
     fmt::println("\nNo day series to output.");
     return;

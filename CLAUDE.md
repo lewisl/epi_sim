@@ -57,3 +57,16 @@ Only after completing these steps should you engage with the user's task.
 - Lead with the answer or result.
 - Avoid long explanations unless asked for detail.
 - For code changes, report only: what changed, where, tests run, and remaining risks.
+
+## Session State Management
+
+Maintain a file called SESSION.md in the project root. Update it after completing each meaningful unit of work. It should contain:
+
+- Current task and progress
+- Key decisions made during this session
+- Open questions or blockers
+- Files modified and why
+- Next steps
+- All with succinct bullet points, sufficient to pick up after compaction: it's NOT full code documentation...
+
+This file will be read back after context compaction, so write it as if briefing a replacement who knows the codebase but not what you've been doing today.

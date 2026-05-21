@@ -83,7 +83,7 @@ void assign_rings(PopData& pop, const std::vector<float>& pct_of_population) {
     for (size_t r = 0; r < nrings; ++r) {
       const int cnt = counts[r];
       for (int k = 0; k < cnt; ++k) {
-        pop.ring[idxs[cursor++]] = Ring{static_cast<uint8_t>(r + 1)};
+        pop.ring[idxs[cursor++]] = Ring{static_cast<uint8_t>(r + 1)};  // we can use nidx(r)
       }
     }
   }
@@ -187,6 +187,12 @@ Model setup_sim(Config config)
     PopData pop(popn);
     assign_rings(pop, mp.ringtraits.pct_of_population);
     auto ring_members = build_ring_members(pop, mp.ringtraits.ring_count());
+
+    // precompute per-ring sizes so the spread sieve avoids touching inner-vector headers
+    std::vector<size_t> ring_lengths(ring_members.size());
+    for (size_t r = 0; r < ring_members.size(); ++r)
+      ring_lengths[r] = ring_members[r].size();
+
     auto day1 = parse_date(date);
 
     // series_type series = build_series(ndays, day1, std::vector<std::string>{});
@@ -204,6 +210,7 @@ Model setup_sim(Config config)
       .debug = debug,
       .mp = std::move(mp),
       .pop = std::move(pop),
-      .ring_members = std::move(ring_members)};
+      .ring_members = std::move(ring_members),
+      .ring_lengths = std::move(ring_lengths)};
 }
 // clang-format on

@@ -1,0 +1,32 @@
+[
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 3
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 3
+        }
+    }
+]

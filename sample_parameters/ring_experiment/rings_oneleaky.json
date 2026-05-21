@@ -1,0 +1,28 @@
+{
+    "rings": [
+        {
+            "name"                   : "ring_1",
+            "pct_of_population"      : 0.34,
+            "out_ring_prob_by_agegrp": {
+                "age0_19" : 0.20, "age20_39": 0.20, "age40_59": 0.20,
+                "age60_79": 0.20, "age80_up": 0.20
+            }
+        },
+        {
+            "name"                   : "ring_2",
+            "pct_of_population"      : 0.33,
+            "out_ring_prob_by_agegrp": {
+                "age0_19" : 0.00, "age20_39": 0.00, "age40_59": 0.00,
+                "age60_79": 0.00, "age80_up": 0.00
+            }
+        },
+        {
+            "name"                   : "ring_3",
+            "pct_of_population"      : 0.33,
+            "out_ring_prob_by_agegrp": {
+                "age0_19" : 0.00, "age20_39": 0.00, "age40_59": 0.00,
+                "age60_79": 0.00, "age80_up": 0.00
+            }
+        }
+    ]
+}

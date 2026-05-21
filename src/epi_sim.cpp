@@ -58,6 +58,9 @@ int main(int argc, char** argv) {
       .social = resolve_config_path(config_dir, config_json, "social"),
       .vaccines = resolve_config_path(config_dir, config_json, "vaccines"),
       .vax_sched_dir = resolve_config_path(config_dir, config_json, "vax_sched_dir"),
+      .rings = config_json.contains("rings")
+                   ? resolve_config_path(config_dir, config_json, "rings")
+                   : fs::path{},  // key absent = rings disabled
   };
 
   fmt::println("Setup simulation...");

@@ -39,6 +39,12 @@ target("dates")
     add_files("scratch/date-tests.cpp")
     add_packages("vcpkg::abseil")
 
+target("ring_experiment")
+    set_kind("binary")
+    set_default(false)
+    add_files("scratch/ring_experiment.cpp", "src/*.cpp|epi_sim.cpp")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
+
 
 
 --

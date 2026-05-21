@@ -11,7 +11,10 @@
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq,
-              const vector<SocialDistancing>& sd_cases) {
+              const vector<SocialDistancing>& sd_cases,
+              const RingTraits& ringtraits,
+              const std::vector<std::vector<size_t>>& ring_members,
+              const std::vector<size_t>& ring_lengths) {
 
     auto thisday = sim::get_day();
 
@@ -30,7 +33,37 @@
     auto contact_factor = contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
     auto scale = density_factor * indoor_factor * contact_factor;
     auto num_contacts = xo::gamma_int(gammashape, scale, 12);
-    xo::get_n_draws<size_t>(1, pop.popn, num_contacts, contacts);  // this function clears contacts before refilling it
+
+    // select which people are contacted; fill the pre-allocated contacts buffer
+    contacts.clear();
+    const size_t spr_ring = person.ring().v;
+    if (ring_members.empty() || spr_ring == 0) {
+      // rings disabled — global mixing, byte-identical to prior behavior
+      xo::append_n_draws<size_t>(1, pop.popn, num_contacts, contacts);
+    } else {
+      // ring-aware selection: split contacts into same-ring and out-of-ring
+      const auto& mem = ring_members[spr_ring];    // pop indices for in ring members
+      const size_t P = pop.popn - mem.size();  // out-of-ring pool size
+      const float p_out = ringtraits.out_ring_prob[spr_ring][spr_agegrp.v];
+      const int k_out = (P == 0) ? 0    // num contacts outside of spreader's ring
+          : std::binomial_distribution<int>{num_contacts, p_out}(xo::get_gen());
+      const int k_in = num_contacts - k_out;
+
+      xo::append_n_draws<size_t>(0, mem.size() - 1, k_in, contacts);   // in-ring ordinals
+      if (k_out) xo::append_n_draws<size_t>(0, P - 1, k_out, contacts);  // out-ring ordinals
+
+      // map ordinals -> 1-based person ids, in place
+      for (int i = 0; i < k_in; ++i) contacts[i] = mem[contacts[i]];  // in-ring contacts
+      for (int i = k_in; i < num_contacts; ++i) {  // sieve across candidate contacts in other rings
+        size_t maybe_idx = contacts[i];
+        for (size_t ring_num = 1; ring_num < ring_lengths.size(); ++ring_num) {
+          if (ring_num == spr_ring) continue;   // skip the spreader's ring
+          const size_t ring_sz = ring_lengths[ring_num];
+          if (maybe_idx < ring_sz) { contacts[i] = ring_members[ring_num][maybe_idx]; break; } // test will pass eventually
+          maybe_idx -= ring_sz;  // maybe an index in the next ring
+        }
+      }
+    }
 
     // sim::ds.num_contacts += contacts.size();  // daily summary stat
 

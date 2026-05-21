@@ -1,0 +1,13 @@
+{
+    "days": 180,
+    "locale": 38015,
+    "calendar_start": "2020-01-01",
+    "dovax": false,
+    "debug": false,
+    "geodata": "geo2data.csv",
+    "variants": "variants.json",
+    "social": "socialparams.json",
+    "vaccines": "vaccines.json",
+    "vax_sched_dir": "vaccine_100k",
+    "rings": "rings.json"
+}
