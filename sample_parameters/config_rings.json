@@ -9,5 +9,5 @@
     "social": "socialparams.json",
     "vaccines": "vaccines.json",
     "vax_sched_dir": "vaccine_100k",
-    "rings": "rings.json"
+    "rings": "ring_experiment/rings_oneleaky.json"
 }

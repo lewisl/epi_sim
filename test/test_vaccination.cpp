@@ -9,7 +9,8 @@ namespace {
 constexpr std::string_view GROUP = "vaccination";
 
 AllSeries make_series(const PopData& pop, size_t day_cnt) {
-  return AllSeries(day_cnt, pop, Variant::names.size(), Vax::names.size());
+  size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
+  return AllSeries(day_cnt, pop, Variant::names.size(), Vax::names.size(), n_ring_slots);
 }
 
 VaxSet make_pfizer_set(int reqdshots, int delay2ndshot, int delaybooster) {

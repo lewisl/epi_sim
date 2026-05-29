@@ -3,6 +3,7 @@
 #include "parameters.h"
 #include "population.h"
 #include "sim.h"
+#include <charconv>
 
 namespace {
 void ensure_parent_dir(const std::filesystem::path& output_path) {
@@ -29,63 +30,67 @@ AgeBucket bucket_from_age(Agegrp agegrp) {
 // SeriesGroup
 // ---------------------------------------------------------------
 
-SeriesGroup::SeriesGroup(size_t n_subjects, size_t day_cnt)
-    : subjects(n_subjects), day_cnt(day_cnt) {
-    for (auto& bucket_arr : subjects) {
-        for (auto& v : bucket_arr) v.assign(day_cnt + 1, 0);  // days are 1-indexed
+SeriesGroup::SeriesGroup(size_t n_subjects, size_t n_rings, size_t day_cnt)
+    : subjects(n_subjects), day_cnt(day_cnt), n_rings(n_rings) {
+    for (auto& ring_arr : subjects) {
+        ring_arr.resize(n_rings);
+        for (auto& bucket_arr : ring_arr) {
+            for (auto& v : bucket_arr) v.assign(day_cnt + 1, 0);  // days are 1-indexed
+        }
     }
 }
 
-void SeriesGroup::update(uint8_t subject_idx, Agegrp agegrp, size_t day, int change) {
+void SeriesGroup::update(uint8_t subject_idx, uint8_t ring, Agegrp agegrp,
+                         size_t day, int change) {
     auto bucket = size_t(bucket_from_age(agegrp));
-    subjects[subject_idx][bucket][day] += change;
-    subjects[subject_idx][size_t(AgeBucket::total)][day] += change;
+    auto& subj  = subjects[subject_idx];
+    subj[ring][bucket][day]                       += change;
+    subj[ring][size_t(AgeBucket::total)][day]     += change;
+    if (ring != RING_ALL) {
+        subj[RING_ALL][bucket][day]                   += change;
+        subj[RING_ALL][size_t(AgeBucket::total)][day] += change;
+    }
 }
 
 // ---------------------------------------------------------------
 // AllSeries
 // ---------------------------------------------------------------
 
-AllSeries::AllSeries(size_t day_cnt, const PopData& pop, size_t n_variants, size_t n_vax)
-    : now_status(Status::names.size(), day_cnt),
-      new_status(Status::names.size(), day_cnt),
-      now_vax(n_vax, day_cnt),
-      new_vax(n_vax, day_cnt),
-      now_variant(n_variants, day_cnt),
-      new_variant(n_variants, day_cnt),
+AllSeries::AllSeries(size_t day_cnt, const PopData& pop,
+                     size_t n_variants, size_t n_vax, size_t n_rings)
+    : now_status(Status::names.size(), n_rings, day_cnt),
+      new_status(Status::names.size(), n_rings, day_cnt),
+      now_vax(n_vax, n_rings, day_cnt),
+      new_vax(n_vax, n_rings, day_cnt),
+      now_variant(n_variants, n_rings, day_cnt),
+      new_variant(n_variants, n_rings, day_cnt),
       day_cnt(day_cnt)
 {
     if (day_cnt == 0) return;
-    // Seed day-1 now_status for UNEXPOSED from PopData age bucket counts
-    now_status.subjects[uint8_t(UNEXPOSED)][size_t(AgeBucket::total)][1] = static_cast<int>(pop.popn);
+    // Seed day-1 now_status for UNEXPOSED from PopData age bucket counts.
+    // First-pass: seed only the RING_ALL aggregate. Per-ring day-1 UNEXPOSED
+    // stocks are a follow-up (need ring membership threaded in).
+    now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] = static_cast<int>(pop.popn);
     for (size_t i = 0; i < pop.agegrp_parts.size(); ++i) {
-        now_status.subjects[uint8_t(UNEXPOSED)][i + 1][1] = pop.agegrp_parts[i];
+        now_status.at(uint8_t(UNEXPOSED), static_cast<AgeBucket>(i + 1))[1] = pop.agegrp_parts[i];
     }
 }
 
 void AllSeries::init_history_series(size_t day) {
     if (day <= 1) return;
-    // Carry now_status stocks forward from the previous day
-    for (size_t s = 0; s < now_status.subjects.size(); ++s) {
-        for (auto bucket : all_age_buckets) {
-            now_status.at(static_cast<uint8_t>(s), bucket)[day] =
-                now_status.at(static_cast<uint8_t>(s), bucket)[day-1];
+    auto carry = [day](SeriesGroup& grp) {
+        for (size_t s = 0; s < grp.subjects.size(); ++s) {
+            for (uint8_t r = 0; r < grp.n_rings; ++r) {
+                for (auto bucket : all_age_buckets) {
+                    grp.at(static_cast<uint8_t>(s), bucket, r)[day] =
+                        grp.at(static_cast<uint8_t>(s), bucket, r)[day-1];
+                }
+            }
         }
-    }
-    // Carry now_vax stocks forward
-    for (size_t v = 0; v < now_vax.subjects.size(); ++v) {
-        for (auto bucket : all_age_buckets) {
-            now_vax.at(static_cast<uint8_t>(v), bucket)[day] =
-                now_vax.at(static_cast<uint8_t>(v), bucket)[day-1];
-        }
-    }
-    // Carry now_variant stocks forward
-    for (size_t v = 0; v < now_variant.subjects.size(); ++v) {
-        for (auto bucket : all_age_buckets) {
-            now_variant.at(static_cast<uint8_t>(v), bucket)[day] =
-                now_variant.at(static_cast<uint8_t>(v), bucket)[day-1];
-        }
-    }
+    };
+    carry(now_status);
+    carry(now_vax);
+    carry(now_variant);
 }
 
 void AllSeries::finalize_series() {
@@ -163,19 +168,34 @@ std::vector<SeriesSelection> SeriesColSpec::build_for_buckets(
 // resolve_series: named series lookup for serialization/printing
 // ---------------------------------------------------------------
 
+// "" → RING_ALL. A decimal token is taken as a literal ring id; otherwise
+// looked up by name in Ring::names. nullopt if unknown.
+std::optional<uint8_t> ring_id_from_token(const std::string& tok) {
+    if (tok.empty()) return RING_ALL;
+    if (std::all_of(tok.begin(), tok.end(), ::isdigit)) {
+        auto v = std::stoul(tok);
+        if (v == 0 || v < Ring::names.size()) return static_cast<uint8_t>(v);
+        return std::nullopt;
+    }
+    auto it = std::find(Ring::names.begin(), Ring::names.end(), tok);
+    if (it == Ring::names.end()) return std::nullopt;
+    return static_cast<uint8_t>(std::distance(Ring::names.begin(), it));
+}
+
 std::optional<vector<int>> resolve_series(const AllSeries& series,
-                                          std::string_view name, AgeBucket bucket) {
+                                          std::string_view name, AgeBucket bucket,
+                                          uint8_t ring) {
     for (size_t i = 1; i < Status::names.size(); ++i) {
         if (name == "now_" + Status::names[i])
-            return series.now_status.at(static_cast<uint8_t>(i), bucket);
+            return series.now_status.at(static_cast<uint8_t>(i), bucket, ring);
         if (name == "new_" + Status::names[i])
-            return series.new_status.at(static_cast<uint8_t>(i), bucket);
+            return series.new_status.at(static_cast<uint8_t>(i), bucket, ring);
     }
     if (name == "now_vaccinated" || name == "new_vaccinated") {
         const SeriesGroup& grp = (name == "now_vaccinated") ? series.now_vax : series.new_vax;
         vector<int> result(series.day_cnt + 1, 0);
         for (size_t i = 1; i < grp.subjects.size(); ++i) {  // skip "none" at index 0
-            const auto& v = grp.at(static_cast<uint8_t>(i), bucket);
+            const auto& v = grp.at(static_cast<uint8_t>(i), bucket, ring);
             for (size_t d = 0; d <= series.day_cnt; ++d) result[d] += v[d];
         }
         return result;
@@ -190,18 +210,45 @@ std::optional<vector<int>> resolve_series(const AllSeries& series,
             auto it = std::find(Variant::names.begin(), Variant::names.end(), subject_name);
             if (it == Variant::names.end()) return std::nullopt;
             auto idx = static_cast<uint8_t>(std::distance(Variant::names.begin(), it));
-            return grp.at(idx, bucket);
+            return grp.at(idx, bucket, ring);
         }
         if (group == "now_vax" || group == "new_vax") {
             const SeriesGroup& grp = (group == "now_vax") ? series.now_vax : series.new_vax;
             auto it = std::find(Vax::names.begin(), Vax::names.end(), subject_name);
             if (it == Vax::names.end()) return std::nullopt;
             auto idx = static_cast<uint8_t>(std::distance(Vax::names.begin(), it));
-            return grp.at(idx, bucket);
+            return grp.at(idx, bucket, ring);
         }
     }
 
     return std::nullopt;
+}
+
+std::optional<RingNameParse> parse_ring_suffix(std::string_view name) {
+    constexpr std::string_view tag = "@ring:";
+    auto pos = name.find(tag);
+    if (pos == std::string_view::npos) {
+        return RingNameParse{std::string(name), RING_ALL};
+    }
+    auto base   = name.substr(0, pos);
+    auto suffix = name.substr(pos + tag.size());
+    if (suffix.empty()) return std::nullopt;
+
+    // try name lookup first
+    auto it = std::find(Ring::names.begin(), Ring::names.end(), std::string(suffix));
+    if (it != Ring::names.end()) {
+        auto idx = static_cast<uint8_t>(std::distance(Ring::names.begin(), it));
+        return RingNameParse{std::string(base), idx};
+    }
+    // fall back to decimal index
+    int parsed = 0;
+    auto first = suffix.data();
+    auto last  = suffix.data() + suffix.size();
+    auto [ptr, ec] = std::from_chars(first, last, parsed);
+    if (ec != std::errc{} || ptr != last || parsed < 0 || parsed > 255) {
+        return std::nullopt;
+    }
+    return RingNameParse{std::string(base), static_cast<uint8_t>(parsed)};
 }
 
 // ---------------------------------------------------------------
@@ -256,12 +303,16 @@ void print_selected_series(SeriesColSpec spec, const AllSeries& series,
   cols.reserve(selections.size());
   vector<string> invalid_selections;
 
-  for (const auto& [name_text, bucket_text] : selections) {
-    auto bucket = age_bucket_from_string(bucket_text);
-    if (!bucket) { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    auto data = resolve_series(series, name_text, *bucket);
-    if (!data)   { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    cols.push_back({fmt::format("{}:{}", name_text, bucket_text), std::move(*data)});
+  for (const auto& sel : selections) {
+    auto bucket = age_bucket_from_string(sel.bucket);
+    auto ring   = ring_id_from_token(sel.ring);
+    auto label  = sel.ring.empty()
+                      ? fmt::format("{}:{}", sel.name, sel.bucket)
+                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
+    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
+    auto data = resolve_series(series, sel.name, *bucket, *ring);
+    if (!data)            { invalid_selections.push_back(label); continue; }
+    cols.push_back({label, std::move(*data)});
   }
 
   if (!invalid_selections.empty()) {
@@ -315,12 +366,16 @@ void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
   cols.reserve(selections.size());
   vector<string> invalid_selections;
 
-  for (const auto& [name_text, bucket_text] : selections) {
-    auto bucket = age_bucket_from_string(bucket_text);
-    if (!bucket) { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    auto data = resolve_series(series, name_text, *bucket);
-    if (!data)   { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    cols.push_back({fmt::format("{}:{}", name_text, bucket_text), std::move(*data)});
+  for (const auto& sel : selections) {
+    auto bucket = age_bucket_from_string(sel.bucket);
+    auto ring   = ring_id_from_token(sel.ring);
+    auto label  = sel.ring.empty()
+                      ? fmt::format("{}:{}", sel.name, sel.bucket)
+                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
+    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
+    auto data = resolve_series(series, sel.name, *bucket, *ring);
+    if (!data)            { invalid_selections.push_back(label); continue; }
+    cols.push_back({label, std::move(*data)});
   }
 
   if (!invalid_selections.empty()) {

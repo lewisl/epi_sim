@@ -110,13 +110,17 @@ void seriesplot(SeriesColSpec spec, const AllSeries& series,
   daystrs.reserve(caldays.size());
   for (const auto& day : caldays)
       daystrs.push_back(absl::FormatCivilTime(day));
-  // y axis values: resolve each (name, bucket) pair
-  for (const auto& [name_text, bucket_text] : selections) {
-    auto bucket = age_bucket_from_string(bucket_text);
-    if (!bucket) { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    auto data = resolve_series(series, name_text, *bucket);
-    if (!data)   { invalid_selections.push_back(fmt::format("{}:{}", name_text, bucket_text)); continue; }
-    cols.push_back({fmt::format("{}:{}", name_text, bucket_text), std::move(*data)});
+  // y axis values: resolve each selection
+  for (const auto& sel : selections) {
+    auto bucket = age_bucket_from_string(sel.bucket);
+    auto ring   = ring_id_from_token(sel.ring);
+    auto label  = sel.ring.empty()
+                      ? fmt::format("{}:{}", sel.name, sel.bucket)
+                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
+    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
+    auto data = resolve_series(series, sel.name, *bucket, *ring);
+    if (!data)            { invalid_selections.push_back(label); continue; }
+    cols.push_back({label, std::move(*data)});
   }
   // summary totals for plot inset text box
   int died = sumstruct.dead[6];

@@ -8,7 +8,17 @@
 
 enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, age80_up, COUNT };
 
-using SeriesSelection = std::pair<string, string>;
+// Reserved ring slot holding the all-rings aggregate. Reuses the unused
+// sentinel index so no real person (rings are 1-based) ever collides with it.
+inline constexpr uint8_t RING_ALL = 0;
+
+struct SeriesSelection {
+    std::string name;
+    std::string bucket;
+    std::string ring = "";   // "" → RING_ALL (all-rings aggregate)
+
+    bool operator==(const SeriesSelection&) const = default;
+};
 
 inline constexpr auto all_age_buckets = std::array{
     AgeBucket::total, AgeBucket::age0_19, AgeBucket::age20_39,
@@ -34,32 +44,37 @@ inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
 
 /*
 SeriesGroup: one group of series data, indexed first by subject (trait uint8_t value),
-then by age bucket, then by simulation day (1-based; slot 0 unused).
+then by ring id (0 = RING_ALL aggregate), then by age bucket, then by simulation day
+(1-based; slot 0 unused).
 
 Usage:
-  SeriesGroup sg(n_subjects, day_cnt);
-  sg.update(INFECTIOUS, agegrp, today, 1);     // increments specific age bucket AND total
-  int v = sg.at(INFECTIOUS, AgeBucket::total)[day];
+  SeriesGroup sg(n_subjects, n_rings, day_cnt);
+  sg.update(INFECTIOUS, ring, agegrp, today, 1);  // writes per-ring + RING_ALL aggregate
+  int v = sg.at(INFECTIOUS, AgeBucket::total)[day];           // defaults to RING_ALL
+  int v = sg.at(INFECTIOUS, AgeBucket::total, ring_id)[day];  // specific ring
 */
 struct SeriesGroup {
-    using BucketArray = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;
+    using BucketArray = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;  // one ring's age buckets
+    using RingArray   = std::vector<BucketArray>;  // indexed by ring id (0 = RING_ALL)
 
-    std::vector<BucketArray> subjects;  // indexed by trait's uint8_t value
+    std::vector<RingArray> subjects;  // indexed by trait's uint8_t value
     size_t day_cnt{};
+    size_t n_rings{};
 
     SeriesGroup() = default;
-    SeriesGroup(size_t n_subjects, size_t day_cnt);
+    SeriesGroup(size_t n_subjects, size_t n_rings, size_t day_cnt);
 
-    // Increments subjects[subject_idx] for both the specific age bucket
-    // AND the total bucket (index 0). Every call site uses this —
-    // no caller should touch BucketArray directly for updates.
-    void update(uint8_t subject_idx, Agegrp agegrp, size_t day, int change);
+    // Writes four cells per call: (ring, bucket), (ring, total),
+    // (RING_ALL, bucket), (RING_ALL, total). The RING_ALL mirror-writes
+    // accumulate the all-rings aggregate inline; the inner guard avoids
+    // double-counting when ring == RING_ALL (no-rings case).
+    void update(uint8_t subject_idx, uint8_t ring, Agegrp agegrp, size_t day, int change);
 
-    auto& at(uint8_t subject_idx, AgeBucket bucket) {
-        return subjects[subject_idx][size_t(bucket)];
+    auto& at(uint8_t subject_idx, AgeBucket bucket, uint8_t ring = RING_ALL) {
+        return subjects[subject_idx][ring][size_t(bucket)];
     }
-    auto const& at(uint8_t subject_idx, AgeBucket bucket) const {
-        return subjects[subject_idx][size_t(bucket)];
+    auto const& at(uint8_t subject_idx, AgeBucket bucket, uint8_t ring = RING_ALL) const {
+        return subjects[subject_idx][ring][size_t(bucket)];
     }
 };
 
@@ -69,9 +84,10 @@ AllSeries: top-level container for all time-series data in the simulation.
 Nesting:
   AllSeries (one instance, passed by reference everywhere)
     6 SeriesGroup members (compile-time named fields)
-      vector of BucketArray (indexed by trait uint8_t: Status, Vax, or Variant)
-        array of 6 vector<int> (indexed by AgeBucket enum)
-          vector<int> (indexed by simulation day, 1-based; slot 0 unused)
+      vector of RingArray (indexed by trait uint8_t: Status, Vax, or Variant)
+        vector of BucketArray (indexed by ring id; 0 = RING_ALL aggregate)
+          array of 6 vector<int> (indexed by AgeBucket enum)
+            vector<int> (indexed by simulation day, 1-based; slot 0 unused)
 */
 struct AllSeries {
     SeriesGroup now_status, new_status;
@@ -80,7 +96,7 @@ struct AllSeries {
     size_t day_cnt;
 
     AllSeries(size_t day_cnt, const PopData& pop,
-              size_t n_variants, size_t n_vax);
+              size_t n_variants, size_t n_vax, size_t n_rings);
 
     void init_history_series(size_t day);
     void finalize_series();
@@ -93,11 +109,32 @@ struct AllSeries {
 
 AgeBucket bucket_from_age(Agegrp agegrp);
 
-// Resolves a (name, bucket) pair to a day-indexed vector<int>.
+// Resolves a (name, bucket, ring) triple to a day-indexed vector<int>.
 // For vax series, sums across all non-none brands (index > 0).
+// Ring defaults to RING_ALL (the all-rings aggregate). The name should
+// be the base name only (no "@ring:..." suffix); see parse_ring_suffix.
 // Returns nullopt if name is not recognized.
 std::optional<vector<int>> resolve_series(const AllSeries& series,
-                                          std::string_view name, AgeBucket bucket);
+                                          std::string_view name, AgeBucket bucket,
+                                          uint8_t ring = RING_ALL);
+
+// Maps a ring token (as it appears in SeriesSelection::ring) to a ring id.
+// "" → RING_ALL (all-rings aggregate). A decimal token is taken as a literal
+// ring id; otherwise the token is looked up by name in Ring::names. Returns
+// nullopt for an unknown name or out-of-range index.
+std::optional<uint8_t> ring_id_from_token(const std::string& tok);
+
+// Parses an optional "@ring:<name|idx>" suffix on a selection name.
+// - "now_infectious"            -> {"now_infectious", RING_ALL}
+// - "now_infectious@ring:Jail"  -> {"now_infectious", <idx of "Jail">}
+// - "now_infectious@ring:3"     -> {"now_infectious", 3}
+// Returns nullopt only when the suffix is present but does not resolve
+// (unknown ring name or out-of-range index).
+struct RingNameParse {
+    std::string base_name;
+    uint8_t ring;
+};
+std::optional<RingNameParse> parse_ring_suffix(std::string_view name);
 
 /*
 Input argument type for series columns to be printed/serialized/plotted.
@@ -108,6 +145,7 @@ Usage:
   SeriesColSpec("all", {"total", "age20_39"})  → all subjects × listed buckets
   SeriesColSpec({{"now_infectious","total"}, {"now_recovered","total"}})  → explicit list
   SeriesColSpec{{"now_infectious","total"}, {"now_recovered","total"}}    → initializer list
+  SeriesColSpec{{"now_infectious","total","Jail"}, {"now_dead","total"}}  → mixed: ring-qualified + bare (aggregate)
 */
 struct SeriesColSpec {
     std::vector<SeriesSelection> selections;

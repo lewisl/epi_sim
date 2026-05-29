@@ -107,8 +107,8 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
-            series.new_vax.update(uint8_t(choice), agent.agegrp(), today, 1);
-            series.now_vax.update(uint8_t(choice), agent.agegrp(), today, 1);
+            series.new_vax.update(uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);
+            series.now_vax.update(uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);
 
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {

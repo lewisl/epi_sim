@@ -41,16 +41,17 @@ float require_effectiveness(const VaxParams& params,
 void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
   auto this_age = agegrp();
-  series.new_status.update(INFECTIOUS, this_age, today, 1);
-  series.now_status.update(INFECTIOUS, this_age, today, 1);
-  series.now_variant.update(var, this_age, today, 1);
-  series.new_variant.update(var, this_age, today, 1);
+  auto r = ring().v;
+  series.new_status.update(INFECTIOUS, r, this_age, today, 1);
+  series.now_status.update(INFECTIOUS, r, this_age, today, 1);
+  series.now_variant.update(var, r, this_age, today, 1);
+  series.new_variant.update(var, r, this_age, today, 1);
 
   if (status() == RECOVERED) {
-    series.now_status.update(RECOVERED, this_age, today, -1);
+    series.now_status.update(RECOVERED, r, this_age, today, -1);
   } else {
     if (status() == UNEXPOSED) {
-      series.now_status.update(UNEXPOSED, this_age, today, -1);
+      series.now_status.update(UNEXPOSED, r, this_age, today, -1);
     }
   }
   cond() = condition;
@@ -84,10 +85,11 @@ as a method of AgentView, the instance variable is not used to apply methods or 
 void AgentView::make_well(AllSeries & series) {    // the object is person--the implied argument
   auto today = sim::get_day();
   auto this_age = agegrp();
-  series.now_status.update(RECOVERED,  this_age, today,  1);
-  series.new_status.update(RECOVERED,  this_age, today,  1);
-  series.now_status.update(INFECTIOUS, this_age, today, -1);
-  series.now_variant.update(variant(), this_age, today, -1);
+  auto r = ring().v;
+  series.now_status.update(RECOVERED,  r, this_age, today,  1);
+  series.new_status.update(RECOVERED,  r, this_age, today,  1);
+  series.now_status.update(INFECTIOUS, r, this_age, today, -1);
+  series.now_variant.update(variant(), r, this_age, today, -1);
 
   cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
   status() = RECOVERED; 
@@ -109,10 +111,11 @@ void AgentView::make_well(AllSeries & series) {    // the object is person--the 
 void AgentView::make_dead(AllSeries & series) {
     auto today = sim::get_day();
     auto this_age = agegrp();
-    series.now_status.update(DEAD,       this_age, today,  1);
-    series.new_status.update(DEAD,       this_age, today,  1);
-    series.now_status.update(INFECTIOUS, this_age, today, -1);
-    series.now_variant.update(variant(), this_age, today, -1);
+    auto r = ring().v;
+    series.now_status.update(DEAD,       r, this_age, today,  1);
+    series.new_status.update(DEAD,       r, this_age, today,  1);
+    series.now_status.update(INFECTIOUS, r, this_age, today, -1);
+    series.now_variant.update(variant(), r, this_age, today, -1);
 
   // update the person: update deadday and status for the person
   deadday() = today;   

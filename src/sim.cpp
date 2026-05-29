@@ -27,8 +27,13 @@ void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>&
   // seed the random number generator
   xo::seed(99999);  // have used 12345
 
-  // create vector set for series statistics
-  AllSeries series(model.ndays, pop, Variant::names.size(), Vax::names.size());
+  // create vector set for series statistics.
+  // Ring slot count: max(Ring::names.size(), 1). With no rings defined
+  // Ring::names is empty -> 1 slot (index 0); with N rings defined the
+  // size is N+1 (sentinel + names) -> N+1 slots, index 0 = RING_ALL.
+  size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
+  AllSeries series(model.ndays, pop, Variant::names.size(),
+                   Vax::names.size(), n_ring_slots);
 
   // reset day counter to zero
   sim::reset_day();
@@ -172,7 +177,13 @@ void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>&
 
   // write series + PopData columns to csv (skipped in headless runs)
   if (!model.headless) {
-    serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
+    // serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
+    serialize_selected_series(
+      {{"now_infectious", "total", "ring_1"},
+      {"new_infectious", "total", "ring_1"},
+      {"new_dead",       "total", "ring_1"},
+      {"new_dead", "total", "ring_2"}},
+      series, "test_series", {"code", "epi_sim", "series_output"});
 
     auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
     pop_to_csv(pop, pop.all_idx, "all", output);
