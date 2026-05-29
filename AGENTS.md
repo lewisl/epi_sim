@@ -183,3 +183,16 @@ Practical guidance:
 - Lead with the answer or result.
 - Avoid long explanations unless asked for detail.
 - For code changes, report only: what changed, where, tests run, and remaining risks.
+
+## Session State Management
+
+- On startup or after context compaction, always read `SESSION.md` first.
+- Treat `SESSION.md` as the source of truth for:
+  - Current task and progress
+  - Key decisions made this session
+  - Open questions or blockers
+  - Files modified and why
+  - Next concrete steps
+- When you finish a meaningful unit of work or are about to lose context,
+  update `SESSION.md` with succinct bullet points. Write it as if briefing
+  a replacement who knows the codebase but not what you did today.

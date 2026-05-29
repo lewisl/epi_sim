@@ -98,30 +98,13 @@ void produce_plot(std::string base_fname, std::string end_message, json data, js
 void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack) {
-  auto& selections = spec.selections;
-
   // step 1: assemble data from simulation run
-  struct ResolvedCol { string label; vector<int> data; };
-  vector<ResolvedCol> cols;
-  cols.reserve(selections.size());
-  vector<string> invalid_selections;
+  auto resolved = resolve_selected_series(spec, series);
   // x axis values
   std::vector<std::string> daystrs;
   daystrs.reserve(caldays.size());
   for (const auto& day : caldays)
       daystrs.push_back(absl::FormatCivilTime(day));
-  // y axis values: resolve each selection
-  for (const auto& sel : selections) {
-    auto bucket = age_bucket_from_string(sel.bucket);
-    auto ring   = ring_id_from_token(sel.ring);
-    auto label  = sel.ring.empty()
-                      ? fmt::format("{}:{}", sel.name, sel.bucket)
-                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
-    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
-    auto data = resolve_series(series, sel.name, *bucket, *ring);
-    if (!data)            { invalid_selections.push_back(label); continue; }
-    cols.push_back({label, std::move(*data)});
-  }
   // summary totals for plot inset text box
   int died = sumstruct.dead[6];
   int recovered = sumstruct.recovered[6];
@@ -130,7 +113,7 @@ void seriesplot(SeriesColSpec spec, const AllSeries& series,
 
   // step 2: create the json objects
   json data_json = json::array();
-  for (const auto& col : cols) {
+  for (const auto& col : resolved.cols) {
     std::vector<int> y_values(col.data.begin() + 1, col.data.end());
 
     json trace = {

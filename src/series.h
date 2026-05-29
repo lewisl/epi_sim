@@ -13,8 +13,8 @@ enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, a
 inline constexpr uint8_t RING_ALL = 0;
 
 struct SeriesSelection {
-    std::string name;
-    std::string bucket;
+    std::string name;        // this must be a string that matches 
+    std::string bucket;      // this must be a string that matches an AgeBucket enum
     std::string ring = "";   // "" → RING_ALL (all-rings aggregate)
 
     bool operator==(const SeriesSelection&) const = default;
@@ -169,6 +169,19 @@ private:
     static void validate_sentinel(const char* s);
     static std::vector<SeriesSelection> build_for_buckets(const std::vector<std::string>& buckets);
 };
+
+struct ResolvedSeriesCol {
+    std::string label;
+    std::vector<int> data;
+};
+
+struct ResolvedSeriesSelection {
+    std::vector<ResolvedSeriesCol> cols;
+    std::vector<std::string> invalid_selections;
+};
+
+ResolvedSeriesSelection resolve_selected_series(const SeriesColSpec& spec,
+                                                const AllSeries& series);
 
 void print_total_status_series(const AllSeries& series, size_t days_per_block = 15);
 void print_selected_series(SeriesColSpec spec, const AllSeries& series,

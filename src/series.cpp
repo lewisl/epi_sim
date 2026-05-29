@@ -251,6 +251,33 @@ std::optional<RingNameParse> parse_ring_suffix(std::string_view name) {
     return RingNameParse{std::string(base), static_cast<uint8_t>(parsed)};
 }
 
+ResolvedSeriesSelection resolve_selected_series(const SeriesColSpec& spec,
+                                                const AllSeries& series) {
+  ResolvedSeriesSelection resolved;
+  auto& selections = spec.selections;
+  resolved.cols.reserve(selections.size());
+
+  for (const auto& sel : selections) {
+    auto bucket = age_bucket_from_string(sel.bucket);
+    auto ring   = ring_id_from_token(sel.ring);
+    auto label  = sel.ring.empty()
+                      ? fmt::format("{}:{}", sel.name, sel.bucket)
+                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
+    if (!bucket || !ring) {
+      resolved.invalid_selections.push_back(label);
+      continue;
+    }
+    auto data = resolve_series(series, sel.name, *bucket, *ring);
+    if (!data) {
+      resolved.invalid_selections.push_back(label);
+      continue;
+    }
+    resolved.cols.push_back({label, std::move(*data)});
+  }
+
+  return resolved;
+}
+
 // ---------------------------------------------------------------
 // Print functions
 // ---------------------------------------------------------------
@@ -298,25 +325,11 @@ void print_selected_series(SeriesColSpec spec, const AllSeries& series,
     return;
   }
 
-  struct ResolvedCol { string label; vector<int> data; };
-  vector<ResolvedCol> cols;
-  cols.reserve(selections.size());
-  vector<string> invalid_selections;
+  auto resolved = resolve_selected_series(spec, series);
+  const auto& cols = resolved.cols;
 
-  for (const auto& sel : selections) {
-    auto bucket = age_bucket_from_string(sel.bucket);
-    auto ring   = ring_id_from_token(sel.ring);
-    auto label  = sel.ring.empty()
-                      ? fmt::format("{}:{}", sel.name, sel.bucket)
-                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
-    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
-    auto data = resolve_series(series, sel.name, *bucket, *ring);
-    if (!data)            { invalid_selections.push_back(label); continue; }
-    cols.push_back({label, std::move(*data)});
-  }
-
-  if (!invalid_selections.empty()) {
-    fmt::println("\nUnknown series selections: {}", invalid_selections);
+  if (!resolved.invalid_selections.empty()) {
+    fmt::println("\nUnknown series selections: {}", resolved.invalid_selections);
     return;
   }
   if (cols.empty()) {
@@ -361,25 +374,11 @@ void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
     return;
   }
 
-  struct ResolvedCol { string label; vector<int> data; };
-  vector<ResolvedCol> cols;
-  cols.reserve(selections.size());
-  vector<string> invalid_selections;
+  auto resolved = resolve_selected_series(spec, series);
+  const auto& cols = resolved.cols;
 
-  for (const auto& sel : selections) {
-    auto bucket = age_bucket_from_string(sel.bucket);
-    auto ring   = ring_id_from_token(sel.ring);
-    auto label  = sel.ring.empty()
-                      ? fmt::format("{}:{}", sel.name, sel.bucket)
-                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
-    if (!bucket || !ring) { invalid_selections.push_back(label); continue; }
-    auto data = resolve_series(series, sel.name, *bucket, *ring);
-    if (!data)            { invalid_selections.push_back(label); continue; }
-    cols.push_back({label, std::move(*data)});
-  }
-
-  if (!invalid_selections.empty()) {
-    fmt::println("\nSkipping unknown series selections: {}", invalid_selections);
+  if (!resolved.invalid_selections.empty()) {
+    fmt::println("\nSkipping unknown series selections: {}", resolved.invalid_selections);
   }
   if (cols.empty()) {
     fmt::println("\nNo valid series selected.");
