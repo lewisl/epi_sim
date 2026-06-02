@@ -3,7 +3,9 @@
 #include "epi_sim.h"
 #include "setup.h"
 #include "sim.h"
+#include <absl/strings/str_split.h>
 #include "parameters.h"
+#include "param_init.h"
 
 namespace {
 
@@ -21,6 +23,8 @@ int main(int argc, char** argv) {
   std::string config_path;
   std::string seed_path;
   std::string sd_seed_path;
+  std::string case_name;
+
 
   // process cmdline --param and its value
   for (int i = 1; i < argc - 1; i += 2) {
@@ -29,10 +33,17 @@ int main(int argc, char** argv) {
       if (flag == "--config") config_path = val;
       else if (flag == "--seed") seed_path = val;
       else if (flag == "--sd_seed") sd_seed_path = val;
+      else if (flag == "--case-init") case_name = val;
       else {
           fmt::println(stderr, "Unknown flag: {}", flag);
           return 1;
       }
+  }
+
+  // create the scaffolding if present, then quit
+  if (!empty(case_name)) {
+    create_scaffold();
+    return 0;
   }
 
   // end now if missing any required input

@@ -16,3 +16,4 @@ test_output
 .cache
 tempCode*
 .stignore
+.codegraph

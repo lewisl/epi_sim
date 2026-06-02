@@ -280,6 +280,36 @@ void test_bare_selection_resolves_to_aggregate() {
   test_support::fs::remove_all(out_dir);
 }
 
+void test_mixed_valid_invalid_selection_drops_invalid_column() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Ring::names = {"", "ring_1", "ring_2"};
+  AllSeries series = make_series(2);
+
+  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 3);
+  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+
+  // A spec mixing a resolvable selection with an unknown one: the invalid
+  // column is dropped (with a warning) and the valid column is still written.
+  const string leaf = fmt::format("series_mixed_{}", std::random_device{}());
+  const vector<string> path_steps = {"code", "epi_sim", "test_output", leaf};
+  const auto out_dir = test_support::project_dir() / "test_output" / leaf;
+  test_support::fs::create_directories(out_dir);
+
+  serialize_selected_series({{"now_infectious", "total"},
+                             {"now_variant:missing", "total"}},
+                            series, "series_mixed", path_steps);
+
+  const auto csv_path = first_csv_in_dir(out_dir);
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
+  REQUIRE(lines.size() >= 2);
+  CHECK(lines[0] == "now_infectious:total");
+  CHECK(lines[1] == "8");
+
+  test_support::fs::remove_all(out_dir);
+}
+
 void test_parse_ring_suffix() {
   test_support::RingNamesGuard ring_guard;
   Ring::names = {"", "ring_1", "ring_2"};
@@ -368,6 +398,7 @@ void run_series_tests(const test_support::TestRunOptions& options) {
   test_resolve_series_with_ring_arg();
   test_ring_qualified_selection_resolves_to_ring();
   test_bare_selection_resolves_to_aggregate();
+  test_mixed_valid_invalid_selection_drops_invalid_column();
   test_parse_ring_suffix();
   write_series_artifacts(options);
   if (options.write_artifacts) {
