@@ -363,7 +363,7 @@ void print_selected_series(SeriesColSpec spec, const AllSeries& series,
 // ---------------------------------------------------------------
 
 void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
-                           string base_fname, vector<string> path_steps) {
+                           std::filesystem::path output_path) {
   auto & selections = spec.selections;
   if (series.day_cnt == 0) {
     fmt::println("\nNo day series to output.");
@@ -385,19 +385,12 @@ void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
     return;
   }
 
-  // Build output path
-  const char* home = std::getenv("HOME");
-  if (!home) throw std::runtime_error("HOME not set");
-  std::filesystem::path fpath{home};
-  if (path_steps.empty()) path_steps = {"code", "epi_sim", "series_output"};
-  for (auto step : path_steps) fpath /= step;
-  fpath /= make_timestamped_filename(base_fname) + ".csv";
-  ensure_parent_dir(fpath);
+  ensure_parent_dir(output_path);
 
-  std::ofstream out(fpath);
+  std::ofstream out(output_path);
   if (!out) {
     throw std::runtime_error(
-        fmt::format("Could not write series CSV to '{}'", fpath.string()));
+        fmt::format("Could not write series CSV to '{}'", output_path.string()));
   }
 
   // Write header
@@ -417,5 +410,17 @@ void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
     row.clear();
   }
 
-  fmt::println("Wrote selected series CSV to '{}'", fpath.string());
+  fmt::println("Wrote selected series CSV to '{}'", output_path.string());
+}
+
+void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
+                           string base_fname, vector<string> path_steps) {
+  const char* home = std::getenv("HOME");
+  if (!home) throw std::runtime_error("HOME not set");
+  std::filesystem::path fpath{home};
+  if (path_steps.empty()) path_steps = {"code", "epi_sim", "series_output"};
+  for (auto step : path_steps) fpath /= step;
+  fpath /= make_timestamped_filename(base_fname) + ".csv";
+
+  serialize_selected_series(std::move(spec), series, fpath);
 }

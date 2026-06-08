@@ -8,8 +8,6 @@
 #include "series.h"
 #include "cases.h"
 
-namespace fs = std::filesystem;
-
 // Forward declaration
 struct Model;
 
@@ -21,6 +19,8 @@ struct Config {
   std::string seed {};
   std::string social_dist {};
   bool dovax {false};
+  bool do_social_distancing {false};
+  bool do_rings {false};
   bool debug {false};
   std::string geodata {};
   std::string variants {};
@@ -29,6 +29,7 @@ struct Config {
   std::string vax_sched_dir {};
   std::string rings {};  // empty = rings disabled
   std::string output_dir {};
+  std::string case_label {};
 };
 
 // parameters used throughout the simulation that are better global

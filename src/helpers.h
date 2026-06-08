@@ -59,6 +59,10 @@ auto sum(R &&r) {
 
 void replace_all(std::string& s, const std::string& from, const std::string& to);
 
+std::string sanitize_filename_component(std::string_view input);
+
+std::string make_timestamp_token();
+
 std::string make_timestamped_filename(std::string basename);
 
 #endif

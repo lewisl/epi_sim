@@ -17,8 +17,10 @@ Config sample_config() {
   config.geodata = paths.geodata;
   config.variants = paths.variants;
   config.social_params = paths.social;
+  config.social_dist = (test_support::project_dir() / "sample_parameters" / "soc_dist.json").string();
   config.vaccines = paths.vaccines;
   config.vax_sched_dir = paths.vax_sched_dir;
+  config.rings = (test_support::project_dir() / "sample_parameters" / "rings.json").string();
   return config;
 }
 
@@ -67,6 +69,125 @@ void test_setup_sim_builds_expected_model_shape() {
   CHECK(model.mp.variants[1].show() == "base");
 }
 
+void test_social_distancing_file_is_not_loaded_when_flag_is_false() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Config config = sample_config();
+  config.do_social_distancing = false;
+  REQUIRE(!config.social_dist.empty());
+
+  Model model = setup_sim(config);
+
+  CHECK(!model.do_social_distancing);
+  CHECK(model.sd_cases.empty());
+}
+
+void test_social_distancing_file_loads_when_flag_is_true() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Config config = sample_config();
+  config.do_social_distancing = true;
+
+  Model model = setup_sim(config);
+
+  CHECK(model.do_social_distancing);
+  CHECK(!model.sd_cases.empty());
+}
+
+void test_social_distancing_enabled_requires_path() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Config config = sample_config();
+  config.do_social_distancing = true;
+  config.social_dist = "";
+
+  bool threw = false;
+  try {
+    (void)setup_sim(config);
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+
+  CHECK(threw);
+}
+
+void test_rings_file_is_not_loaded_when_flag_is_false() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Config config = sample_config();
+  config.do_rings = false;
+  REQUIRE(!config.rings.empty());
+
+  Model model = setup_sim(config);
+
+  CHECK(!model.do_rings);
+  CHECK(model.mp.ringtraits.ring_count() == 0);
+  CHECK(model.ring_members.empty());
+  CHECK(Ring::names.empty());
+}
+
+void test_rings_file_loads_when_flag_is_true() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Config config = sample_config();
+  config.do_rings = true;
+
+  Model model = setup_sim(config);
+
+  CHECK(model.do_rings);
+  CHECK(model.mp.ringtraits.ring_count() == 2);
+  CHECK(model.ring_members.size() == 3);
+  CHECK(Ring::names.size() == 3);
+}
+
+void test_rings_enabled_requires_path() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Config config = sample_config();
+  config.do_rings = true;
+  config.rings = "";
+
+  bool threw = false;
+  try {
+    (void)setup_sim(config);
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+
+  CHECK(threw);
+}
+
+void test_rings_enabled_requires_top_level_rings_key() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  const auto tmp_dir = test_support::fs::temp_directory_path() /
+                       fmt::format("epi_sim_bad_rings_{}", std::random_device{}());
+  test_support::fs::create_directories(tmp_dir);
+  const auto bad_rings_path = tmp_dir / "bad_rings.json";
+  {
+    std::ofstream out(bad_rings_path);
+    out << R"({"not_rings":[]})";
+  }
+
+  Config config = sample_config();
+  config.do_rings = true;
+  config.rings = bad_rings_path.string();
+
+  bool threw = false;
+  try {
+    (void)setup_sim(config);
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+
+  CHECK(threw);
+  test_support::fs::remove_all(tmp_dir);
+}
+
 void write_setup_artifacts(const test_support::TestRunOptions& options) {
   if (!options.write_artifacts) return;
 
@@ -102,6 +223,13 @@ void run_setup_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running setup tests...");
   test_sendrisk_indexing();
   test_setup_sim_builds_expected_model_shape();
+  test_social_distancing_file_is_not_loaded_when_flag_is_false();
+  test_social_distancing_file_loads_when_flag_is_true();
+  test_social_distancing_enabled_requires_path();
+  test_rings_file_is_not_loaded_when_flag_is_false();
+  test_rings_file_loads_when_flag_is_true();
+  test_rings_enabled_requires_path();
+  test_rings_enabled_requires_top_level_rings_key();
   write_setup_artifacts(options);
   if (options.write_artifacts) {
     fmt::println("setup artifacts written under '{}'",

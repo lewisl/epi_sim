@@ -462,7 +462,7 @@ RingTraits load_ring_traits(string fpath) {
 
   json data = load_json_params(fpath);
   if (!data.contains("rings")) {
-    return rt;  // rings disabled
+    throw std::runtime_error("rings: expected top-level 'rings' key.");
   }
 
   const auto& ring_arr = data["rings"];
@@ -470,7 +470,7 @@ RingTraits load_ring_traits(string fpath) {
     throw std::runtime_error("rings: expected an array under top-level 'rings' key.");
   }
   if (ring_arr.empty()) {
-    return rt;
+    throw std::runtime_error("rings: expected at least one ring.");
   }
 
   const size_t nrings = ring_arr.size();

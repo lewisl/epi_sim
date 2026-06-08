@@ -2,9 +2,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
-#include <vector>
 #include <string>
-#include "cases.h"
 #include "epi_sim.h"
 #include "setup.h"
 #include "sim.h"
@@ -21,8 +19,53 @@
 
 namespace fs = std::filesystem;
 
-namespace {
 
+//
+// Running the simulation:
+// this is the only place the simulation is actually run
+//
+void run_case(fs::path case_dir) {
+  fs::path config_path = config_path_for_case_dir(case_dir);
+  if (!fs::exists(config_path)) {
+    fmt::println(stderr, "Path to config.json for case {} does not exist.\n", case_dir.string());
+    std::exit(EXIT_FAILURE);
+  }
+
+  fs::path input_dir = config_path.parent_path();
+  json config_json = load_json_params(config_path.string());
+
+  Config config{
+      .days = config_json["days"],
+      .locale = config_json["locale"],
+      .calendar_start = config_json["calendar_start"],
+      .seed = resolve_config_path(input_dir, config_json, "seed").string(),
+      .social_dist = resolve_optional_config_path(input_dir, config_json, "social_dist"),
+      .dovax = config_json["dovax"],
+      .do_social_distancing = config_json.value("do_social_distancing", false),
+      .do_rings = config_json.value("do_rings", false),
+      .debug = config_json.value("debug", false),
+      .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
+      .variants = resolve_config_path(input_dir, config_json, "variants").string(),
+      .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),
+      .vaccines = resolve_config_path(input_dir, config_json, "vaccines").string(),
+      .vax_sched_dir = resolve_config_path(input_dir, config_json, "vax_sched_dir").string(),
+      .rings = resolve_optional_config_path(input_dir, config_json, "rings"),
+      .output_dir = config_json.contains("output")
+          ? resolve_config_path(case_dir, config_json, "output").string()
+          : (case_dir / "output").string(),
+      .case_label = sanitize_filename_component(case_dir.lexically_normal().filename().string())
+    };
+
+  fmt::println("Setup simulation...");
+  Model model = setup_sim(config);
+  fmt::println("Setup complete.");
+  fmt::println("Starting simulation...");
+  runsim(model);
+}
+
+//
+// helper files for navigating project directories
+//
 fs::path resolve_home_path(const std::string& path_str) {
   const char* home_c = std::getenv("HOME");
   if (!home_c) {
@@ -50,6 +93,19 @@ fs::path resolve_home_path(const std::string& path_str) {
   return p;
 }
 
+fs::path resolve_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
+  fs::path path = config_json[key].get<string>();
+  if (path.is_absolute()) return path;
+  return config_dir / path;
+}
+
+std::string resolve_optional_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
+  if (!config_json.contains(key) || config_json[key].is_null()) return "";
+  std::string path_str = config_json[key].get<string>();
+  if (path_str.empty()) return "";
+  return resolve_config_path(config_dir, config_json, key).string();
+}
+
 fs::path read_project_dir() {
   fs::path config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
   if (!fs::exists(config_file_path)) {
@@ -69,9 +125,6 @@ fs::path read_project_dir() {
 }
 
 
-
-
-
 void write_file(const std::string& content, std::string filename, std::string extension,
   fs::path path_name) {
 
@@ -85,14 +138,26 @@ void write_file(const std::string& content, std::string filename, std::string ex
     out << content;
 }
 
-} // namespace
+fs::path config_path_for_case_dir(const fs::path& case_dir) {
+  return case_dir / "input" / "config.json";
+}
 
+fs::path resolve_explicit_case_dir(std::string path_arg) {
+  return resolve_home_path(path_arg);
+}
 
+//
+// writes templates for parameter files in the project case directories
+//
 void create_scaffold(fs::path case_dir) {
-  assert(fs::exists(case_dir));
-
   try {
   
+    if (fs::exists(case_dir)) {
+      fmt::println(stderr, "Case directory {} already exists.", case_dir.string());
+      std::exit(EXIT_FAILURE);
+    }
+
+    fs::create_directories(case_dir);
     fs::create_directories(case_dir / "input");
     fs::create_directories(case_dir / "output");
 
@@ -126,6 +191,10 @@ void create_scaffold(fs::path case_dir) {
 }
 
 
+
+//
+// implement actions for cli flags
+//
 void set_project_dir(std::string val) {
 
         fs::path p = resolve_home_path(val);
@@ -185,17 +254,22 @@ void init_case(std::string case_label) {
   fs::path project_dir = read_project_dir();
   fs::path case_dir = project_dir / case_label;
   fmt::println("Using {}", project_dir.string());
-  fs::create_directories(case_dir);
-
-  // create the case dir
-  assert(fs::exists(case_dir));
   create_scaffold(case_dir);
 
 }
 
-fs::path use_case(std::string case_label) {
+void setup_dir(std::string path_arg) {
+  fs::path case_dir = resolve_explicit_case_dir(path_arg);
+  create_scaffold(case_dir);
+}
+
+void run_managed_case(std::string case_label) {
   fs::path project_dir = read_project_dir();
-  fs::path config_path = project_dir / case_label / "input" / "config.json";
-  if (!fs::exists(config_path)) { fmt::println(stderr, "Path to config.json for case {} does not exist.\n", case_label); std::exit(EXIT_FAILURE); }
-  return config_path;
+  fs::path case_dir = project_dir / case_label;
+  run_case(case_dir);
+}
+
+void use_dir(std::string path_arg) {
+  fs::path case_dir = resolve_explicit_case_dir(path_arg);
+  run_case(case_dir);
 }

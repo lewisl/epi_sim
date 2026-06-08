@@ -3,5 +3,6 @@
     "allow": [
       "WebSearch"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": false
 }

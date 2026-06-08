@@ -37,36 +37,6 @@ Config build_test_config(const fs::path& config_path) {
   };
 }
 
-std::string current_minute_prefix() {
-  const auto now = std::chrono::system_clock::now();
-  const std::time_t t = std::chrono::system_clock::to_time_t(now);
-  const std::tm lt = *std::localtime(&t);
-  return fmt::format("{:02}_{:02}_{:04}_{:02}_{:02}",
-                     lt.tm_mon + 1, lt.tm_mday, lt.tm_year + 1900,
-                     lt.tm_hour, lt.tm_min);
-}
-
-// TODO need to get rid of hardcoded file paths
-// Move any .html files in plot_output/ whose filename contains one of the
-// given minute-prefixes (MM_DD_YYYY_HH_MM) into dest_dir. Captures the plots
-// produced by this test run without needing to know their base titles.
-void move_plot_htmls_for_minutes(const fs::path& dest_dir,
-                                 const std::vector<std::string>& minute_prefixes) {
-  const fs::path plot_dir = fs::path(std::getenv("HOME")) / "code" / "epi_sim" / "plot_output";
-  if (!fs::exists(plot_dir)) return;
-  for (const auto& entry : fs::directory_iterator(plot_dir)) {
-    if (!entry.is_regular_file()) continue;
-    if (entry.path().extension() != ".html") continue;
-    const std::string name = entry.path().filename().string();
-    for (const auto& p : minute_prefixes) {
-      if (name.find(p) != std::string::npos) {
-        fs::rename(entry.path(), dest_dir / entry.path().filename());  // risky way to do a move
-        break;
-      }
-    }
-  }
-}
-
 struct RunsimResult {
   size_t popn;
   int ever_infectious;
@@ -100,8 +70,15 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   const fs::path root = test_support::project_dir();
   const fs::path fixtures_dir = root / "test" / "fixtures" / "runsim";
   const fs::path config_path = fixtures_dir / "config_test.json";
+  const fs::path output_dir = options.write_artifacts
+      ? test_support::artifact_group_dir(options, GROUP) / "case_output"
+      : fs::temp_directory_path() / fmt::format("epi_sim_runsim_out_{}", std::random_device{}());
+  fs::remove_all(output_dir);
+  fs::create_directories(output_dir);
 
   Config config = build_test_config(config_path);
+  config.output_dir = output_dir.string();
+  config.case_label = "runsim.test/../case";
   Model model = setup_sim(config);
 
   CHECK(model.seedcases.size() == 2);
@@ -109,9 +86,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
 
   const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from seed_test.json
 
-  const std::string start_minute = current_minute_prefix();
   runsim(model);
-  const std::string end_minute = current_minute_prefix();
 
   const RunsimResult r = tally(model.pop);
 
@@ -121,11 +96,25 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(r.n_recovered > 0);
   CHECK(r.n_recovered < r.ever_infectious);
 
+  int series_count = 0;
+  int pop_count = 0;
+  int plot_count = 0;
+  for (const auto& entry : fs::directory_iterator(output_dir)) {
+    if (!entry.is_regular_file()) continue;
+    const std::string name = entry.path().filename().string();
+    CHECK(name.find('/') == std::string::npos);
+    CHECK(name.find("..") == std::string::npos);
+    CHECK(name.rfind("runsimtestcase_", 0) == 0);
+    if (name.find("_series_") != std::string::npos && entry.path().extension() == ".csv") ++series_count;
+    if (name.find("_pop_") != std::string::npos && entry.path().extension() == ".csv") ++pop_count;
+    if (entry.path().extension() == ".html") ++plot_count;
+  }
+  CHECK(series_count == 1);
+  CHECK(pop_count == 1);
+  CHECK(plot_count == 4);
+
   if (options.write_artifacts) {
     const fs::path dest = test_support::artifact_group_dir(options, GROUP);
-    std::vector<std::string> minutes{start_minute};
-    if (end_minute != start_minute) minutes.push_back(end_minute);
-    move_plot_htmls_for_minutes(dest, minutes);
 
     for (const auto& src : {config_path, fs::path(config.seed), fixtures_dir / "testgeo.csv"}) {
       fs::copy_file(src, dest / src.filename(), fs::copy_options::overwrite_existing);
@@ -136,6 +125,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     artifact << "=========================\n\n";
     artifact << "config: " << config_path.string() << "\n";
     artifact << "seed:   " << config.seed << "\n";
+    artifact << "output: " << output_dir.string() << "\n";
     artifact << "days:   " << model.ndays << "\n";
     artifact << "locale: " << model.locale << "\n\n";
     artifact << "popn:            " << r.popn << "\n";
@@ -147,6 +137,8 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     artifact << "dead:            " << r.n_dead << "\n";
     test_support::write_artifact_text(options, GROUP, "runsim_summary.txt", artifact.str());
   }
+
+  if (!options.write_artifacts) fs::remove_all(output_dir);
 }
 
 }  // namespace

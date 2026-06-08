@@ -2,6 +2,7 @@
 #include "lib_includes.h"    // the clangd linter gets this wrong
 
 #include "cases.h"
+#include "helpers.h"
 #include "parameters.h"
 #include "population.h"
 #include "random.h"
@@ -18,6 +19,20 @@
 
 // forward declarations
 SummaryData print_summary(PopData & pop);
+
+namespace {
+
+std::filesystem::path case_artifact_path(const Model& model,
+                                         std::string_view artifact,
+                                         std::string_view timestamp,
+                                         std::string_view extension) {
+  const std::string case_label = sanitize_filename_component(model.case_label);
+  const std::string artifact_label = sanitize_filename_component(artifact);
+  return model.output_dir / fmt::format("{}_{}_{}.{}", case_label, artifact_label,
+                                        timestamp, extension);
+}
+
+}  // namespace
 
 
 void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
@@ -178,17 +193,22 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   //                       series);
 
   // write series + PopData columns to csv (skipped in headless runs)
+  const std::string output_timestamp = model.headless ? std::string{} : make_timestamp_token();
   if (!model.headless) {
-    // serialize_selected_series({"all", {"age20_39", "age40_59"}}, series, "test_series", {"code", "epi_sim", "series_output"});
-    serialize_selected_series(
-      {{"now_infectious", "total", "ring_1"},
-      {"new_infectious", "total", "ring_1"},
-      {"new_dead",       "total", "ring_1"},
-      {"new_dead", "total", "ring_2"}},
-      series, "test_series", {"code", "epi_sim", "series_output"});
+    if (model.output_dir.empty()) {
+      throw std::runtime_error("Model output_dir is not configured.");
+    }
+    std::filesystem::create_directories(model.output_dir);
 
-    auto output = set_output_file("test_pop",{"code", "epi_sim", "pop_output"});
-    pop_to_csv(pop, pop.all_idx, "all", output);
+    serialize_selected_series(
+      {{"now_infectious", "total"},
+      {"new_infectious", "total"},
+      {"new_dead",       "total"},
+      {"now_dead",       "total"}},
+      series, case_artifact_path(model, "series", output_timestamp, "csv"));
+
+    pop_to_csv(pop, pop.all_idx, "all",
+               OutSpec(case_artifact_path(model, "pop", output_timestamp, "csv")));
   }
 
   SummaryData sumstruct = print_summary(pop); fmt::println("");
@@ -203,14 +223,16 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
               {"now_unexposed", "total"},
               {"now_recovered", "total"},
               {"now_dead", "total"}},
-              series, model.caldays, sumstruct, "Cumulative Covid Outcome");
+              series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
   else
       seriesplot({{"now_infectious", "total"},
               {"now_unexposed", "total"},
               {"now_recovered", "total"},
               {"now_dead", "total"},
               {"now_vaccinated", "total"}},
-              series, model.caldays, sumstruct, "Cumulative Covid Outcome");
+              series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -219,7 +241,8 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
           {"now_dead", "age40_59"}, 
           {"now_dead", "age60_79"},
           {"now_dead", "age80_up"}}, 
-          series, model.caldays, sumstruct, "Cumulative Died by Age Group", true);
+          series, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
+          case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -228,7 +251,8 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
           // {"now_dead", "age40_59"},
           // {"now_dead", "age60_79"},
           // {"now_dead", "age80_up"}},
-          series, model.caldays, sumstruct, "New Infection Cases", false);
+          series, model.caldays, sumstruct, "New Infection Cases", false,
+          case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -237,7 +261,8 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
           // {"now_dead", "age40_59"}, 
           // {"now_dead", "age60_79"},
           // {"now_dead", "age80_up"}}, 
-          series, model.caldays, sumstruct, "Daily Deaths", false);
+          series, model.caldays, sumstruct, "Daily Deaths", false,
+          case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 

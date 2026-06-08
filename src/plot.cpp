@@ -92,12 +92,29 @@ void produce_plot(std::string base_fname, std::string end_message, json data, js
   open_plot_in_browser(fpath);
 }
 
+void produce_plot(std::filesystem::path output_path, std::string end_message, json data, json layout) {
+  std::string title = output_path.stem().string();
+  std::string cum_plot_html = render_plot_html(html_template, title, end_message, data, layout);
+
+  const auto parent = output_path.parent_path();
+  if (!parent.empty()) std::filesystem::create_directories(parent);
+
+  std::ofstream out(output_path);
+  if (!out) {
+    throw std::runtime_error(
+        fmt::format("Could not write rendered plot to '{}'", output_path.string()));
+  }
+  out << cum_plot_html;
+
+  open_plot_in_browser(output_path);
+}
+
 //
 // standard plot types for simulation history output
 //
 void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
-    const std::string plot_title, const bool dostack) {
+    const std::string plot_title, const bool dostack, std::filesystem::path output_path) {
   // step 1: assemble data from simulation run
   auto resolved = resolve_selected_series(spec, series);
   // x axis values
@@ -156,7 +173,10 @@ void seriesplot(SeriesColSpec spec, const AllSeries& series,
       }
   });
 
-  produce_plot(plot_title, "Close the tab and return to terminal.", data_json, layout);
+  if (output_path.empty())
+    produce_plot(plot_title, "Close the tab and return to terminal.", data_json, layout);
+  else
+    produce_plot(output_path, "Close the tab and return to terminal.", data_json, layout);
 }
 
 

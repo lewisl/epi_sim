@@ -13,8 +13,12 @@ struct Model {
   vector<float> indoor_seq;
   int locale{};
   bool dovax{};
+  bool do_social_distancing{};
+  bool do_rings{};
   bool debug{};
   bool headless{false};  // when true, runsim skips disk writes and browser plots; set by tests
+  std::filesystem::path output_dir {};
+  std::string case_label {};
   ModelParams mp{};
   PopData pop;
   std::vector<std::vector<size_t>> ring_members;  // [ring][i] -> 1-based person id; outer 1-indexed
@@ -26,7 +30,7 @@ struct Model {
 
 vector < absl::CivilDay >build_caldays(int n_days, absl::CivilDay day1);
 
-ModelParams setup_model_params(bool dovax, string geo_path,
+ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path,
                                string variants_path, string social_path,
                                string vax_path, string vaxsched_dir,
                                string rings_path = "");

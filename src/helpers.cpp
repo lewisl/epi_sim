@@ -105,20 +105,45 @@ void replace_all(std::string& s, const std::string& from, const std::string& to)
     }
 }
 
+std::string sanitize_filename_component(std::string_view input) {
+    std::string out;
+    out.reserve(input.size());
 
+    bool last_was_underscore = false;
+    bool saw_alnum = false;
+    for (unsigned char ch : input) {
+        if (std::isalnum(ch) || ch == '-' || ch == '_') {
+            out.push_back(static_cast<char>(ch));
+            last_was_underscore = false;
+            if (std::isalnum(ch)) saw_alnum = true;
+        } else if (std::isspace(ch)) {
+            if (!out.empty() && !last_was_underscore) {
+                out.push_back('_');
+                last_was_underscore = true;
+            }
+        }
+    }
 
-std::string make_timestamped_filename(std::string basename) {
+    while (!out.empty() && out.back() == '_') out.pop_back();
+    if (out.empty() || !saw_alnum) return "case";
+    return out;
+}
 
+std::string make_timestamp_token() {
     const auto now = std::chrono::system_clock::now();
     const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
     const std::tm local_tm = *std::localtime(&now_time);
 
-    return fmt::format("{}_{:02}_{:02}_{:04}_{:02}_{:02}_{:02}",
-                       basename,
+    return fmt::format("{:04}{:02}{:02}T{:02}{:02}{:02}",
+                       local_tm.tm_year + 1900,
                        local_tm.tm_mon + 1,
                        local_tm.tm_mday,
-                       local_tm.tm_year + 1900,
                        local_tm.tm_hour,
                        local_tm.tm_min,
                        local_tm.tm_sec);
+}
+
+std::string make_timestamped_filename(std::string basename) {
+
+    return fmt::format("{}_{}", basename, make_timestamp_token());
 }

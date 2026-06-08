@@ -15,9 +15,11 @@ Overall TODO
 #include "random.h"
 #include "setup.h"
 
+namespace fs = std::filesystem;
 
 
-ModelParams setup_model_params(bool dovax, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir, string rings_path)
+
+ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir, string rings_path)
 {
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
@@ -35,7 +37,11 @@ ModelParams setup_model_params(bool dovax, string geo_path, string variants_path
   auto socialdata = load_social_params(social_path);
 
   RingTraits ringtraits{};
-  if (!rings_path.empty()) {
+  Ring::names.clear();
+  if (do_rings) {
+    if (rings_path.empty()) {
+      throw std::runtime_error("do_rings is true but rings is not configured.");
+    }
     ringtraits = load_ring_traits(rings_path);
   }
 
@@ -166,11 +172,16 @@ Model setup_sim(Config config)
       int locale = config.locale;
       string date = config.calendar_start;
       bool dovax = config.dovax;
+      bool do_social_distancing = config.do_social_distancing;
+      bool do_rings = config.do_rings;
       bool debug = config.debug;
+      fs::path output_dir = config.output_dir;
+      std::string case_label = config.case_label;
       fs::path seed = config.seed;
       fs::path social_dist = config.social_dist;
 
     ModelParams mp = setup_model_params(dovax,
+        do_rings,
         config.geodata,  // convert filesystem::path objects to string
         config.variants,
         config.social_params,
@@ -181,7 +192,10 @@ Model setup_sim(Config config)
     // setup other Model members    
     vector<SeedCase> seedcases = load_seed_cases(load_json_params(seed.string()), mp);
     vector<SocialDistancing> sd_cases;  // default constructor leaves this empty
-    if (!social_dist.empty()) {
+    if (do_social_distancing) {
+      if (social_dist.empty()) {
+        throw std::runtime_error("do_social_distancing is true but social_dist is not configured.");
+      }
       sd_cases = load_sd_cases(load_json_params(social_dist), mp.socialdata); }
 
 
@@ -216,7 +230,11 @@ Model setup_sim(Config config)
       .indoor_seq = indoor_seq,
       .locale = locale,
       .dovax = dovax,
+      .do_social_distancing = do_social_distancing,
+      .do_rings = do_rings,
       .debug = debug,
+      .output_dir = std::move(output_dir),
+      .case_label = std::move(case_label),
       .mp = std::move(mp),
       .pop = std::move(pop),
       .ring_members = std::move(ring_members),

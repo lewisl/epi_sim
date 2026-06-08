@@ -16,6 +16,8 @@ bool open_plot_in_browser(const std::filesystem::path& path);
 
 void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
-    std::string plot_title, const bool dostack=false);
+    std::string plot_title, const bool dostack=false,
+    std::filesystem::path output_path={});
 
 void produce_plot(std::string base_fname, std::string end_message, json data, json layout);
+void produce_plot(std::filesystem::path output_path, std::string end_message, json data, json layout);

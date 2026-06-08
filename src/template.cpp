@@ -5,6 +5,8 @@ const std::string config_json = R"TAG({
     "locale": 38015,                  // cusip location for population and other characteristics, must match a row in geodata
     "calendar_start": "2020-01-01",   // day 1 of the simulation is set to this actual calendar date
     "dovax": false,                   // adminster vaccines: true or false
+    "do_social_distancing": false,    // apply social distancing cases: true or false
+    "do_rings": false,                // assign ring membership and use ring contact rules: true or false
     "debug": false,                   // print verbose debug diagnostics such as overflow warnings
 
     "case_desc": "young: no distancing; old: rigorous; Moderna 50pct",

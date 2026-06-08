@@ -1,5 +1,17 @@
 # Contributing to epi_sim
 
+## Mandatory Session Start
+
+Before doing anything else — before proposing a plan, before reading any specific file requested, before writing a single line of code — do the following in order:
+
+1. Read `AGENTS.md` (project conventions: indexing, AgentView, naming, build system)
+2. Read `CONTRIBUTING.md`
+3. Read `design/data-structures.md`
+4. Read `design/zero and one based indexing.md`
+
+
+Only after completing these steps should you engage with the user's task.
+
 ## Code Conventions
 
 ### PopData: 1-Based Indexing
@@ -149,7 +161,7 @@ Practical guidance:
 ### Code management
 - Don't delete code unless requested by the user or clearly part of another requested code change 
 
-## Codex Workflow Instructions
+## Workflow Instructions
 
 ### Intent And Scope
 
@@ -161,8 +173,8 @@ Practical guidance:
 
 ### Before Editing
 
-- Before editing, locate and read the relevant source via CodeGraph: `codegraph_context` for "where/how" questions, `codegraph_search` to find a symbol, then read the returned sections. Use rg/Read directly only as fallback. (See "Code navigation" above.)
-- For non-trivial changes, trace callers, custom argument types, and where key data originates with `codegraph_callers` / `codegraph_callees` / `codegraph_impact` / `codegraph_node` before grep. Remember these do not resolve overloads (see the overload limitation note above) — verify call-site binding by hand for overloaded symbols.
+- Before editing, locate and read the relevant source. Use the fastest appropriate navigation tools for the task, then verify important details in the actual files before changing them.
+- For non-trivial changes, trace callers, related symbols, custom argument types, and where key data originates. Verify overloaded functions and call-site binding by hand.
 - State important assumptions or invariants before broad changes.
 
 ### Build And Test
@@ -187,7 +199,7 @@ Practical guidance:
 
 ## Session State Management
 
-- On startup or after context compaction, always read `SESSION.md` first.
+- On startup or after context compaction, always read `SESSION.md` first if it exists.  If the developer feels that all previous items are resolved, he may have removed the file. You may create a new one for this session for new meaningful units of work.
 - Treat `SESSION.md` as the source of truth for:
   - Current task and progress
   - Key decisions made this session

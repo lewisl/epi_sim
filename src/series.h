@@ -187,4 +187,6 @@ void print_total_status_series(const AllSeries& series, size_t days_per_block = 
 void print_selected_series(SeriesColSpec spec, const AllSeries& series,
                            size_t days_per_block = 15);
 void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
+                           std::filesystem::path output_path);
+void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
                            string base_fname, vector<string> path_steps={});
