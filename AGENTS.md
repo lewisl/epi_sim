@@ -124,6 +124,7 @@ Practical guidance:
 - If a function must be truly read-only with respect to person state, the `AgentView` API itself must provide read-only accessors or a separate const view type
 
 
+
 ### File Organization
 - Header files (`.h`) in `src/`
 - Implementation files (`.cpp`) in `src/`
@@ -160,8 +161,8 @@ Practical guidance:
 
 ### Before Editing
 
-- Read the relevant source files before editing.
-- For non-trivial changes, trace callers, custom argument types, and where key data originates.
+- Before editing, locate and read the relevant source via CodeGraph: `codegraph_context` for "where/how" questions, `codegraph_search` to find a symbol, then read the returned sections. Use rg/Read directly only as fallback. (See "Code navigation" above.)
+- For non-trivial changes, trace callers, custom argument types, and where key data originates with `codegraph_callers` / `codegraph_callees` / `codegraph_impact` / `codegraph_node` before grep. Remember these do not resolve overloads (see the overload limitation note above) — verify call-site binding by hand for overloaded symbols.
 - State important assumptions or invariants before broad changes.
 
 ### Build And Test

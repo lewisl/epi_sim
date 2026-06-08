@@ -13,18 +13,22 @@ namespace fs = std::filesystem;
 // Forward declaration
 struct Model;
 
+// Note: no defaults so we get errors for bad/incomplete inputs
 struct Config {
-  int days {180};
-  int locale {38015};
-  string calendar_start {"2020-01-01"};
+  int days;
+  int locale;
+  string calendar_start {};
+  std::string seed {};
+  std::string social_dist {};
   bool dovax {false};
   bool debug {false};
-  fs::path geodata {"geo2data.csv"};
-  fs::path variants {"variants.json"};
-  fs::path social {"socialparams.json"};
-  fs::path vaccines {"vaccines.json"};
-  fs::path vax_sched_dir {"vaccine_100k"};
-  fs::path rings {};  // empty = rings disabled
+  std::string geodata {};
+  std::string variants {};
+  std::string social_params {};
+  std::string vaccines {};
+  std::string vax_sched_dir {};
+  std::string rings {};  // empty = rings disabled
+  std::string output_dir {};
 };
 
 // parameters used throughout the simulation that are better global
@@ -77,4 +81,4 @@ struct SummaryData {
 
 
 // Simulation runner
-void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases);
+void runsim(Model& model);

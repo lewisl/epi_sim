@@ -141,7 +141,7 @@ void apply_change(AgentView person, const Change& chg, AllSeries& series) {
 
 
 // SeedCase::operator(): find candidates via filter, apply change to up to change.count of them.
-vector<size_t> SeedCase::operator()(AllSeries& series) {
+vector<size_t> SeedCase::operator()(PopData& pop, AllSeries& series) {
   vector<size_t> seeded;
   int matched = 0;
   for (size_t i = 1; i <= pop.popn && matched < change.count; ++i) {
@@ -158,7 +158,7 @@ vector<size_t> SeedCase::operator()(AllSeries& series) {
 }
 
 
-SeedCase load_seed_case(const json& sc, PopData& pop, const ModelParams& mp) {
+SeedCase load_seed_case(const json& sc, const ModelParams& mp) {
   int  triggerday  = sc["triggerday"];
   bool startofday  = sc.value("startofday", true);
 
@@ -181,14 +181,14 @@ SeedCase load_seed_case(const json& sc, PopData& pop, const ModelParams& mp) {
     chg.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
   }
 
-  return SeedCase(triggerday, startofday, std::move(filt), std::move(chg), pop);
+  return SeedCase(triggerday, startofday, std::move(filt), std::move(chg));
 }
 
-vector<SeedCase> load_seed_cases(const json& jdata, PopData& pop, const ModelParams& mp) {
+vector<SeedCase> load_seed_cases(const json& jdata,  const ModelParams& mp) {
   vector<SeedCase> seedcases;
   seedcases.reserve(jdata.size());
   for (const auto& sc : jdata) {
-    seedcases.push_back(load_seed_case(sc, pop, mp));
+    seedcases.push_back(load_seed_case(sc, mp));
   }
   return seedcases;
 }

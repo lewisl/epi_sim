@@ -1,17 +1,36 @@
-# Session: social distancing wiring audit
+# Session: case-config setup/run wiring
 
 ## Current task
-- User asked to check whether social distancing cases are loaded properly and wired to actually run.
-- This was an inspection/audit only; no source code changes were made.
+- Rewired case-config input loading so `epi_sim --use-case case-a/a1` resolves all input paths from the managed case `input/config.json` without relying on cwd.
 
-## Findings
-- `--sd_seed` is accepted in `src/epi_sim.cpp` and loaded via `load_sd_cases(load_json_params(sd_seed_path), model.mp.socialdata)`.
-- `load_sd_cases` parses cases, validates `contact_delta`/`touch_delta` sizes, shifts per-case contact/touch matrices, and registers `SDCase::names` as `"none"` plus loaded case names.
-- `runsim` calls `apply_sd_cases_for_day` near the start of each simulation day and passes `sd_cases` into `spread`.
-- `spread` uses a nonzero spreader `sdcase` to select per-case `contactfactors`, and a nonzero contacted agent `sdcase` to select per-case `touchfactors`.
-- Runtime check: `xmake build epi_sim` passed. Running `epi_sim` with absolute `--sd_seed sample_parameters/soc_dist.json` completed and produced different final totals than the same run without `--sd_seed`, confirming the path affects simulation behavior.
+## Changes made
+- Updated `src/epi_sim.cpp` to:
+  - Resolve config-owned input paths against the config file's `input/` directory.
+  - Store resolved path strings in `Config`.
+  - Resolve `output` against the case root.
+  - Run `setup_sim(config)` followed by `runsim(model)`.
+- Updated `src/setup.cpp` to:
+  - Parse seed JSON before calling `load_seed_cases`.
+  - Keep missing social distancing as an empty vector sentinel.
+  - Move loaded `seedcases` and `sd_cases` into the returned `Model`.
+- Updated tests for the new ownership/API:
+  - `test/test_runsim.cpp` now checks `model.seedcases` and `model.sd_cases`, then calls `runsim(model)`.
+  - `test/test_setup.cpp` now uses `Config::social_params` and supplies `sample_parameters/seed_basic.json`.
 
-## Issues / risks
-- `apply_sd_cases_for_day` currently tags compliers only on `startday` and clears only on `endday`; between those days marks persist. This conflicts with `design/sdcase_implementation_plan.md`, which says active cases should reset and redraw compliance every active day.
-- `sd_seed_path` is not resolved relative to the config directory, unlike config-owned paths. Relative paths work only relative to the process working directory.
-- Existing tests do not cover SD case loading, day application, or the spread factor override path.
+## Verification
+- `xmake build epi_sim` passed.
+- `xmake run epi_sim --use-case case-a/a1` completed a full simulation and applied both day-1 seed cases.
+- `xmake run test runsim` passed: 7 checks passed.
+- Checked `/Users/lewislevin/test_project/case-a/a1`; current generated scaffold has `input/vaccine_100k` and no top-level `vaccine_100k` directory.
+
+## Notes
+- The run still prints macOS URL open errors for generated plot HTML files; simulation completes successfully despite those messages.
+- There are many unrelated dirty worktree changes; they were not reverted.
+
+## Next work
+- Wire configured output paths through plots, selected series serialization, and population serialization; output should come from case config instead of hardcoded repo-relative directories.
+- Implement `--setup-dir` switch actions.
+- Implement `--use-dir` switch actions.
+- Refactor `epi_sim.cpp` CLI branch bodies so each branch is small and delegates to appropriate helpers in `param_init.cpp`.
+- `--setup-dir` and `--use-dir` should reuse the same lower-level helpers as the retained project-dir flow; the only intended difference is that the user must supply the project dir each time because it is not persisted.
+- Decide and implement a new social-distancing sentinel for the scaffold/config flow. The old sentinel was omitting the separate CLI switch; now users will edit scaffolded config/files. Options to discuss: `social_dist = ""` or an explicit boolean. The implementation should allow the social-distancing file to exist in the scaffold while the configured case runs with an empty `sd_cases` vector and naturally skips the SD action path. Add tests for the chosen behavior.

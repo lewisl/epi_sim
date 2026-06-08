@@ -6,7 +6,8 @@
     "debug": false,
     "geodata": "testgeo.csv",
     "variants": "../../../sample_parameters/variants.json",
-    "social": "../../../sample_parameters/socialparams.json",
+    "social_params": "../../../sample_parameters/socialparams.json",
+    "seed": "seed_test.json",
     "vaccines": "../../../sample_parameters/vaccines.json",
     "vax_sched_dir": "../../../sample_parameters/vaccine_100k"
 }

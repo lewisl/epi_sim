@@ -8,7 +8,7 @@ Before doing anything else — before proposing a plan, before reading any speci
 2. Read `CONTRIBUTING.md`
 3. Read `design/data-structures.md`
 4. Read `design/zero and one based indexing.md`
-5. Scan `src/` and list the files to establish what exists
+5. Use `codegraph_status` to confirm the index is current, then `codegraph_context` / `codegraph_files` to establish what exists in `src/` — do not `ls`/grep `src/` for this.
 
 Only after completing these steps should you engage with the user's task.
 
@@ -25,9 +25,10 @@ Only after completing these steps should you engage with the user's task.
 ## Before Making Any Change
 
 - Read every file you intend to modify. No exceptions.
-- Trace call chains for any function you are changing: find callers, find what custom types the arguments are, find where data originates.
+- To find what calls a function, what uses a type, or what a signature change would break, use clangd `findReferences` / call-hierarchy — it resolves overloads correctly. Use `codegraph_context` for fast broad orientation. Fall back to grep/Read only when both return nothing. (See "Code navigation tooling" below.)
 - Identify whether vectors involved use 1-based indexing (most PopData vectors do — see AGENTS.md).
 - State your understanding of the relevant invariants before proposing code.
+
 
 ## What Not To Do
 

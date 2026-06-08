@@ -13,9 +13,10 @@ Config sample_config() {
   config.locale = 38015;
   config.calendar_start = "2020-01-01";
   config.dovax = false;
+  config.seed = (test_support::project_dir() / "sample_parameters" / "seed_basic.json").string();
   config.geodata = paths.geodata;
   config.variants = paths.variants;
-  config.social = paths.social;
+  config.social_params = paths.social;
   config.vaccines = paths.vaccines;
   config.vax_sched_dir = paths.vax_sched_dir;
   return config;

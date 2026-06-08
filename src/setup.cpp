@@ -167,14 +167,23 @@ Model setup_sim(Config config)
       string date = config.calendar_start;
       bool dovax = config.dovax;
       bool debug = config.debug;
+      fs::path seed = config.seed;
+      fs::path social_dist = config.social_dist;
 
     ModelParams mp = setup_model_params(dovax,
-        config.geodata.string(),  // convert filesystem::path objects to string
-        config.variants.string(),
-        config.social.string(),
-        config.vaccines.string(),
-        config.vax_sched_dir.string(),
-        config.rings.string());
+        config.geodata,  // convert filesystem::path objects to string
+        config.variants,
+        config.social_params,
+        config.vaccines,
+        config.vax_sched_dir,
+        config.rings);
+
+    // setup other Model members    
+    vector<SeedCase> seedcases = load_seed_cases(load_json_params(seed.string()), mp);
+    vector<SocialDistancing> sd_cases;  // default constructor leaves this empty
+    if (!social_dist.empty()) {
+      sd_cases = load_sd_cases(load_json_params(social_dist), mp.socialdata); }
+
 
     // access population of chosen locale or error
     auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), locale);
@@ -211,6 +220,8 @@ Model setup_sim(Config config)
       .mp = std::move(mp),
       .pop = std::move(pop),
       .ring_members = std::move(ring_members),
-      .ring_lengths = std::move(ring_lengths)};
+      .ring_lengths = std::move(ring_lengths),
+      .seedcases = std::move(seedcases),
+      .sd_cases = std::move(sd_cases)};
 }
 // clang-format on

@@ -1,5 +1,6 @@
 add_rules("mode.debug", "mode.release")
 add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
+add_requires("toml++ 3.4.0")
 set_languages("c++23")
 set_toolchains("llvm")
 set_optimize("fastest")
@@ -9,7 +10,7 @@ target("epi_sim")
     set_kind("binary")
     set_default(false)
     add_files("src/*.cpp")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
 
 target("test")
     set_kind("binary")
@@ -18,13 +19,13 @@ target("test")
         "test/test_disease_modeling.cpp", "test/test_vaccination.cpp", "test/test_traits.cpp",
         "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp")
     add_files("src/*.cpp|epi_sim.cpp")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
 
 target("this")
     set_kind("binary")
     set_default(false)
-    add_packages("vcpkg::fmt", "vcpkg::nlohmann-json")
-   add_files("scratch/load_sdcases.cpp", "src/*.cpp|epi_sim.cpp")
+    add_packages("vcpkg::fmt", "vcpkg::nlohmann-json", "toml++")
+    add_files("scratch/load_sdcases.cpp", "src/*.cpp|epi_sim.cpp")
 
 target("randstuff")
     set_kind("binary")
@@ -43,7 +44,7 @@ target("ring_experiment")
     set_kind("binary")
     set_default(false)
     add_files("scratch/ring_experiment.cpp", "src/*.cpp|epi_sim.cpp")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
 
 
 

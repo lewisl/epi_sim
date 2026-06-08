@@ -16,6 +16,7 @@
 #include <fmt/format.h> // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h> // for printing containers like vector
 #include <fmt/ostream.h> // to use ostream file handles and << >> operators
+#include <toml++/toml.hpp>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -35,3 +36,5 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+using json = nlohmann::ordered_json;

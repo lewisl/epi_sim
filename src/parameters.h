@@ -6,6 +6,7 @@
 #include "ring_traits.h"
 #include "helpers.h"    // for shifter
 #include <functional>
+#include "cases.h"
 
 // using json = nlohmann::json; // for not ordered mapping
 using json = nlohmann::ordered_json;

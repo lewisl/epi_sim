@@ -6,6 +6,11 @@
 #include <absl/strings/str_split.h>
 #include "parameters.h"
 #include "param_init.h"
+#include "show_help.h"
+#include <cstdlib>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -23,68 +28,95 @@ int main(int argc, char** argv) {
   std::string config_path;
   std::string seed_path;
   std::string sd_seed_path;
-  std::string case_name;
+  
+  std::string flag;
+  std::string val;
 
+
+  if (argc == 1) show_help(); 
 
   // process cmdline --param and its value
-  for (int i = 1; i < argc - 1; i += 2) {
-      std::string flag = argv[i];
-      std::string val  = argv[i + 1];
-      if (flag == "--config") config_path = val;
-      else if (flag == "--seed") seed_path = val;
-      else if (flag == "--sd_seed") sd_seed_path = val;
-      else if (flag == "--case-init") case_name = val;
+  
+  // if (argc < 3 ) { std::fprintf(stderr, "Must provide 1 flag and 1 value\n"); std::exit(EXIT_FAILURE); }
+  // TODO:  move val testing into loop because it always applies.
+  // if (argv[2][0] == '-') { std::fprintf(stderr, "Must provide 1 flag and 1 value: you input 2 flags.\n"); std::exit(EXIT_FAILURE); }
+
+  for (int i = 1; i < argc; i += 2) {
+      flag = argv[i];
+      val  = (i + 1) < argc ? argv[i + 1] : "";
+
+      if (flag == "--set-project-dir") {
+        if (val.empty()) { std::fprintf(stderr, "No value for project dir provided.\n"); std::exit(EXIT_FAILURE); }
+        set_project_dir(val);
+        exit(0);
+      } 
+
+      else if (flag == "--show-project-dir") {
+        show_project_dir();
+        exit(0);
+      }
+
+      else if (flag == "--init-case") {
+        if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
+        init_case(val);
+        exit(0);
+      }
+
+      else if (flag == "--use-case") {
+        if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
+        
+        fs::path config_path = use_case(val);
+        fs::path input_dir = config_path.parent_path();
+        fs::path case_dir = input_dir.parent_path();
+
+        json config_json = load_json_params(config_path.string());
+
+        Config config{
+            .days = config_json["days"],
+            .locale = config_json["locale"],
+            .calendar_start = config_json["calendar_start"],
+            .seed = resolve_config_path(input_dir, config_json, "seed").string(),
+            .social_dist = config_json.contains("social_dist")
+                ? resolve_config_path(input_dir, config_json, "social_dist").string()
+                : "",
+            .dovax = config_json["dovax"],
+            .debug = config_json.value("debug", false),
+            .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
+            .variants = resolve_config_path(input_dir, config_json, "variants").string(),
+            .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),
+            .vaccines = resolve_config_path(input_dir, config_json, "vaccines").string(),
+            .vax_sched_dir = resolve_config_path(input_dir, config_json, "vax_sched_dir").string(),
+            .rings = config_json.contains("rings")
+                ? resolve_config_path(input_dir, config_json, "rings").string()
+                : "",      // key absent = rings disabled
+            .output_dir = config_json.contains("output")
+                ? resolve_config_path(case_dir, config_json, "output").string()
+                : (case_dir / "output").string()
+          };
+
+        fmt::println("Setup simulation...");
+        Model model = setup_sim(config);
+        fmt::println("Setup complete.");
+        fmt::println("Starting simulation...");
+        runsim(model);
+      }
+
+      else if (flag == "--setup-dir") {
+        exit(0);
+      }
+
+      else if (flag == "--use-dir") {
+        
+      }
+
+      else if (flag == "--help") {show_help(); exit(0);}
+
       else {
           fmt::println(stderr, "Unknown flag: {}", flag);
-          return 1;
+          exit(1);
       }
   }
-
-  // create the scaffolding if present, then quit
-  if (!empty(case_name)) {
-    create_scaffold();
-    return 0;
-  }
-
-  // end now if missing any required input
-  if (config_path.empty() || seed_path.empty()) {
-      fmt::println(stderr, "Usage: epi_sim --config <path> --seed <path> [--sd_seed <path>]");
-      return 1;
-  }
-
-  // payloads for the required input parameters: load config_json and seed_json
-  json config_json = load_json_params(config_path);
-  json seed_json   = load_json_params(seed_path);
-
-  const fs::path config_dir = fs::path(config_path).parent_path();
-
-  Config config{
-      .days = config_json["days"],
-      .locale = config_json["locale"],
-      .calendar_start = config_json["calendar_start"],
-      .dovax = config_json["dovax"],
-      .debug = config_json.value("debug", false),
-      .geodata = resolve_config_path(config_dir, config_json, "geodata"),
-      .variants = resolve_config_path(config_dir, config_json, "variants"),
-      .social = resolve_config_path(config_dir, config_json, "social"),
-      .vaccines = resolve_config_path(config_dir, config_json, "vaccines"),
-      .vax_sched_dir = resolve_config_path(config_dir, config_json, "vax_sched_dir"),
-      .rings = config_json.contains("rings")
-                   ? resolve_config_path(config_dir, config_json, "rings")
-                   : fs::path{},  // key absent = rings disabled
-  };
-
-  fmt::println("Setup simulation...");
-  Model model = setup_sim(config);
-  vector<SeedCase> seedcases = load_seed_cases(seed_json, model.pop, model.mp);
-  vector<SocialDistancing> sd_cases;  // default constructor leaves this empty
-  if (!sd_seed_path.empty()) {
-    sd_cases = load_sd_cases(load_json_params(sd_seed_path), model.mp.socialdata);
-  }
-  fmt::println("Setup complete.");
-
-  fmt::println("Starting simulation...");
-  runsim(model, seedcases, sd_cases);
-  
   return 0;
 }
+
+  

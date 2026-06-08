@@ -23,13 +23,17 @@ Config build_test_config(const fs::path& config_path) {
       .days = cfg["days"],
       .locale = cfg["locale"],
       .calendar_start = cfg["calendar_start"],
+      .seed = resolve_against(dir, cfg["seed"].get<string>()).string(),
+      .social_dist = cfg.contains("social_dist")
+                         ? resolve_against(dir, cfg["social_dist"].get<string>()).string()
+                         : "",
       .dovax = cfg["dovax"],
       .debug = cfg.value("debug", false),
-      .geodata = resolve_against(dir, cfg["geodata"].get<string>()),
-      .variants = resolve_against(dir, cfg["variants"].get<string>()),
-      .social = resolve_against(dir, cfg["social"].get<string>()),
-      .vaccines = resolve_against(dir, cfg["vaccines"].get<string>()),
-      .vax_sched_dir = resolve_against(dir, cfg["vax_sched_dir"].get<string>()),
+      .geodata = resolve_against(dir, cfg["geodata"].get<string>()).string(),
+      .variants = resolve_against(dir, cfg["variants"].get<string>()).string(),
+      .social_params = resolve_against(dir, cfg["social_params"].get<string>()).string(),
+      .vaccines = resolve_against(dir, cfg["vaccines"].get<string>()).string(),
+      .vax_sched_dir = resolve_against(dir, cfg["vax_sched_dir"].get<string>()).string(),
   };
 }
 
@@ -96,19 +100,17 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   const fs::path root = test_support::project_dir();
   const fs::path fixtures_dir = root / "test" / "fixtures" / "runsim";
   const fs::path config_path = fixtures_dir / "config_test.json";
-  const fs::path seed_path = fixtures_dir / "seed_test.json";
 
   Config config = build_test_config(config_path);
   Model model = setup_sim(config);
 
-  json seed_json = load_json_params(seed_path.string());
-  vector<SeedCase> seedcases = load_seed_cases(seed_json, model.pop, model.mp);
-  vector<SocialDistancing> sd_cases;
+  CHECK(model.seedcases.size() == 2);
+  CHECK(model.sd_cases.empty());
 
   const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from seed_test.json
 
   const std::string start_minute = current_minute_prefix();
-  runsim(model, seedcases, sd_cases);
+  runsim(model);
   const std::string end_minute = current_minute_prefix();
 
   const RunsimResult r = tally(model.pop);
@@ -125,7 +127,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     if (end_minute != start_minute) minutes.push_back(end_minute);
     move_plot_htmls_for_minutes(dest, minutes);
 
-    for (const auto& src : {config_path, seed_path, fixtures_dir / "testgeo.csv"}) {
+    for (const auto& src : {config_path, fs::path(config.seed), fixtures_dir / "testgeo.csv"}) {
       fs::copy_file(src, dest / src.filename(), fs::copy_options::overwrite_existing);
     }
 
@@ -133,7 +135,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     artifact << "Runsim end-to-end summary\n";
     artifact << "=========================\n\n";
     artifact << "config: " << config_path.string() << "\n";
-    artifact << "seed:   " << seed_path.string() << "\n";
+    artifact << "seed:   " << config.seed << "\n";
     artifact << "days:   " << model.ndays << "\n";
     artifact << "locale: " << model.locale << "\n\n";
     artifact << "popn:            " << r.popn << "\n";

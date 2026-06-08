@@ -1,4 +1,5 @@
 ## TODO
+- should we use the file names from the canonical config.json in the template.cpp file?
 - achieve better repeatability and comparison of simulation runs by bundling inputs and outputs for a simulation run in suitably named directories
 - r0 calculations
 - fix cumbersome seedcase code?

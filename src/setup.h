@@ -19,6 +19,8 @@ struct Model {
   PopData pop;
   std::vector<std::vector<size_t>> ring_members;  // [ring][i] -> 1-based person id; outer 1-indexed
   std::vector<size_t> ring_lengths;               // [ring] -> ring_members[ring].size(); outer 1-indexed
+  vector<SeedCase> seedcases;
+  vector<SocialDistancing> sd_cases;
 };
 
 

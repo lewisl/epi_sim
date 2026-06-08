@@ -20,9 +20,11 @@
 SummaryData print_summary(PopData & pop);
 
 
-void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases) {
+void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
+  vector<SeedCase>& seedcases = model.seedcases;
+  vector<SocialDistancing> & sd_cases = model.sd_cases;
 
   // seed the random number generator
   xo::seed(99999);  // have used 12345
@@ -77,7 +79,7 @@ void runsim(Model& model, vector<SeedCase>& seedcases, vector<SocialDistancing>&
     // run beginning of day seed cases
     for (auto& sc : seedcases)
       if (sc.startofday && sc.triggerday == sim::ds.day) {
-        auto seeds = sc(series);
+        auto seeds = sc(pop, series);
         std::string filt;
         for (const auto& t : sc.filter.terms)
           filt += fmt::format("{}{}={}", filt.empty() ? "" : ",", t.trait, t.val);
