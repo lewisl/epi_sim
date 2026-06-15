@@ -1,7 +1,8 @@
-#include "lib_includes.h"
-#include "epi_sim.h"
 #include <absl/strings/str_split.h>
 #include "param_init.h"
+#include "setup.h"
+#include "sim.h"
+#include "r0_simulation.h"
 #include "show_help.h"
 #include <cstdlib>
 
@@ -41,7 +42,12 @@ int main(int argc, char** argv) {
 
       else if (flag == "--use-case") {
         if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
-        run_managed_case(val);
+        Model model = use_managed_case(val);
+        runsim(model);
+      }
+
+      else if (flag == "--show-cases") {
+        show_cases();
         exit(0);
       }
 
@@ -53,17 +59,29 @@ int main(int argc, char** argv) {
 
       else if (flag == "--use-dir") {
         if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
-        use_dir(val);
-        exit(0);
+        Model model = use_dir(val);
+        runsim(model);
       }
 
-      else if (flag == "--help") {show_help(); exit(0);}
+      else if (flag == "--r0-sim") {
+        if (val.empty()) { std::fprintf(stderr, "Must provide a case-label or valid case-dir.\n"); std::exit(EXIT_FAILURE); }
+        auto model = r0_sim_setup(val);
+        if (model) {r0_sim(*model);}
+        else {fmt::println("Model could not be created for r0 simulation.");}
+      }
+
+      else if (flag == "--help") {
+        if (val.empty()) {show_help(); exit(0);}
+        if (val == "topics") {show_topics(); exit(0);}
+        else { show_help(val); exit(0);}
+      }
 
       else {
           fmt::println(stderr, "Unknown flag: {}", flag);
           exit(1);
       }
   }
+
   return 0;
 }
 

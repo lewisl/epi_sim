@@ -135,7 +135,23 @@ Practical guidance:
 - Use `const PopData::AgentView person` only if the API is intentionally designed so the proxy itself should not be changed in the callee
 - If a function must be truly read-only with respect to person state, the `AgentView` API itself must provide read-only accessors or a separate const view type
 
+### C++ formatting and output
 
+This project uses the `{fmt}` library.
+
+Prefer:
+- `fmt::print(...)` for formatted output
+- `fmt::print(stderr, ...)` for diagnostics/errors
+- `fmt::format(...)` for constructing formatted strings
+- custom `fmt::formatter<T>` specializations for project types when useful
+
+Avoid:
+- `std::fprintf`, `printf`, `snprintf` except for C interop or existing low-level code
+- `std::ostringstream` for routine string formatting
+- iostream formatting chains for generated output unless very, very simple
+- Do not introduce new `printf`/`fprintf`/`snprintf` formatting unless there is a specific C API boundary reason. 
+
+Use `{}`-style fmt format strings, not printf-style `%` format strings.
 
 ### File Organization
 - Header files (`.h`) in `src/`
@@ -196,6 +212,12 @@ Practical guidance:
 - Lead with the answer or result.
 - Avoid long explanations unless asked for detail.
 - For code changes, report only: what changed, where, tests run, and remaining risks.
+- Make sure the response is very crisp. Always support markdown, table. Limit the output tokens as much as possible, unless ask to elaborate more.
+
+## Code Navigation
+- clangd-lsp plugin is installed via Serena MCP. It provides go-to-definition, 
+  find-references, and diagnostics via clangd with full semantic 
+  understanding of C++23, templates, and overloads.
 
 ## Session State Management
 

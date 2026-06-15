@@ -17,3 +17,4 @@ test_output
 tempCode*
 .stignore
 .codegraph
+.aidex

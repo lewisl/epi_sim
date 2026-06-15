@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
-#include "epi_sim.h"
+#include "setup.h"
 #include <absl/strings/str_split.h>
 #include <toml++/toml.hpp>
 #include <nlohmann/json.hpp>
@@ -11,9 +11,9 @@
 using json = nlohmann::ordered_json;
 
 
-void run_case(std::filesystem::path case_dir);
+Model build_model(std::filesystem::path case_dir);
 
-std::filesystem::path resolve_home_path(const std::string& path_str);
+std::optional<std::filesystem::path> resolve_home_path(const std::string& path_str);
 
 std::filesystem::path resolve_config_path(const std::filesystem::path& config_dir, const json& config_json, const char* key);
 
@@ -38,6 +38,10 @@ void init_case(std::string case_label);
 
 void setup_dir(std::string path_arg);
 
-void run_managed_case(std::string case_label);
+Model use_managed_case(std::string case_label);
 
-void use_dir(std::string path_arg);
+void show_cases();
+
+Model use_dir(std::string path_arg);
+
+std::optional<Model> r0_sim_setup(std::string path_arg);

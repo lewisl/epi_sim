@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
-#include "epi_sim.h"
 #include "setup.h"
 #include "sim.h"
 #include <absl/strings/str_split.h>
@@ -21,14 +20,14 @@ namespace fs = std::filesystem;
 
 
 //
-// Running the simulation:
-// this is the only place the simulation is actually run
+// build the simulation model
 //
-void run_case(fs::path case_dir) {
+Model build_model(fs::path case_dir) {
   fs::path config_path = config_path_for_case_dir(case_dir);
   if (!fs::exists(config_path)) {
-    fmt::println(stderr, "Path to config.json for case {} does not exist.\n", case_dir.string());
-    std::exit(EXIT_FAILURE);
+    throw std::runtime_error(fmt::format("Path to config.json for case {} does not exist.\n", case_dir.string()));
+    // fmt::println(stderr, "Path to config.json for case {} does not exist.\n", case_dir.string());
+    // std::exit(EXIT_FAILURE);
   }
 
   fs::path input_dir = config_path.parent_path();
@@ -59,14 +58,13 @@ void run_case(fs::path case_dir) {
   fmt::println("Setup simulation...");
   Model model = setup_sim(config);
   fmt::println("Setup complete.");
-  fmt::println("Starting simulation...");
-  runsim(model);
+  return model;
 }
 
 //
 // helper files for navigating project directories
 //
-fs::path resolve_home_path(const std::string& path_str) {
+std::optional<fs::path> resolve_home_path(const std::string& path_str) {
   const char* home_c = std::getenv("HOME");
   if (!home_c) {
     std::fprintf(stderr, "HOME not set\n");
@@ -79,7 +77,7 @@ fs::path resolve_home_path(const std::string& path_str) {
     p = home / fs::path{path_str.substr(2)};
   } else if (!path_str.empty() && path_str[0] == '~') {
     std::fprintf(stderr, "Only ~ and ~/ paths are supported.\n");
-    std::exit(EXIT_FAILURE);
+    return std::nullopt;
   } else {
     p = fs::path{path_str};
     if (p.is_relative()) p = home / p;
@@ -89,6 +87,7 @@ fs::path resolve_home_path(const std::string& path_str) {
   if (rel.empty() || rel.begin()->string() == "..") {
     std::fprintf(stderr, "Absolute path input does not start at user's home directory.\n");
     std::exit(EXIT_FAILURE);
+    return std::nullopt;
   }
   return p;
 }
@@ -107,21 +106,25 @@ std::string resolve_optional_config_path(const fs::path& config_dir, const json&
 }
 
 fs::path read_project_dir() {
-  fs::path config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
-  if (!fs::exists(config_file_path)) {
+  const auto& config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
+  if (!config_file_path.has_value()) {
     fmt::println("project-dir.toml doesn't exist.\n"
         "Create it with epi_sim --set-project-dir <valid path for project dir>.");
     std::exit(EXIT_FAILURE);
   }
 
-  auto cfg = toml::parse_file(config_file_path.string());
+  auto cfg = toml::parse_file(config_file_path->string());
   std::string project_dir_str = cfg["project-dir"].value_or(std::string{});
   if (project_dir_str.empty()) {
     std::fprintf(stderr, "project-dir.toml does not contain a project-dir value.\n");
     std::exit(EXIT_FAILURE);
   }
-
-  return resolve_home_path(project_dir_str);
+  const auto & home_path = resolve_home_path(project_dir_str);
+  if (!home_path.has_value()) {
+    std::fprintf(stderr, "Project directory does not exist.\n");
+    std::exit(EXIT_FAILURE);
+  } else {
+    return *home_path;}
 }
 
 
@@ -143,7 +146,10 @@ fs::path config_path_for_case_dir(const fs::path& case_dir) {
 }
 
 fs::path resolve_explicit_case_dir(std::string path_arg) {
-  return resolve_home_path(path_arg);
+  auto const & p = resolve_home_path(path_arg);
+  if (p.has_value()) return *p;
+  else {fmt::println(stderr, "Invalid case directory path: {}.", path_arg);
+        exit(1);}
 }
 
 //
@@ -191,61 +197,62 @@ void create_scaffold(fs::path case_dir) {
 }
 
 
-
 //
 // implement actions for cli flags
 //
 void set_project_dir(std::string val) {
+    // write the toml file with the proposed value in the canonical location: ~/.config/epi_sim/project-dir.toml
+    auto const & config_path = resolve_home_path(".config");
+    if (!config_path) {fmt::println(stderr, "Could not resolve ~/.config."); std::exit(EXIT_FAILURE);}
+    if (!fs::exists(*config_path)) { fs::create_directory(*config_path); 
+      } else if (!fs::is_directory(*config_path)) {
+        std::fprintf(stderr, "~/.config is not a directory\n");
+        std::exit(EXIT_FAILURE);          
+      }
+    // check for app dir epi_sim
+    fs::path epi_sim_config_dir = *config_path / "epi_sim";
+    if (!fs::exists(epi_sim_config_dir)) {
+      fs::create_directory(epi_sim_config_dir);
+    } else if (!fs::is_directory(epi_sim_config_dir)) {
+        std::fprintf(stderr, "~/.config/epi_sim is not a directory\n");
+        std::exit(EXIT_FAILURE);          
+      }
+    auto const & p = resolve_home_path(val);
+    if (!p) {
+      fmt::println("Invalid project directory path {}.", val);
+      std::exit(EXIT_FAILURE);
+    }
+    toml::table t{{"project-dir", p->string()}};
+    std::string file_target = epi_sim_config_dir / "project-dir.toml";
+    std::ofstream(file_target) << t;
 
-        fs::path p = resolve_home_path(val);
+    // create the directory
+    fs::create_directories(*p);
 
-        // write the toml file with the proposed value in the canonical location: ~/.config/epi_sim/project-dir.toml
-        fs::path config_path = resolve_home_path(".config");
-        if (!fs::exists(config_path)) { fs::create_directory(config_path); 
-          } else if (!fs::is_directory(config_path)) {
-            std::fprintf(stderr, "~/.config is not a directory\n");
-            std::exit(EXIT_FAILURE);          
-          }
-        // check for app dir epi_sim
-        fs::path epi_sim_config_dir = config_path / "epi_sim";
-        if (!fs::exists(epi_sim_config_dir)) {
-          fs::create_directory(epi_sim_config_dir);
-        } else if (!fs::is_directory(epi_sim_config_dir)) {
-            std::fprintf(stderr, "~/.config/epi_sim is not a directory\n");
-            std::exit(EXIT_FAILURE);          
-          }
-        // std::string toml_tag = "project-dir = " + p.string();
-        toml::table t{{"project-dir", p.string()}};
-        std::string file_target = epi_sim_config_dir / "project-dir.toml";
-        std::ofstream(file_target) << t;
-
-        // create the directory
-        fs::create_directories(p);
-
-        show_project_dir();
+    show_project_dir();
 }
 
 
 void show_project_dir() {
     // check for canonical location of config file
     // show the dir, file name, and file contents
-    fs::path config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
-    if (!exists(config_file_path)) {
+    auto const & config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
+    if (!config_file_path.has_value()) {
       fmt::println("project-dir.toml doesn't exist.\n"
           "Create it with epi_sim --set-project-dir <valid path for project dir>.");        
     } else {
       // read and print the toml file
-      std::ifstream f(config_file_path);
+      std::ifstream f(*config_file_path);
       std::ostringstream ss;
       ss << f.rdbuf();
-      fmt::println("Contents of {}:", config_file_path.string());
+      fmt::println("Contents of {}:", config_file_path->string());
       fmt::println("  {}", ss.str());
       fs::path actual_project_dir = read_project_dir();
-    if (fs::exists(actual_project_dir)) {
-      fmt::println("Project directory {} exists.", actual_project_dir.string());
-    } else {
-      fmt::println("Project directory {} DOES NOT exist.", actual_project_dir.string());
-      }
+      if (fs::exists(actual_project_dir)) {
+        fmt::println("Project directory {} contains the project-dir.toml file.", actual_project_dir.string());
+      } else {
+        fmt::println("Project directory {} DOES NOT exist.", actual_project_dir.string());
+        }
     }
   }
 
@@ -263,13 +270,47 @@ void setup_dir(std::string path_arg) {
   create_scaffold(case_dir);
 }
 
-void run_managed_case(std::string case_label) {
+Model use_managed_case(std::string case_label) {
   fs::path project_dir = read_project_dir();
   fs::path case_dir = project_dir / case_label;
-  run_case(case_dir);
+  return build_model(case_dir);
 }
 
-void use_dir(std::string path_arg) {
+void show_cases() {
+  fs::path project_dir = read_project_dir();
+
+
+  fs::directory_iterator Start{project_dir.string()};  
+  fs::directory_iterator End{};                
+
+  fmt::println("Cases in {}:", project_dir.string());
+  int cnt = 0;
+  for (auto Iter{Start}; Iter != End; ++Iter) {
+    std::cout << "  " << Iter->path().filename().string() << '\n';
+    cnt++;
+  }
+  if (cnt == 0) fmt::println("  No cases initialized yet.");
+}
+
+Model use_dir(std::string path_arg) {
   fs::path case_dir = resolve_explicit_case_dir(path_arg);
-  run_case(case_dir);
+  return build_model(case_dir);
+}
+
+std::optional<Model> r0_sim_setup(std::string path_arg) {
+  try {
+    Model model = use_managed_case(path_arg);
+    return model;
+  } catch (const std::exception& e) {
+    fmt::println("Input case path is not a case-label in standard project location.\n  Trying to use input as a case directory...");
+  }
+
+  try {
+    Model model = use_dir(path_arg);
+    return model;
+  } catch (const std::exception& e) {
+      fmt::println("Input case path is not a case-dir in the home directory.");
+  }
+
+  return {};  // must return valid object of type Model or null object
 }

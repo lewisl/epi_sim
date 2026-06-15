@@ -1,4 +1,5 @@
 ## TODO
+- distribution packaging
 - r0 calculations
 - fix cumbersome seedcase code?
 - use comments in json files!
@@ -11,7 +12,6 @@
     >constexpr explicit Agegrp(uint8_t v) noexcept : v(v < 6 ? v : 0) {}
     constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
 - guided user interface in webview: projected by c++ code, gets user inputs, responds appropriately
-- distribution packaging
 - port to Windows?  port to Linux?
 
 ## Done
