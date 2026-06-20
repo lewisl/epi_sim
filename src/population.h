@@ -1,7 +1,6 @@
 // population: organize data about each person in the locale
 
-#ifndef POPULATION
-#define POPULATION
+#pragma once
 
 #include "lib_includes.h"
 
@@ -224,6 +223,3 @@ class PopData {
 inline AgentView PopData::agent(std::size_t i) {
   return AgentView{*this, i};
 }
-
-
-#endif

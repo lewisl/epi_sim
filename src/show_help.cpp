@@ -6,6 +6,9 @@
 #include <string_view>
 #include <array>
 
+// 
+// provide command line help in a terminal session
+//
 
 namespace {
 // help text to display
@@ -69,6 +72,7 @@ To learn more:
 constexpr std::string_view gettingstarted_help = R"TAG(This the recommended way to start using epi_sim.
 )TAG";
 
+// help_map for all topics
 using HelpTopic = std::pair<std::string_view, std::string_view>;
 
 constexpr auto help_map = std::to_array<HelpTopic>({

@@ -14,6 +14,9 @@
 - guided user interface in webview: projected by c++ code, gets user inputs, responds appropriately
 - port to Windows?  port to Linux?
 
+## immediately previous session
+- opencode -s ses_11e137ffbffeM94mDnfMrjLSza
+
 ## Done
 - achieve better repeatability and comparison of simulation runs by bundling inputs and outputs for a simulation run in suitably named directories
 - consolidate the series serialization code for printing and serialization

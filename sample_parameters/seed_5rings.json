@@ -1,0 +1,163 @@
+[
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_1"},
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_1"},
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_2"},
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_2"},
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_3"},
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_3"},
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_4"},
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_4"},
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_5"},
+            {"trait": "agegrp", "val": "Age20_39"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    },
+    {
+        "triggerday": 1, "startofday": true,
+        "filter": [
+            {"trait": "ring",   "val": "ring_5"},
+            {"trait": "agegrp", "val": "Age40_59"}
+        ],
+        "change": {
+            "terms": [
+                {"trait": "status",   "val": "infectious"},
+                {"trait": "cond",     "val": "nil"},
+                {"trait": "variant",  "val": "base"},
+                {"trait": "duration", "val": 1}
+            ],
+            "count": 1
+        }
+    }
+
+]

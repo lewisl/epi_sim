@@ -6,6 +6,11 @@
 #include "show_help.h"
 #include <cstdlib>
 
+//
+// run the application with immediate commands that show information and stop or
+// run the simulation with an input case
+//
+
 int main(int argc, char** argv) {
 
   std::string config_path;

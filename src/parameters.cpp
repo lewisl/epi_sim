@@ -1,6 +1,5 @@
 #include "lib_includes.h"
 
-
 #include "parameters.h"
 #include "helpers.h"    // for shifter range compressor
 #include <cstdint>

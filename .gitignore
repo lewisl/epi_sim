@@ -18,3 +18,4 @@ tempCode*
 .stignore
 .codegraph
 .aidex
+.aider*

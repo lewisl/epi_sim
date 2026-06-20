@@ -2,232 +2,109 @@
 
 ## Mandatory Session Start
 
-Before doing anything else — before proposing a plan, before reading any specific file requested, before writing a single line of code — do the following in order:
+Before proposing a plan or writing code, read in order:
 
-1. Read `AGENTS.md` (project conventions: indexing, AgentView, naming, build system)
-2. Read `CONTRIBUTING.md`
-3. Read `design/data-structures.md`
-4. Read `design/zero and one based indexing.md`
+1. `AGENTS.md` (this file)
+2. `CONTRIBUTING.md`
+3. `design/data-structures.md`
+4. `design/zero and one based indexing.md`
 
+If `SESSION.md` exists at the repo root, read it first — it is the source of truth for current task state, decisions, blockers, and next steps. Update it when finishing a unit of work or before context compaction.
 
-Only after completing these steps should you engage with the user's task.
+## Build System
+
+- **xmake only.** Never use cmake, make, or git worktrees.
+- C++23, LLVM/Clang toolchain, `set_optimize("fastest")`.
+- External libs via vcpkg with **manually configured paths** — a clean checkout will not build without that environment in place. Do not assume `xmake` "just works" on a fresh machine.
+- Build file: `xmake.lua`. All targets are `set_default(false)`, so bare `xmake` builds nothing — always name a target. Relevant targets: `epi_sim` (main binary), `test` (test binary). Other targets (`this`, `randstuff`, `dates`, `ring_experiment`) are scratch utilities under `scratch/` — not part of the product.
+- `xmake build <target>` builds that target. `xmake run <target>` rebuilds automatically if any of the target's source files are newer than the last build, then runs it.
+
+```bash
+xmake build epi_sim          # build the application
+xmake run epi_sim [flags...] # build (if stale) and run with CLI flags
+xmake run test               # build (if stale) and run tests
+```
+
+## Tests
+
+Test binary is `test`; groups are selected by positional arg.
+
+```bash
+xmake run test                       # runs ALL groups EXCEPT runsim
+xmake run test <group>               # one group
+xmake run test <group> --artifacts   # write CSV/plot artifacts to test_output/
+xmake run test runsim                # MUST be run explicitly (see below)
+```
+
+Groups: `pop_serialize`, `parameters`, `disease_modeling`, `vaccination`, `traits`, `series`, `setup`, `plot`, `runsim`.
+
+**`runsim` is intentionally excluded from the no-arg sweep.** It is slow, writes CSV/plot artifacts to disk, and opens browser tabs. Always run it explicitly. (Note: `design/running_tests.md` is stale and does not list `runsim`.)
+
+- Run the narrowest relevant group first; run the full `xmake run test` after changes to shared headers, core simulation, or test harness.
+- Do not add new test groups or harness structure unless requested.
+- Fixtures live in `test/fixtures/`; artifacts go to `test_output/` (gitignored).
 
 ## Code Conventions
 
-### PopData: 1-Based Indexing
+### PopData: 1-Based Indexing (critical)
 
-**Important:** All `PopData` vectors use **1-based indexing** to match mathematical/epidemiological conventions where persons are numbered 1 to N.
-
-#### Vector Structure
-- All PopData member vectors have size `popz = popn + 1`
-- Index 0 is **unused** and should never be accessed
-- Valid person indices: `1` to `popn` (inclusive)
-- Example: For a population of 100, vectors have size 101, with valid indices 1-100
-
-#### Looping Conventions
-
-**Preferred: Index-based loops**
-```cpp
-// ✅ CORRECT - Index-based loop
-for (int i = 1; i <= pop.popn; i++) {
-    pop.status[i] = new_status;
-    pop.agegrp[i] = age_group;
-}
-
-// ❌ WRONG - Don't start at 0
-for (int i = 0; i < pop.popn; i++) {
-    pop.status[i] = new_status;  // Accesses index 0!
-}
-```
-
-**Iterator-based loops (when necessary)**
-```cpp
-// ✅ CORRECT - Skip first element
-for (auto it = pop.status.begin() + 1; it != pop.status.end(); ++it) {
-    *it = new_status;
-}
-
-// ❌ WRONG - Don't use begin() directly
-for (auto it = pop.status.begin(); it != pop.status.end(); ++it) {
-    *it = new_status;  // Processes index 0!
-}
-```
-
-**Standard library algorithms**
-```cpp
-// ✅ CORRECT - Start at begin() + 1
-int total = std::accumulate(pop.status.begin() + 1, pop.status.end(), 0);
-auto it = std::find(pop.agegrp.begin() + 1, pop.agegrp.end(), target_age);
-
-// ❌ WRONG - Don't use begin() directly
-int total = std::accumulate(pop.status.begin(), pop.status.end(), 0);
-```
-
-#### Why 1-Based Indexing?
-
-1. **Domain alignment**: Epidemiological models traditionally number persons 1 to N
-2. **Mathematical clarity**: Matches equations and pseudocode from papers
-3. **Debugging**: Person IDs match array indices directly
-4. **Interoperability**: Easier to work with R, Julia, MATLAB code that uses 1-based indexing
-
-#### Common Pitfalls
+All `PopData` member vectors have size `popz = popn + 1`. **Index 0 is unused and must never be accessed.** Valid person indices: `1..popn`. Use `pop.popn` for loop bounds, never `.size()`.
 
 ```cpp
-// ❌ WRONG - Range-based for loop processes ALL elements including index 0
-for (auto& status : pop.status) {
-    status = new_value;  // Modifies index 0!
-}
-
-// ❌ WRONG - Using .size() instead of .popn
-for (int i = 0; i < pop.status.size(); i++) {
-    // Processes 0 to popz-1, should be 1 to popn
-}
-
-// ✅ CORRECT - Use popn, not size()
-for (int i = 1; i <= pop.popn; i++) {
-    pop.status[i] = new_value;
-}
+for (int i = 1; i <= pop.popn; i++) { ... pop.status[i] ... }   // ✅
+for (auto& s : pop.status) { ... }                              // ❌ touches index 0
+std::accumulate(pop.status.begin() + 1, pop.status.end(), 0);   // ✅ skip element 0
 ```
 
-#### Testing and Validation
+`DayData` series are likewise 1-based across days: `for (int d = 1; d <= model.ndays; ++d)`. There is no day 0.
 
-When writing tests or debug output:
-- Always verify you're accessing indices 1 to popn
-- Check that index 0 remains unchanged (should stay at initialization value)
-- Use `pop.popn` for loop bounds, not `pop.status.size()`
+### MapEnum zero-value semantics
 
-#### Example: Counting by Status
+Zero means different things per enum — do not assume uniformity:
+- `Condition`: 0 = "uninfected", not used to index parameter arrays.
+- `Status`: 0 = "none", not used as an index.
+- `Agegrp`: 0 = "unknown", should not be used as an index.
+- `Variant`: 0 = "none" and is generally an error during simulation; **1 = "base" is required** and often derives other variant parameters.
+- `Vaxstatus`: 0 = "none" is a valid status.
+- `Progressionmap`: explicitly zero-based, valid nums `0..5`.
 
-```cpp
-// Count people by infection status
-std::vector<int> status_counts(5, 0);  // 5 status types
+### PopData::AgentView
 
-// ✅ CORRECT
-for (int i = 1; i <= pop.popn; i++) {
-    status_counts[pop.status[i]]++;
-}
+`AgentView` is a cheap proxy (reference to `PopData` + person index), not a row copy. Pass by value normally; do not switch to `const AgentView&` for performance. `const AgentView` makes the proxy const but does **not** make the underlying person data const — a `const AgentView` can still mutate person state through mutable accessors. Use `const AgentView` only to prevent rebinding the proxy itself.
 
-// Alternative with iterators
-for (auto it = pop.status.begin() + 1; it != pop.status.end(); ++it) {
-    status_counts[*it]++;
-}
-```
+### Formatting & output
 
-### PopData::AgentView Arguments
+Use the `{fmt}` library exclusively for new code: `fmt::print`, `fmt::print(stderr, ...)`, `fmt::format`, custom `fmt::formatter<T>`. Use `{}`-style format strings. Do not introduce new `printf`/`fprintf`/`snprintf` or `std::ostringstream` formatting.
 
-`PopData::AgentView` is a small proxy/handle, not a materialized row copy of `PopData`.
+### Naming
 
-- An `AgentView` contains a reference to the underlying `PopData` plus the person's index
-- Passing `PopData::AgentView` by value is normally appropriate and cheap
-- Passing `PopData::AgentView` by value does **not** copy the population vectors or person state
-- Do not switch `AgentView` parameters to `const PopData::AgentView&` for performance reasons; that usually adds indirection without benefit
+- Structs: PascalCase (`ModelParams`, `PopData`)
+- Functions/variables: snake_case (`setup_sim`, `vax_path`)
+- Constants: UPPER_SNAKE_CASE (`AGE_DIST`, `DURATIONLIM`)
 
-Constness needs care here:
+### File organization
 
-- `const PopData::AgentView` makes the proxy object itself const inside the callee
-- It does **not** automatically make the underlying `PopData` entry const
-- If `AgentView` exposes const-qualified accessors returning mutable references, a function can still update the underlying person data through a `const AgentView`
-- Use `const PopData::AgentView` only when you specifically want to prevent rebinding or mutation of the proxy object inside the function; do **not** assume it means read-only access to the person's data
+`src/` (`.h` + `.cpp`), `test/`, `sample_parameters/` (JSON/CSV params), `docs/`, `design/` (dev-focused explanations), `scratch/` (throwaway utilities, gitignored).
 
-Practical guidance:
+## Hot Paths
 
-- Use `PopData::AgentView person` for ordinary agent-oriented helper functions
-- Use `const PopData::AgentView person` only if the API is intentionally designed so the proxy itself should not be changed in the callee
-- If a function must be truly read-only with respect to person state, the `AgentView` API itself must provide read-only accessors or a separate const view type
+Treat `spread`, `progression`, `runsim`, vaccination, and population loops as hot paths. Do not add helper calls, allocations, extra bounds checks, or abstractions inside hot loops unless requested or justified by a measured bug/risk. Prefer existing inline/local logic.
 
-### C++ formatting and output
+## Workflow
 
-This project uses the `{fmt}` library.
-
-Prefer:
-- `fmt::print(...)` for formatted output
-- `fmt::print(stderr, ...)` for diagnostics/errors
-- `fmt::format(...)` for constructing formatted strings
-- custom `fmt::formatter<T>` specializations for project types when useful
-
-Avoid:
-- `std::fprintf`, `printf`, `snprintf` except for C interop or existing low-level code
-- `std::ostringstream` for routine string formatting
-- iostream formatting chains for generated output unless very, very simple
-- Do not introduce new `printf`/`fprintf`/`snprintf` formatting unless there is a specific C API boundary reason. 
-
-Use `{}`-style fmt format strings, not printf-style `%` format strings.
-
-### File Organization
-- Header files (`.h`) in `src/`
-- Implementation files (`.cpp`) in `src/`
-- Tests in `test/`
-- Parameter files in `sample_parameters/`
-- Documentation in `docs/`
-- Design documents and development focused explanations in `design/`
-
-### Naming Conventions
-- Structs: PascalCase (e.g., `ModelParams`, `PopData`)
-- Functions: snake_case (e.g., `setup_sim`, `load_vax_data`)
-- Variables: snake_case (e.g., `popn`, `vax_path`)
-- Constants: UPPER_SNAKE_CASE (e.g., `AGE_DIST`, `DURATIONLIM`)
-
-### Build System
-- Using xmake for build configuration
-- C++23 standard
-- LLVM/Clang toolchain
-
-## Other requests
-
-### Code management
-- Don't delete code unless requested by the user or clearly part of another requested code change 
-
-## Workflow Instructions
-
-### Intent And Scope
-
-- If the user asks to inspect, evaluate, review, or explain, do not edit files unless explicitly asked.
-- Do not add features, refactor, or improve beyond the request.
-- Preserve unrelated dirty worktree changes.
-- Prefer small, targeted patches over structural rewrites.
-- When in doubt, ask before changing files.
-
-### Before Editing
-
-- Before editing, locate and read the relevant source. Use the fastest appropriate navigation tools for the task, then verify important details in the actual files before changing them.
-- For non-trivial changes, trace callers, related symbols, custom argument types, and where key data originates. Verify overloaded functions and call-site binding by hand.
-- State important assumptions or invariants before broad changes.
-
-### Build And Test
-
-- Use `xmake` only. Do not use cmake, make, or git worktrees.
-- Run the narrowest relevant `xmake run test <group>` first when available.
-- Run full `xmake run test` after changes to shared headers, core simulation behavior, or test harness code.
-- Do not add new test groups or test harness structure unless requested.
-
-### Hot Paths
-
-- Treat `spread`, `progression`, `runsim`, vaccination, and population loops as hot paths.
-- Do not add helper calls, allocations, extra bounds checks, or abstractions inside hot loops unless requested or justified by a measured bug/risk.
-- Prefer existing inline/local logic in hot paths unless profiling or correctness requires otherwise.
-
-### Communication
-
-- Keep responses concise and directly tied to the request.
-- Lead with the answer or result.
-- Avoid long explanations unless asked for detail.
-- For code changes, report only: what changed, where, tests run, and remaining risks.
-- Make sure the response is very crisp. Always support markdown, table. Limit the output tokens as much as possible, unless ask to elaborate more.
+- **Intent & scope:** If asked to inspect/review/explain, do not edit unless explicitly asked. Do not add features, refactor, or "improve" beyond the request. Prefer small targeted patches. Ask before broad changes.
+- **Before editing:** Read every file you intend to modify. Trace callers, related symbols, custom argument types, and where data originates. Verify overloaded call-site binding by hand. State invariants before broad changes.
+- **Code management:** Don't delete code unless requested or clearly part of another requested change. Preserve unrelated dirty worktree changes.
+- **Communication:** Concise, lead with the result. For code changes report only: what changed, where, tests run, remaining risks.
 
 ## Code Navigation
-- clangd-lsp plugin is installed via Serena MCP. It provides go-to-definition, 
-  find-references, and diagnostics via clangd with full semantic 
-  understanding of C++23, templates, and overloads.
 
-## Session State Management
+Serena MCP (clangd/LSP) provides semantic navigation for C++23. For functions, methods, classes, structs, enums, aliases, variables: prefer Serena go-to-definition / find-references / diagnostics first (resolves overloads correctly). Use ripgrep for non-symbol text: comments, string literals, build files, JSON, Markdown, config, logs.
 
-- On startup or after context compaction, always read `SESSION.md` first if it exists.  If the developer feels that all previous items are resolved, he may have removed the file. You may create a new one for this session for new meaningful units of work.
-- Treat `SESSION.md` as the source of truth for:
-  - Current task and progress
-  - Key decisions made this session
-  - Open questions or blockers
-  - Files modified and why
-  - Next concrete steps
-- When you finish a meaningful unit of work or are about to lose context,
-  update `SESSION.md` with succinct bullet points. Write it as if briefing
-  a replacement who knows the codebase but not what you did today.
+## What Not To Do
+
+- Do not change code before reading the relevant source.
+- Do not use git worktrees — vcpkg paths and LLVM/Clang stdlib links cannot be reconstructed in a worktree without manual setup.
+- Do not guess xmake syntax — read `xmake.lua` and acknowledge uncertainty.
+- Do not delete code unless explicitly requested.
+- Do not add features/refactors beyond what was asked.
