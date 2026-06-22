@@ -6,8 +6,7 @@
 #include "series.h"
 #include "sim.h"
 
-  // simplified early version of spread  TODO need vaxset, dovax sdcases
-  void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
+  int spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq,
@@ -17,6 +16,7 @@
               const std::vector<size_t>& ring_lengths) {
 
     auto thisday = sim::get_day();
+    int new_sick_cnt{};
 
     // retrieve needed parameters (use const references to avoid copying)
     // spreader's contactfactors are overridden by their sdcase, if any
@@ -32,7 +32,16 @@
     // which contacts does the infected person have? use pre-allocated buffer contacts
     auto contact_factor = contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
     auto scale = density_factor * indoor_factor * contact_factor;
+
+    // debug
+    // fmt::println("contact_factor {}, contact_factor {}, indoor_factor {}", contact_factor, contact_factor, indoor_factor);
+
+
     auto num_contacts = xo::gamma_int(gammashape, scale, 12);
+
+
+    // debug
+    // fmt::println("in spread, num contacts: {}", num_contacts);  // BAD
 
     // select which people are contacted; fill the pre-allocated contacts buffer
     contacts.clear();
@@ -92,7 +101,9 @@
 
         if (isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
           contact.make_sick(spr_variant, series); // contact is pop.agent(c) from above
+          new_sick_cnt++;
         }
       }
   }
+  return new_sick_cnt;
 }

@@ -71,7 +71,10 @@ int main(int argc, char** argv) {
       else if (flag == "--r0-sim") {
         if (val.empty()) { std::fprintf(stderr, "Must provide a case-label or valid case-dir.\n"); std::exit(EXIT_FAILURE); }
         auto model = r0_sim_setup(val);
-        if (model) {r0_sim(*model);}
+        if (model) {
+          float r0 = r0_sim(*model);
+          fmt::println("r0 estimate: {:.2f}", r0);
+        }
         else {fmt::println("Model could not be created for r0 simulation.");}
       }
 

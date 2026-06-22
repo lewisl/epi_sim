@@ -17,7 +17,9 @@ they move to recovered or dead. Note: p is the contacted person.
 */ 
 void progression(AgentView person, AllSeries & series, ProgressionSet &progset, vector<InfectParams> &infectparams,
                  array<float, 6> &probvec, bool dovax, VaxSet &vaxset) {
-    auto today = sim::get_day();
+
+                  auto today = sim::get_day();
+
     // extract traits for current person -- won't update these
     const auto p_variant = person.variant();   
     const auto p_vaxstatus = person.vaxstatus();  
