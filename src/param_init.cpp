@@ -43,6 +43,7 @@ Model build_model(fs::path case_dir) {
       .do_social_distancing = config_json.value("do_social_distancing", false),
       .do_rings = config_json.value("do_rings", false),
       .debug = config_json.value("debug", false),
+      .age_dist = config_json["age_dist"],
       .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
       .variants = resolve_config_path(input_dir, config_json, "variants").string(),
       .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),

@@ -5,7 +5,6 @@
 #include "cases.h"
 #include "helpers.h"
 #include "random.h"
-#include "sim.h"
 
 using std::string;
 

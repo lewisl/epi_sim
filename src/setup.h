@@ -1,7 +1,5 @@
 #pragma once
 
-#include "lib_includes.h"
-
 #include "parameters.h"
 #include "population.h"
 #include "sim.h"
@@ -16,6 +14,7 @@ struct Model {
   bool do_social_distancing{};
   bool do_rings{};
   bool debug{};
+  vector<double> age_dist;
   bool headless{false};  // when true, runsim skips disk writes and browser plots; set by tests
   std::filesystem::path output_dir {};
   std::string case_label {};

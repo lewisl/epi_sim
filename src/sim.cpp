@@ -1,6 +1,4 @@
 
-#include "lib_includes.h"    // the clangd linter gets this wrong
-
 #include "cases.h"
 #include "helpers.h"
 #include "parameters.h"
@@ -8,7 +6,6 @@
 #include "random.h"
 #include "sim.h"
 #include "setup.h"
-#include "disease_modeling.h"      // the clangd linter gets this wrong
 #include "spread.h"
 #include "progression.h"
 #include "timing.h"
@@ -40,6 +37,7 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   PopData &pop = model.pop;    // all person data
   vector<SeedCase>& seedcases = model.seedcases;
   vector<SocialDistancing> & sd_cases = model.sd_cases;
+  vector<double> & age_dist = model.age_dist;
 
   // seed the random number generator
   xo::seed(99999);  // have used 12345

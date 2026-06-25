@@ -18,7 +18,7 @@ using std::string;
 using std::vector;
 
 // control constants
-const vector<double> AGE_DIST = {0.251, 0.271, 0.255, 0.184, 0.039};
+// const vector<double> AGE_DIST = {0.251, 0.271, 0.255, 0.184, 0.039};
 const uint8_t DURATIONLIM { 25 };   // maximum length of illness in days for anyone
 const std::pair<int, int> DURATIONS  {1, DURATIONLIM};
 
@@ -50,7 +50,7 @@ class PopData {
 
     // constructor
     // clang-format off
-    PopData(size_t n, const vector<double>& age_dist=AGE_DIST)
+    PopData(size_t n, const vector<double>& age_dist)
           : popn(n), popz(n+1), 
             agegrp_parts(apportion(n, vector<float>(age_dist.begin(), age_dist.end()))),
             all_idx([n](){std::vector<size_t> v; v.reserve(n); 

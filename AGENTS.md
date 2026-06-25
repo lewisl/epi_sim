@@ -101,6 +101,8 @@ Treat `spread`, `progression`, `runsim`, vaccination, and population loops as ho
 
 Serena MCP (clangd/LSP) provides semantic navigation for C++23. For functions, methods, classes, structs, enums, aliases, variables: prefer Serena go-to-definition / find-references / diagnostics first (resolves overloads correctly). Use ripgrep for non-symbol text: comments, string literals, build files, JSON, Markdown, config, logs.
 
+For C++ semantic questions ("where is this used?", overload binding, call-site analysis, references, declarations, implementations, diagnostics), perform a complete Serena pass before answering: start from the named symbol, then expand to the owning type and relevant functions/methods discovered from references. Do not answer from a single direct-reference query when C++ implicit construction, overload resolution, forwarding wrappers, or by-value parameters may affect the result.
+
 ## What Not To Do
 
 - Do not change code before reading the relevant source.

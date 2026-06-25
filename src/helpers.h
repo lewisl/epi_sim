@@ -2,10 +2,15 @@
 // helpers
 //
 
-#ifndef HELPERS
-#define HELPERS
+#pragma once
 
-#include "../src/lib_includes.h"
+#include <ranges>
+#include <numeric>
+
+#include <absl/time/civil_time.h>
+#include <fmt/base.h>
+
+// #include "../src/lib_includes.h"
 
 using std::vector;
 
@@ -64,5 +69,3 @@ std::string sanitize_filename_component(std::string_view input);
 std::string make_timestamp_token();
 
 std::string make_timestamped_filename(std::string basename);
-
-#endif

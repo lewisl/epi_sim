@@ -1,12 +1,10 @@
-#include "lib_includes.h"
-
 #include "population.h"
 #include "disease_modeling.h"
 #include "cases.h"
 #include "series.h"
 #include "sim.h"
 
-  int spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
+void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq,
@@ -16,7 +14,6 @@
               const std::vector<size_t>& ring_lengths) {
 
     auto thisday = sim::get_day();
-    int new_sick_cnt{};
 
     // retrieve needed parameters (use const references to avoid copying)
     // spreader's contactfactors are overridden by their sdcase, if any
@@ -101,9 +98,7 @@
 
         if (isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
           contact.make_sick(spr_variant, series); // contact is pop.agent(c) from above
-          new_sick_cnt++;
         }
       }
   }
-  return new_sick_cnt;
 }

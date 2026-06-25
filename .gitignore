@@ -4,9 +4,6 @@ build/
 compile_commands.json
 outtakes
 scratch
-plot_output
-series_output
-pop_output
 test_output
 
 # MacOS Cache
@@ -17,5 +14,6 @@ test_output
 tempCode*
 .stignore
 .codegraph
-.aidex
-.aider*
+.kilo
+.claude
+.serena

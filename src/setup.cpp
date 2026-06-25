@@ -7,7 +7,6 @@ Overall TODO
 - add status filtering to seeding
 */
 
-#include "../src/lib_includes.h"
 
 #include "parameters.h"
 #include "helpers.h"
@@ -175,6 +174,7 @@ Model setup_sim(Config config)
       bool do_social_distancing = config.do_social_distancing;
       bool do_rings = config.do_rings;
       bool debug = config.debug;
+      std::vector<double> age_dist = config.age_dist;
       fs::path output_dir = config.output_dir;
       std::string case_label = config.case_label;
       fs::path seed = config.seed;
@@ -207,7 +207,7 @@ Model setup_sim(Config config)
     auto locale_idx = locale_pos - mp.geodata.fips.begin();
     int popn = mp.geodata.pop[locale_idx];
 
-    PopData pop(popn);
+    PopData pop(popn, age_dist);
     assign_rings(pop, mp.ringtraits.pct_of_population);
     auto ring_members = build_ring_members(pop, mp.ringtraits.ring_count());
 
@@ -233,6 +233,7 @@ Model setup_sim(Config config)
       .do_social_distancing = do_social_distancing,
       .do_rings = do_rings,
       .debug = debug,
+      .age_dist = age_dist,
       .output_dir = std::move(output_dir),
       .case_label = std::move(case_label),
       .mp = std::move(mp),
