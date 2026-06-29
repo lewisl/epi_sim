@@ -1,6 +1,5 @@
 ## TODO
 - distribution packaging
-- r0 calculations
 - fix cumbersome seedcase code?
 - use comments in json files!
 - test and trace
@@ -18,6 +17,7 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- r0 calculations
 - achieve better repeatability and comparison of simulation runs by bundling inputs and outputs for a simulation run in suitably named directories
 - consolidate the series serialization code for printing and serialization
 - implement rings

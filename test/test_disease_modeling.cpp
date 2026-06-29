@@ -26,7 +26,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
   artifact << "========================\n\n";
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     AllSeries series = make_series(pop, 5);
     sim::reset_day();
     sim::incr_day();
@@ -44,7 +44,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
   }
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     AllSeries series = make_series(pop, 20);
     auto person = pop.agent(1);
     person.variant() = Variant{1};
@@ -65,7 +65,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
   }
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     AllSeries series = make_series(pop, 5);
     sim::reset_day();
     sim::incr_day();
@@ -82,7 +82,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
   }
 
   {
-    PopData pop(2);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     pop.variant[1] = Variant{1};
     pop.recovday[1] = 10;
     pop.variant[2] = Variant{1};
@@ -123,7 +123,7 @@ void test_make_sick_updates_state_and_series() {
   Variant::names = {"none", "base"};
   Vax::names = {"none"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   AllSeries series = make_series(pop, 5);
 
   sim::reset_day();
@@ -156,7 +156,7 @@ void test_make_well_updates_state_and_recovday_history() {
   Variant::names = {"none", "base"};
   Vax::names = {"none"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   AllSeries series = make_series(pop, 20);
   auto person = pop.agent(1);
   person.variant() = Variant{1};
@@ -191,7 +191,7 @@ void test_make_dead_sets_death_state() {
   Variant::names = {"none", "base"};
   Vax::names = {"none"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   AllSeries series = make_series(pop, 5);
 
   sim::reset_day();
@@ -213,7 +213,7 @@ void test_make_dead_sets_death_state() {
 }
 
 void test_recoveffect_uses_scalar_recovday() {
-  PopData pop(2);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   pop.variant[1] = Variant{1};
   pop.recovday[1] = 10;
   pop.recovday_hist[1].count = 0;
@@ -238,7 +238,7 @@ void test_vaxeffect_uses_scalar_latest_vax() {
   Variant::names = {"none", "base"};
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(2);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   pop.vaxstatus[1] = Vaxstat::full;
   pop.vax[1] = Vax{1};
   pop.vaxday[1] = 10;

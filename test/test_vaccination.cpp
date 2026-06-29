@@ -66,7 +66,7 @@ void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
   Variant::names = {"none"};
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(2);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
   AllSeries series = make_series(pop, 20);
   VaxSet vaxset = make_pfizer_set(1, 0, 999);
@@ -87,7 +87,7 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   Variant::names = {"none"};
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(3);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
   pop.status[2] = RECOVERED;
   pop.recovday[2] = 5;
@@ -116,7 +116,7 @@ void test_vaccinate_second_shot_after_delay() {
   Variant::names = {"none"};
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
   pop.vaxstatus[1] = Vaxstat::first;
   pop.vax[1] = Vax{1};
@@ -144,7 +144,7 @@ void test_vaccinate_booster_after_delay() {
   Variant::names = {"none"};
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
   pop.vaxstatus[1] = Vaxstat::full;
   pop.vax[1] = Vax{1};
@@ -169,7 +169,7 @@ void test_vax_history_overflow_retains_latest_days() {
   test_support::VaxNamesGuard vax_guard;
   Vax::names = {"none", "pfizer"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   for (int day = 1; day <= 17; ++day) {
     pop.vax[1] = Vax{1};
     pop.vaxday[1] = static_cast<int16_t>(day);
@@ -198,7 +198,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   artifact << "===================\n\n";
 
   {
-    PopData pop(2);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     set_agegrp(pop, AGE20_39);
     AllSeries series = make_series(pop, 20);
     VaxSet vaxset = make_pfizer_set(1, 0, 999);
@@ -214,7 +214,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   }
 
   {
-    PopData pop(3);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     set_agegrp(pop, AGE20_39);
     pop.status[2] = RECOVERED;
     pop.recovday[2] = 5;
@@ -233,7 +233,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   }
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     set_agegrp(pop, AGE20_39);
     pop.vaxstatus[1] = Vaxstat::first;
     pop.vax[1] = Vax{1};
@@ -250,7 +250,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   }
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     set_agegrp(pop, AGE20_39);
     pop.vaxstatus[1] = Vaxstat::full;
     pop.vax[1] = Vax{1};
@@ -267,7 +267,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   }
 
   {
-    PopData pop(1);
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     for (int day = 1; day <= 17; ++day) {
       pop.vax[1] = Vax{1};
       pop.vaxday[1] = static_cast<int16_t>(day);

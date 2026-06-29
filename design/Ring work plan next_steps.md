@@ -1,5 +1,7 @@
 # Ring work — resume notes
 
+**This work is complete**
+
 Last touched: 2026-05-18. Branch `ring_by_ai`, head commit `d975adc`
 ("Add ring contact-structure foundations"). All tests passing (270/270).
 

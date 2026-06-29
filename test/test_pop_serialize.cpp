@@ -71,7 +71,7 @@ void test_pop_to_csv_writes_file_and_escapes_cells(const test_support::TestRunOp
   test_support::VaxNamesGuard vax_guard;
   Variant::names = {"none", "delta,epsilon"};
 
-  PopData pop(1);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   pop.status[1] = UNEXPOSED;
   pop.cond[1] = UNINFECTED;
   pop.variant[1] = Variant{1};

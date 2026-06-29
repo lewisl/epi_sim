@@ -101,9 +101,6 @@ void seed_gen1(vector<size_t> & gen1_spreaders, PopData & r0pop, AllSeries & r0s
 
   fmt::println("spreaders by age: {} = {}", cnt_by_age, sum(cnt_by_age));
  
-  // Seed gen1 spreaders. sim::current_day == 0 here, so make_sick writes
-  // into the unused day-0 slot of the series. The day-1 new_status slot
-  // stays at 0 — important for our gen1-only infection count below.
   vector<int> remaining{cnt_by_age};  // make a copy
   for (size_t p = 1; p <= r0pop.popn; ++p) {
     auto person = r0pop.agent(p);
@@ -147,7 +144,7 @@ size_t spread_and_count(PopData& pop, AllSeries& series, AgentView person,
       touchprob = std::clamp(baseprob * indoor_factor, 0.0f, 1.0f);
     }
 
-    // count the infection but don't change state per academic defintion of R0
+    // count the infection but don't change population state per academic defintion of R0
     if (touchprob > 0.0f && xo::bernoulli(touchprob) == 1.0f
         && isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
       ++newly_infected;
@@ -178,12 +175,10 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   vector<double> age_dist = model.age_dist;
 
   double density_factor = 1.0;
-  vector<size_t> gen1_spreaders{};
+  vector<size_t> gen1_spreaders{};  // mutated in place
 
 
   seed_gen1(gen1_spreaders, r0pop, r0series, age_dist, variant, scale);
-  // std::vector<uint8_t> is_gen1(r0pop.popz, 0);
-  // for (size_t p : gen1_spreaders) is_gen1[p] = 1;  // to quickly verify a newly infected person is gen1  NOT SURE THIS IS NEEDED
   const size_t gen1_spreader_cnt = gen1_spreaders.size();
   if (gen1_spreader_cnt == 0) {
     sim::current_day = saved_day;
@@ -191,8 +186,6 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
     throw std::runtime_error("No spreaders assigned.");
   }
 
-
-  // auto gen1_infect_idx{gen1_spreaders};   // copy  NOT CLEAR WE NEED THE COPY
   size_t r0_infected = 0;
   vector<float> indoor_seq(DURATIONLIM, 1.0f);  // assume no seasonality for abstract r0 simulation
 
@@ -214,15 +207,14 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
       if (person.status() != INFECTIOUS) continue;
 
       const size_t infected = spread_and_count(r0pop, r0series, person, socialparams,
-                                               infectparams, vaxset, dovax, contacts,
-                                               density_factor, indoor_seq);
+                              infectparams, vaxset, dovax, contacts, density_factor, indoor_seq);
       r0_infected += infected;
     }
 
-    // daily progression for spreaders
+    // daily progression for spreaders: to get better or die
     for (size_t p : gen1_spreaders) {
       auto person = r0pop.agent(p);
-          progression(person, r0series, progressionset, infectparams, probvec, dovax, vaxset);
+      progression(person, r0series, progressionset, infectparams, probvec, dovax, vaxset);
     }
 }
   fmt::println("r0 infected: {}", r0_infected);

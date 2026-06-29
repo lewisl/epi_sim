@@ -143,7 +143,7 @@ inline PopData make_popdata_fixture() {
   Variant::names = {"none", "alpha", "delta"};
   Vax::names = {"none", "pfizer", "moderna"};
 
-  PopData pop(3);
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
 
   pop.agegrp[1] = AGE20_39;
   pop.agegrp[2] = AGE40_59;
