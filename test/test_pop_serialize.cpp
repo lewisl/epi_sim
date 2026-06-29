@@ -113,7 +113,7 @@ void test_write_pop_data_rejects_bad_rows_and_columns() {
 
   bool bad_big_row_threw = false;
   try {
-    write_pop_data(pop, vector<size_t>{1, 4}, {"status"}, OutSpec(out),
+    write_pop_data(pop, vector<size_t>{1, pop.popn + 1}, {"status"}, OutSpec(out),
                    Style::pretty, false, ",", false);
   } catch (const std::invalid_argument&) {
     bad_big_row_threw = true;

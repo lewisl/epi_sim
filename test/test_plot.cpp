@@ -42,6 +42,16 @@ json sample_plot_layout() {
           {"yaxis", {{"title", {{"text", "Count of People"}}}}}};
 }
 
+string extract_json_assignment(const string& html, string_view variable_name) {
+  const string prefix = fmt::format("const {} = ", variable_name);
+  const size_t start = html.find(prefix);
+  REQUIRE(start != string::npos);
+  const size_t json_start = start + prefix.size();
+  const size_t json_end = html.find('\n', json_start);
+  REQUIRE(json_end != string::npos);
+  return html.substr(json_start, json_end - json_start);
+}
+
 void test_render_plot_html_replaces_template_tokens() {
   const json data = sample_plot_data();
   const json layout = sample_plot_layout();
@@ -60,6 +70,36 @@ void test_render_plot_html_replaces_template_tokens() {
   CHECK(html.find("{{ENDMESSAGE}}") == string::npos);
   CHECK(html.find("{{DATA}}") == string::npos);
   CHECK(html.find("{{LAYOUT}}") == string::npos);
+}
+
+void test_produce_plot_writes_valid_html_file() {
+  const auto temp_dir = test_support::fs::temp_directory_path() /
+                        fmt::format("epi_sim_plot_test_{}", std::random_device{}());
+  const auto output_path = temp_dir / "plots" / "unit_plot.html";
+  const json data = sample_plot_data();
+  const json layout = sample_plot_layout();
+
+  produce_plot(output_path, "Simple plot render test", data, layout);
+
+  CHECK(test_support::fs::exists(output_path));
+  CHECK(test_support::fs::is_regular_file(output_path));
+  CHECK(output_path.parent_path() == temp_dir / "plots");
+
+  const string html = test_support::read_file_text(output_path);
+  CHECK(html.find("<title>unit_plot</title>") != string::npos);
+  CHECK(html.find("<h2>Simple plot render test</h2>") != string::npos);
+  CHECK(html.find("https://cdn.plot.ly/plotly-2.35.2.min.js") != string::npos);
+  CHECK(html.find("<div id=\"plot\"") != string::npos);
+  CHECK(html.find("Plotly.newPlot(\"plot\", data, layout)") != string::npos);
+  CHECK(html.find("{{TITLE}}") == string::npos);
+  CHECK(html.find("{{ENDMESSAGE}}") == string::npos);
+  CHECK(html.find("{{DATA}}") == string::npos);
+  CHECK(html.find("{{LAYOUT}}") == string::npos);
+
+  CHECK(json::parse(extract_json_assignment(html, "data")) == data);
+  CHECK(json::parse(extract_json_assignment(html, "layout")) == layout);
+
+  test_support::fs::remove_all(temp_dir);
 }
 
 void write_plot_artifacts(const test_support::TestRunOptions& options) {
@@ -89,6 +129,7 @@ void write_plot_artifacts(const test_support::TestRunOptions& options) {
 void run_plot_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running plot tests...");
   test_render_plot_html_replaces_template_tokens();
+  test_produce_plot_writes_valid_html_file();
   write_plot_artifacts(options);
   if (options.write_artifacts) {
     fmt::println("plot artifacts written under '{}'",

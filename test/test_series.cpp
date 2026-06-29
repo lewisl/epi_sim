@@ -14,11 +14,16 @@ AllSeries make_series(size_t day_cnt) {
   return AllSeries(day_cnt, pop, Variant::names.size(), Vax::names.size(), n_ring_slots);
 }
 
-test_support::fs::path first_csv_in_dir(const test_support::fs::path& dir) {
-  for (const auto& e : test_support::fs::directory_iterator(dir)) {
-    if (e.is_regular_file() && e.path().extension() == ".csv") return e.path();
-  }
-  throw std::runtime_error("no csv in dir");
+struct SeriesCsvOutput {
+  test_support::fs::path csv_path;
+  test_support::fs::path cleanup_dir;
+};
+
+SeriesCsvOutput make_series_csv_output(string_view stem) {
+  const auto temp_dir = test_support::fs::temp_directory_path() /
+                        fmt::format("epi_sim_series_{}_{}", stem, std::random_device{}());
+  return {.csv_path = temp_dir / fmt::format("{}.csv", stem),
+          .cleanup_dir = temp_dir};
 }
 
 void test_init_history_series_carries_forward_stock_series() {
@@ -96,25 +101,22 @@ void test_serialize_selected_series_writes_current_csv_layout() {
   series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
   series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
 
-  const string leaf = fmt::format("series_tmp_{}", std::random_device{}());
-  const vector<string> path_steps = {"code", "epi_sim", "test_output", leaf};
-  const auto out_dir = test_support::project_dir() / "test_output" / leaf;
-  test_support::fs::create_directories(out_dir);
+  const auto output = make_series_csv_output("series_unit");
 
   serialize_selected_series({{"now_unexposed", "total"},
                              {"now_vaccinated", "total"},
                              {"now_variant:delta", "total"}},
-                            series, "series_unit", path_steps);
+                            series, output.csv_path);
 
-  const auto csv_path = first_csv_in_dir(out_dir);
-  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
+  CHECK(test_support::fs::exists(output.csv_path));
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(output.csv_path));
   REQUIRE(lines.size() >= 4);
   CHECK(lines[0] == "now_unexposed:total,now_vaccinated:total,now_variant:delta:total");
   CHECK(lines[1] == "3,0,0");
   CHECK(lines[2] == "1,3,2");
   CHECK(lines[3] == "0,0,0");
 
-  test_support::fs::remove_all(out_dir);
+  test_support::fs::remove_all(output.cleanup_dir);
 }
 
 void test_validate_variant_invariant_checks_current_layout() {
@@ -234,22 +236,19 @@ void test_ring_qualified_selection_resolves_to_ring() {
   CHECK(!ring_id_from_token("nope").has_value());
 
   // End-to-end: a ring-qualified SeriesSelection drives a ring-specific CSV column.
-  const string leaf = fmt::format("series_ring_{}", std::random_device{}());
-  const vector<string> path_steps = {"code", "epi_sim", "test_output", leaf};
-  const auto out_dir = test_support::project_dir() / "test_output" / leaf;
-  test_support::fs::create_directories(out_dir);
+  const auto output = make_series_csv_output("series_ring");
 
   serialize_selected_series({{"now_infectious", "total", "ring_1"},
                              {"now_infectious", "total", "ring_2"}},
-                            series, "series_ring", path_steps);
+                            series, output.csv_path);
 
-  const auto csv_path = first_csv_in_dir(out_dir);
-  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
+  CHECK(test_support::fs::exists(output.csv_path));
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(output.csv_path));
   REQUIRE(lines.size() >= 2);
   CHECK(lines[0] == "now_infectious:total:ring_1,now_infectious:total:ring_2");
   CHECK(lines[1] == "3,5");
 
-  test_support::fs::remove_all(out_dir);
+  test_support::fs::remove_all(output.cleanup_dir);
 }
 
 void test_bare_selection_resolves_to_aggregate() {
@@ -263,21 +262,18 @@ void test_bare_selection_resolves_to_aggregate() {
   series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
 
   // Bare selection (no ring) goes to the RING_ALL aggregate slot; header has no ring suffix.
-  const string leaf = fmt::format("series_bare_{}", std::random_device{}());
-  const vector<string> path_steps = {"code", "epi_sim", "test_output", leaf};
-  const auto out_dir = test_support::project_dir() / "test_output" / leaf;
-  test_support::fs::create_directories(out_dir);
+  const auto output = make_series_csv_output("series_bare");
 
   serialize_selected_series({{"now_infectious", "total"}},
-                            series, "series_bare", path_steps);
+                            series, output.csv_path);
 
-  const auto csv_path = first_csv_in_dir(out_dir);
-  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
+  CHECK(test_support::fs::exists(output.csv_path));
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(output.csv_path));
   REQUIRE(lines.size() >= 2);
   CHECK(lines[0] == "now_infectious:total");
   CHECK(lines[1] == "8");
 
-  test_support::fs::remove_all(out_dir);
+  test_support::fs::remove_all(output.cleanup_dir);
 }
 
 void test_mixed_valid_invalid_selection_drops_invalid_column() {
@@ -292,22 +288,19 @@ void test_mixed_valid_invalid_selection_drops_invalid_column() {
 
   // A spec mixing a resolvable selection with an unknown one: the invalid
   // column is dropped (with a warning) and the valid column is still written.
-  const string leaf = fmt::format("series_mixed_{}", std::random_device{}());
-  const vector<string> path_steps = {"code", "epi_sim", "test_output", leaf};
-  const auto out_dir = test_support::project_dir() / "test_output" / leaf;
-  test_support::fs::create_directories(out_dir);
+  const auto output = make_series_csv_output("series_mixed");
 
   serialize_selected_series({{"now_infectious", "total"},
                              {"now_variant:missing", "total"}},
-                            series, "series_mixed", path_steps);
+                            series, output.csv_path);
 
-  const auto csv_path = first_csv_in_dir(out_dir);
-  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(csv_path));
+  CHECK(test_support::fs::exists(output.csv_path));
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(output.csv_path));
   REQUIRE(lines.size() >= 2);
   CHECK(lines[0] == "now_infectious:total");
   CHECK(lines[1] == "8");
 
-  test_support::fs::remove_all(out_dir);
+  test_support::fs::remove_all(output.cleanup_dir);
 }
 
 void test_parse_ring_suffix() {

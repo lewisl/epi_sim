@@ -11,12 +11,13 @@ void run_series_tests(const test_support::TestRunOptions& options);
 void run_setup_tests(const test_support::TestRunOptions& options);
 void run_plot_tests(const test_support::TestRunOptions& options);
 void run_runsim_tests(const test_support::TestRunOptions& options);
+void run_template_tests(const test_support::TestRunOptions& options);
 
 int main(int argc, char** argv) {
   // "runsim" is intentionally excluded from the no-arg sweep below: it is slow,
   // writes CSV/plot artifacts to disk, and opens browser tabs. Run explicitly with
   // `xmake run test runsim`.
-  const std::vector<std::string> groups = {"pop_serialize", "parameters", "disease_modeling", "vaccination", "traits", "series", "setup", "plot", "runsim"};
+  const std::vector<std::string> groups = {"pop_serialize", "parameters", "disease_modeling", "vaccination", "traits", "series", "setup", "plot", "runsim", "templates"};
   test_support::TestRunOptions options;
   options.artifact_root = test_support::project_dir() / "test_output";
   std::optional<std::string> selected_group;
@@ -71,6 +72,8 @@ int main(int argc, char** argv) {
       run_plot_tests(options);
     } else if (selected == "runsim") {
       run_runsim_tests(options);
+    } else if (selected == "templates") {
+      run_template_tests(options);
     }
   }
 

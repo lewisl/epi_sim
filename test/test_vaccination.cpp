@@ -60,6 +60,12 @@ void set_agegrp(PopData& pop, Agegrp agegrp) {
   for (size_t p = 1; p <= pop.popn; ++p) pop.agegrp[p] = agegrp;
 }
 
+void set_only_people_in_agegrp(PopData& pop, std::initializer_list<size_t> people,
+                               Agegrp agegrp) {
+  set_agegrp(pop, AGE40_59);
+  for (const size_t p : people) pop.agegrp[p] = agegrp;
+}
+
 void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
@@ -88,7 +94,7 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   Vax::names = {"none", "pfizer"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  set_agegrp(pop, AGE20_39);
+  set_only_people_in_agegrp(pop, {1, 2, 3}, AGE20_39);
   pop.status[2] = RECOVERED;
   pop.recovday[2] = 5;
   pop.status[3] = RECOVERED;
@@ -117,7 +123,7 @@ void test_vaccinate_second_shot_after_delay() {
   Vax::names = {"none", "pfizer"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  set_agegrp(pop, AGE20_39);
+  set_only_people_in_agegrp(pop, {1}, AGE20_39);
   pop.vaxstatus[1] = Vaxstat::first;
   pop.vax[1] = Vax{1};
   pop.vaxday[1] = 1;
@@ -145,7 +151,7 @@ void test_vaccinate_booster_after_delay() {
   Vax::names = {"none", "pfizer"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  set_agegrp(pop, AGE20_39);
+  set_only_people_in_agegrp(pop, {1}, AGE20_39);
   pop.vaxstatus[1] = Vaxstat::full;
   pop.vax[1] = Vax{1};
   pop.vaxday[1] = 1;
@@ -215,7 +221,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    set_agegrp(pop, AGE20_39);
+    set_only_people_in_agegrp(pop, {1, 2, 3}, AGE20_39);
     pop.status[2] = RECOVERED;
     pop.recovday[2] = 5;
     pop.status[3] = RECOVERED;
@@ -234,7 +240,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    set_agegrp(pop, AGE20_39);
+    set_only_people_in_agegrp(pop, {1}, AGE20_39);
     pop.vaxstatus[1] = Vaxstat::first;
     pop.vax[1] = Vax{1};
     pop.vaxday[1] = 1;
@@ -251,7 +257,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    set_agegrp(pop, AGE20_39);
+    set_only_people_in_agegrp(pop, {1}, AGE20_39);
     pop.vaxstatus[1] = Vaxstat::full;
     pop.vax[1] = Vax{1};
     pop.vaxday[1] = 1;

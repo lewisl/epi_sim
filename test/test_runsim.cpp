@@ -29,6 +29,7 @@ Config build_test_config(const fs::path& config_path) {
                          : "",
       .dovax = cfg["dovax"],
       .debug = cfg.value("debug", false),
+      .age_dist = {0.251, 0.271, 0.255, 0.184, 0.039},
       .geodata = resolve_against(dir, cfg["geodata"].get<string>()).string(),
       .variants = resolve_against(dir, cfg["variants"].get<string>()).string(),
       .social_params = resolve_against(dir, cfg["social_params"].get<string>()).string(),

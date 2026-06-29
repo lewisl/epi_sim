@@ -36,6 +36,11 @@ struct VaxNamesGuard {
   ~VaxNamesGuard() { Vax::names = saved_names; }
 };
 
+struct SDCaseNamesGuard {
+  vector<string> saved_names = SDCase::names;
+  ~SDCaseNamesGuard() { SDCase::names = saved_names; }
+};
+
 struct RingNamesGuard {
   vector<string> saved_names = Ring::names;
   ~RingNamesGuard() { Ring::names = saved_names; }

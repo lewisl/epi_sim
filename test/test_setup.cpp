@@ -13,6 +13,7 @@ Config sample_config() {
   config.locale = 38015;
   config.calendar_start = "2020-01-01";
   config.dovax = false;
+  config.age_dist = {0.251, 0.271, 0.255, 0.184, 0.039};
   config.seed = (test_support::project_dir() / "sample_parameters" / "seed_basic.json").string();
   config.geodata = paths.geodata;
   config.variants = paths.variants;

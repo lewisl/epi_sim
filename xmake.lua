@@ -17,7 +17,8 @@ target("test")
     set_default(false)
     add_files("test/test_main.cpp", "test/test_pop_serialize.cpp", "test/test_parameters.cpp",
         "test/test_disease_modeling.cpp", "test/test_vaccination.cpp", "test/test_traits.cpp",
-        "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp")
+        "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp",
+        "test/test_templates.cpp")
     add_files("src/*.cpp|epi_sim.cpp")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
 

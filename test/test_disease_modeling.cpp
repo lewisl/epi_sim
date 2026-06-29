@@ -145,7 +145,7 @@ void test_make_sick_updates_state_and_series() {
 
   CHECK(series.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 1);
   CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] == 0);
+  CHECK(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] == 4);
   CHECK(series.new_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] == 1);
   CHECK(series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] == 1);
 }
