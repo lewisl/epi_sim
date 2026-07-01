@@ -100,6 +100,16 @@ inline fs::path project_dir() {
   return fs::path(std::getenv("HOME")) / "code" / "epi_sim";
 }
 
+inline fs::path home_dir() {
+  const char* home = std::getenv("HOME");
+  if (!home) throw std::runtime_error("HOME is not set");
+  return fs::path(home);
+}
+
+inline std::string unique_name(std::string_view prefix) {
+  return fmt::format("{}{}", prefix, std::random_device{}());
+}
+
 inline SampleParamPaths sample_paths() {
   const fs::path root = project_dir();
   return {

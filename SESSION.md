@@ -36,6 +36,29 @@ without turning the file into exhaustive enum-value coverage.
   direct wrapper comparisons, empty history checks, runtime history overflow
   checks, and runtime `trait_from_string` coverage for `Variant`, `Vax`, and
   `SDCase`.
+- Expanded `pop_serialize` coverage (11 -> 88 checks) to close review-identified
+  gaps in `test_pop_serialize.cpp`:
+  - `test_render_pop_cell_covers_every_column`: exercises the public
+    `render_pop_cell` across all 22 columns, including previously-unasserted
+    `deadday`, `sdcase`, `quar`, `quarday`, `recovday`/`recovday_hist`, and the
+    `vax`/`vax_hist`/`vaxday`/`vaxday_hist` family; person 4 is set to `DEAD`
+    with `deadday`/`sdcase` so those columns render meaningful values. Also
+    asserts the unknown-column `std::invalid_argument` throw.
+  - `test_set_output_file_creates_timestamped_csv`: covers `set_output_file`
+    (timestamped `.csv` under a unique `$HOME` subdir, then cleans up).
+  - `test_serialize_all_columns_after_simulation`: runs a 30-day headless
+    simulation (`setup_sim` -> `runsim`, `model.headless = true`), then
+    serializes representative unexposed/infectious/recovered agents with the
+    `"all"` column sentinel. Asserts `get_all_column_names().size() ==
+    ColumnName::COUNT`, that the serialized header names every column, and that
+    output reflects varied end-of-run state; writes an inspectable pretty
+    artifact `all_columns_after_sim.txt`.
+  - Notes: sim is deterministic (fixed RNG seed in `runsim`) and cheap
+    (~1 ms compute, headless = no disk/plots). It runs `dovax=false`; vax
+    schedules start after the 30-day window, and at 30 days there are 0 deaths,
+    so `deadday`/vax columns are covered deterministically via the fixture test
+    rather than the sim. The sim test lives in the default no-arg sweep via
+    `run_pop_serialize_tests`.
 - `templates` creates real project/case scaffold directories under `$HOME`,
   preserves/restores `~/.config/epi_sim/project-dir.toml`, and cleans normal
   test output. With `--artifacts`, it leaves inspectable scaffold directories.
@@ -96,7 +119,10 @@ Observed results:
 - `xmake run test templates`: 173 checks passed.
 - `xmake run test traits`: 123 checks passed.
 - `xmake run test traits --artifacts`: 123 checks passed.
-- `xmake run test`: 387 checks passed.
+- `xmake run test pop_serialize`: 88 checks passed (was 11).
+- `xmake run test pop_serialize --artifacts`: 88 checks passed;
+  `all_columns_after_sim.txt` artifact written.
+- `xmake run test`: 464 checks passed (was 387; +77 from `pop_serialize`).
 - `xmake build epi_sim`: passed.
 - `~/.config/epi_sim/project-dir.toml` restored to:
   `/Users/lewislevin/epi-sim-project`.

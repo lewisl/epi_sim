@@ -182,6 +182,8 @@ Use `{}`-style fmt format strings, not printf-style `%` format strings.
 - Run the narrowest relevant `xmake run test <group>` first when available.
 - Run full `xmake run test` after changes to shared headers, core simulation behavior, or test harness code.
 - Do not add new test groups or test harness structure unless requested.
+- `xmake run <target>` and `xmake build <target>` must be run from the project root — xmake resolves paths relative to `xmake.lua`'s location.
+- If a build/test failure can't be explained by the current source (e.g. after pulling changes, syncing across machines, or switching branches), the xmake build cache may be stale and mismatched with the checked-out files. Force a full rebuild before trusting the failure: `xmake build -r <target>` (e.g. `xmake build -r test`). Do this before deep-diving into a "mysterious" crash or test failure.
 
 ## Before Making Any Change
 

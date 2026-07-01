@@ -1,8 +1,37 @@
 #include "test_support.h"
 
+#include "../src/setup.h"
+#include "../src/sim.h"
+
 namespace {
 
 constexpr std::string_view GROUP = "pop_serialize";
+
+// Mirrors test_setup's sample config but shrinks the run to 30 days so the
+// end-of-run population shows meaningful state variation without the cost of a
+// full production run. dovax/social-distancing/rings stay off: vaccination
+// schedules start well after the 30-day window, so enabling them would add cost
+// without populating vax columns.
+Config simulation_config() {
+  const auto paths = test_support::sample_paths();
+  Config config;
+  config.days = 30;
+  config.locale = 38015;
+  config.calendar_start = "2020-01-01";
+  config.dovax = false;
+  config.do_social_distancing = false;
+  config.do_rings = false;
+  config.age_dist = {0.251, 0.271, 0.255, 0.184, 0.039};
+  config.seed = (test_support::project_dir() / "sample_parameters" / "seed_basic.json").string();
+  config.geodata = paths.geodata;
+  config.variants = paths.variants;
+  config.social_params = paths.social;
+  config.social_dist = (test_support::project_dir() / "sample_parameters" / "soc_dist.json").string();
+  config.vaccines = paths.vaccines;
+  config.vax_sched_dir = paths.vax_sched_dir;
+  config.rings = (test_support::project_dir() / "sample_parameters" / "rings.json").string();
+  return config;
+}
 
 void test_write_pop_data_pretty_compact_to_stream(const test_support::TestRunOptions& options) {
   test_support::VariantNamesGuard variant_guard;
@@ -130,6 +159,155 @@ void test_write_pop_data_rejects_bad_rows_and_columns() {
   CHECK(bad_column_threw);
 }
 
+// Exercises the public single-cell renderer for every PopData column. Person 4
+// is turned into a died agent so deadday/sdcase (left at defaults by the shared
+// fixture) render meaningful values; person 2 already carries populated
+// quarantine/vaccination/history state.
+void test_render_pop_cell_covers_every_column() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::SDCaseNamesGuard sdcase_guard;
+  test_support::RingNamesGuard ring_guard;
+  PopData pop = test_support::make_popdata_fixture();
+
+  pop.status[4] = DEAD;
+  pop.deadday[4] = 22;
+  pop.sdcase[4] = SDCase{1};
+
+  auto cell = [&](std::string_view col, size_t row) {
+    return render_pop_cell(col, pop.agent(row));
+  };
+
+  CHECK(cell("status", 1) == "recovered");
+  CHECK(cell("status", 4) == "dead");
+  CHECK(cell("agegrp", 1) == "age20_39");
+  CHECK(cell("agegrp", 2) == "age40_59");
+  CHECK(cell("cond", 1) == "uninfected");
+  CHECK(cell("cond", 2) == "mild");
+  CHECK(cell("duration", 1) == "0");
+  CHECK(cell("duration", 2) == "5");
+  CHECK(cell("variant", 1) == "alpha");
+  CHECK(cell("variant", 2) == "delta");
+  CHECK(cell("variant_hist", 1) == "alpha");
+  CHECK(cell("variant_hist", 2) == "alpha|delta");
+  CHECK(cell("variant_hist", 3) == "-");
+  CHECK(cell("sickday", 2) == "11");
+  CHECK(cell("sickday", 3) == "-");
+  CHECK(cell("sickday_hist", 1) == "2");
+  CHECK(cell("sickday_hist", 2) == "4|11");
+  CHECK(cell("recovday", 1) == "9");
+  CHECK(cell("recovday", 2) == "-");
+  CHECK(cell("recovday_hist", 1) == "9");
+  CHECK(cell("recovday_hist", 2) == "-");
+  CHECK(cell("deadday", 1) == "0");
+  CHECK(cell("deadday", 4) == "22");
+  CHECK(cell("ring", 1) == "0");
+  CHECK(cell("ring", 2) == "3");
+  CHECK(cell("sdcase", 1) == "false");
+  CHECK(cell("sdcase", 4) == "true");
+  CHECK(cell("testday", 1) == "-");
+  CHECK(cell("testday", 2) == "12");
+  CHECK(cell("testday_hist", 1) == "-");
+  CHECK(cell("testday_hist", 2) == "6|12");
+  CHECK(cell("quar", 1) == "false");
+  CHECK(cell("quar", 2) == "true");
+  CHECK(cell("quarday", 1) == "0");
+  CHECK(cell("quarday", 2) == "8");
+  CHECK(cell("vaxstatus", 1) == "none");
+  CHECK(cell("vaxstatus", 2) == "booster");
+  CHECK(cell("vax", 1) == "-");
+  CHECK(cell("vax", 2) == "moderna");
+  CHECK(cell("vax_hist", 1) == "-");
+  CHECK(cell("vax_hist", 2) == "pfizer|moderna");
+  CHECK(cell("vaxday", 1) == "-");
+  CHECK(cell("vaxday", 2) == "14");
+  CHECK(cell("vaxday_hist", 1) == "-");
+  CHECK(cell("vaxday_hist", 2) == "5|14");
+
+  bool unknown_threw = false;
+  try {
+    (void)render_pop_cell("does_not_exist", pop.agent(1));
+  } catch (const std::invalid_argument&) {
+    unknown_threw = true;
+  }
+  CHECK(unknown_threw);
+}
+
+// set_output_file builds a timestamped CSV path and creates the file. Route it
+// under a unique HOME subdirectory (as the scaffolding code does) so the test
+// can clean up without touching the repo working tree.
+void test_set_output_file_creates_timestamped_csv() {
+  const std::string sub = test_support::unique_name("epi_sim_pop_setout_");
+  const auto base_dir = test_support::home_dir() / sub;
+
+  const auto out_path = set_output_file("popcheck", {sub});
+
+  CHECK(test_support::fs::exists(out_path));
+  CHECK(out_path.extension() == ".csv");
+  CHECK(out_path.filename().string().rfind("popcheck_", 0) == 0);
+  CHECK(out_path.parent_path() == base_dir);
+
+  test_support::fs::remove_all(base_dir);
+}
+
+// Runs a short (30-day) headless simulation, then serializes representative
+// agents with the "all" column sentinel so every column is rendered over real,
+// varied end-of-run state. Deterministic: runsim seeds the RNG with a fixed value.
+void test_serialize_all_columns_after_simulation(const test_support::TestRunOptions& options) {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Variant::names.clear();
+  Vax::names.clear();
+
+  Model model = setup_sim(simulation_config());
+  model.headless = true;  // skip CSV writes and browser plots
+  runsim(model);
+
+  PopData& pop = model.pop;
+
+  // The "all" sentinel must resolve to every defined column.
+  const auto all_names = get_all_column_names();
+  CHECK(all_names.size() == size_t(ColumnName::COUNT));
+
+  // Pick one agent from each distinct end-state so the dump shows variation.
+  // The infectious agent also carries populated variant/variant_hist ("base").
+  std::optional<size_t> unexposed_row, infectious_row, recovered_row;
+  for (size_t i = 1; i <= pop.popn; ++i) {
+    if (!unexposed_row && pop.status[i] == UNEXPOSED) unexposed_row = i;
+    if (!infectious_row && pop.status[i] == INFECTIOUS) infectious_row = i;
+    if (!recovered_row && pop.status[i] == RECOVERED) recovered_row = i;
+    if (unexposed_row && infectious_row && recovered_row) break;
+  }
+  REQUIRE(unexposed_row.has_value());
+  REQUIRE(infectious_row.has_value());
+  REQUIRE(recovered_row.has_value());
+
+  const vector<size_t> rows = {*unexposed_row, *infectious_row, *recovered_row};
+
+  // Serialized layout prints untruncated column keys, so use it to confirm every
+  // column name is present in the header.
+  std::ostringstream csv;
+  write_pop_data(pop, rows, "all", OutSpec(csv), Style::serialized, false, ",", false);
+  const auto csv_lines = test_support::split_trimmed_lines(csv.str());
+  REQUIRE(!csv_lines.empty());
+  for (const auto& name : all_names) {
+    CHECK(csv_lines[0].find(name) != string::npos);
+  }
+
+  // The output reflects real, varied end-of-run state.
+  const string body = csv.str();
+  CHECK(body.find("unexposed") != string::npos);
+  CHECK(body.find("infectious") != string::npos);
+  CHECK(body.find("recovered") != string::npos);
+  CHECK(body.find("base") != string::npos);  // base variant name from variants.json
+
+  // Pretty "all" dump of the same agents, kept for human inspection.
+  std::ostringstream pretty;
+  write_pop_data(pop, rows, "all", OutSpec(pretty), Style::pretty, true, ",", false);
+  test_support::write_artifact_text(options, GROUP, "all_columns_after_sim.txt", pretty.str());
+}
+
 }  // namespace
 
 void run_pop_serialize_tests(const test_support::TestRunOptions& options) {
@@ -139,6 +317,9 @@ void run_pop_serialize_tests(const test_support::TestRunOptions& options) {
   test_write_pop_data_serialized_to_stream(options);
   test_pop_to_csv_writes_file_and_escapes_cells(options);
   test_write_pop_data_rejects_bad_rows_and_columns();
+  test_render_pop_cell_covers_every_column();
+  test_set_output_file_creates_timestamped_csv();
+  test_serialize_all_columns_after_simulation(options);
   if (options.write_artifacts) {
     fmt::println("pop_serialize artifacts written under '{}'",
                  test_support::artifact_group_dir(options, GROUP).string());

@@ -9,11 +9,8 @@ namespace {
 
 constexpr std::string_view GROUP = "templates";
 
-test_support::fs::path home_dir() {
-  const char* home = std::getenv("HOME");
-  if (!home) throw std::runtime_error("HOME is not set");
-  return test_support::fs::path(home);
-}
+using test_support::home_dir;
+using test_support::unique_name;
 
 test_support::fs::path project_config_path() {
   return home_dir() / ".config" / "epi_sim" / "project-dir.toml";
@@ -35,10 +32,6 @@ struct ProjectConfigGuard {
     }
   }
 };
-
-std::string unique_name(std::string_view prefix) {
-  return fmt::format("{}{}", prefix, std::random_device{}());
-}
 
 template <typename Fn>
 int child_exit_code(Fn fn) {

@@ -1,6 +1,7 @@
 #include "test_support.h"
 
 #include "../src/cases.h"
+#include "../src/param_init.h"
 #include "../src/parameters.h"
 #include "../src/setup.h"
 #include "../src/sim.h"
@@ -10,33 +11,6 @@ namespace {
 constexpr std::string_view GROUP = "runsim";
 
 namespace fs = std::filesystem;
-
-fs::path resolve_against(const fs::path& dir, const std::string& s) {
-  fs::path p(s);
-  return p.is_absolute() ? p : dir / p;
-}
-
-Config build_test_config(const fs::path& config_path) {
-  json cfg = load_json_params(config_path.string());
-  const fs::path dir = config_path.parent_path();
-  return Config{
-      .days = cfg["days"],
-      .locale = cfg["locale"],
-      .calendar_start = cfg["calendar_start"],
-      .seed = resolve_against(dir, cfg["seed"].get<string>()).string(),
-      .social_dist = cfg.contains("social_dist")
-                         ? resolve_against(dir, cfg["social_dist"].get<string>()).string()
-                         : "",
-      .dovax = cfg["dovax"],
-      .debug = cfg.value("debug", false),
-      .age_dist = {0.251, 0.271, 0.255, 0.184, 0.039},
-      .geodata = resolve_against(dir, cfg["geodata"].get<string>()).string(),
-      .variants = resolve_against(dir, cfg["variants"].get<string>()).string(),
-      .social_params = resolve_against(dir, cfg["social_params"].get<string>()).string(),
-      .vaccines = resolve_against(dir, cfg["vaccines"].get<string>()).string(),
-      .vax_sched_dir = resolve_against(dir, cfg["vax_sched_dir"].get<string>()).string(),
-  };
-}
 
 struct RunsimResult {
   size_t popn;
@@ -62,25 +36,37 @@ RunsimResult tally(const PopData& pop) {
   return r;
 }
 
+// The scaffolded config.json carries the production template defaults
+// (locale 38015, 180 days). Shrink only "days" so the test stays fast;
+// every other scaffolded file (variants/social/vaccines/rings/soc_dist/vax
+// schedules) is left untouched as the canonical template content.
+void shrink_scaffolded_days(const fs::path& case_dir, int days) {
+  const fs::path config_path = case_dir / "input" / "config.json";
+  json cfg = load_json_params(config_path.string());
+  cfg["days"] = days;
+  std::ofstream out(config_path);
+  out << cfg.dump(2);
+}
+
 void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
   Variant::names.clear();
   Vax::names.clear();
 
-  const fs::path root = test_support::project_dir();
-  const fs::path fixtures_dir = root / "test" / "fixtures" / "runsim";
-  const fs::path config_path = fixtures_dir / "config_test.json";
-  const fs::path output_dir = options.write_artifacts
-      ? test_support::artifact_group_dir(options, GROUP) / "case_output"
-      : fs::temp_directory_path() / fmt::format("epi_sim_runsim_out_{}", std::random_device{}());
-  fs::remove_all(output_dir);
-  fs::create_directories(output_dir);
+  const fs::path case_dir =
+      test_support::home_dir() / test_support::unique_name("epi_sim_test_runsim_case_");
+  setup_dir(case_dir.string());
 
-  Config config = build_test_config(config_path);
-  config.output_dir = output_dir.string();
-  config.case_label = "runsim.test/../case";
-  Model model = setup_sim(config);
+  shrink_scaffolded_days(case_dir, 30);
+  fs::copy_file(test_support::project_dir() / "test" / "fixtures" / "runsim" / "seed_test.json",
+                case_dir / "input" / "seed.json", fs::copy_options::overwrite_existing);
+
+  Model model = build_model(case_dir);
+  // Exercises sanitize_filename_component's path-safety stripping (src/helpers.cpp) --
+  // the only test in the suite that checks it.
+  model.case_label = "runsim.test/../case";
 
   CHECK(model.seedcases.size() == 2);
   CHECK(model.sd_cases.empty());
@@ -91,7 +77,6 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
 
   const RunsimResult r = tally(model.pop);
 
-  CHECK(r.popn == 1000);
   CHECK(r.ever_infectious > seeded);
   CHECK(r.n_unexposed + r.n_infectious + r.n_recovered + r.n_dead == static_cast<int>(r.popn));
   CHECK(r.n_recovered > 0);
@@ -100,7 +85,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   int series_count = 0;
   int pop_count = 0;
   int plot_count = 0;
-  for (const auto& entry : fs::directory_iterator(output_dir)) {
+  for (const auto& entry : fs::directory_iterator(model.output_dir)) {
     if (!entry.is_regular_file()) continue;
     const std::string name = entry.path().filename().string();
     CHECK(name.find('/') == std::string::npos);
@@ -115,20 +100,13 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(plot_count == 4);
 
   if (options.write_artifacts) {
-    const fs::path dest = test_support::artifact_group_dir(options, GROUP);
-
-    for (const auto& src : {config_path, fs::path(config.seed), fixtures_dir / "testgeo.csv"}) {
-      fs::copy_file(src, dest / src.filename(), fs::copy_options::overwrite_existing);
-    }
-
     std::ostringstream artifact;
     artifact << "Runsim end-to-end summary\n";
     artifact << "=========================\n\n";
-    artifact << "config: " << config_path.string() << "\n";
-    artifact << "seed:   " << config.seed << "\n";
-    artifact << "output: " << output_dir.string() << "\n";
-    artifact << "days:   " << model.ndays << "\n";
-    artifact << "locale: " << model.locale << "\n\n";
+    artifact << "case dir: " << case_dir.string() << "\n";
+    artifact << "output:   " << model.output_dir.string() << "\n";
+    artifact << "days:     " << model.ndays << "\n";
+    artifact << "locale:   " << model.locale << "\n\n";
     artifact << "popn:            " << r.popn << "\n";
     artifact << "seeded:          " << seeded << "\n";
     artifact << "ever_infectious: " << r.ever_infectious << "\n";
@@ -139,7 +117,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     test_support::write_artifact_text(options, GROUP, "runsim_summary.txt", artifact.str());
   }
 
-  if (!options.write_artifacts) fs::remove_all(output_dir);
+  if (!options.write_artifacts) fs::remove_all(case_dir);
 }
 
 }  // namespace
