@@ -96,7 +96,12 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
   }
 
   const Variant &primary = variants[1];
-
+  if (primary.show() != "base") {
+    throw std::runtime_error(fmt::format(
+        "variants: the first variant in the JSON file must be named 'base' (got '{}'). "
+        "Downstream code (spread, progression, r0/rt estimation) assumes variants[1] is the reference variant.",
+        primary.show()));
+  }
 
   vector<InfectParams> infectparams{};
   // Add a dummy "none" entry at index 0 to align with variants
@@ -119,6 +124,11 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
     vector<float> sendrisk;
     float base = variant.value()["spread"]["basemultiplier"].get<float>();
     if (raw_sendrisk.size() == 0) {
+      if (infectparams.size() < 2) {
+        throw std::runtime_error(fmt::format(
+            "variants: '{}' (the base variant) must supply non-empty sendrisk values; "
+            "there is no earlier variant to derive them from.", variant.key()));
+      }
       sendrisk = infectparams[1].sendrisk;
       std::transform(sendrisk.begin(), sendrisk.end(), sendrisk.begin(), [base](float x) {return x * base;} );
     } else {
@@ -127,8 +137,13 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
 
     const auto raw_recvrisk = variant.value()["spread"]["recvrisk"].get<vector<float>>();
     vector<float> recvrisk;
-    // use basemultiplier from above... 
+    // use basemultiplier from above...
     if (raw_recvrisk.size() == 0) {
+      if (infectparams.size() < 2) {
+        throw std::runtime_error(fmt::format(
+            "variants: '{}' (the base variant) must supply non-empty recvrisk values; "
+            "there is no earlier variant to derive them from.", variant.key()));
+      }
       recvrisk = infectparams[1].recvrisk;
       std::transform(recvrisk.begin(), recvrisk.end(), recvrisk.begin(), [base](float x) {return x * base;} );
     } else {
@@ -215,7 +230,21 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
           for (size_t ci = 1; ci < Condition::names.size(); ++ci) {
             string key = Condition::names[ci];
             std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-            tmpvec.push_back(body_duration[key].get<vector<float>>());
+            vector<float> row = body_duration[key].get<vector<float>>();
+            if (row.size() != 6) {
+              throw std::runtime_error(fmt::format(
+                  "progression_tree: variant '{}' age '{}' day '{}' condition '{}' "
+                  "must have exactly 6 probabilities (recover,nil,mild,sick,severe,dead), got {}.",
+                  variant, age, duration, key, row.size()));
+            }
+            const float row_sum = std::accumulate(row.begin(), row.end(), 0.0f);
+            if (!approx_equal(row_sum, 1.0, 1e-6)) {
+              throw std::runtime_error(fmt::format(
+                  "progression_tree: variant '{}' age '{}' day '{}' condition '{}' "
+                  "probabilities must sum to 1.0 (got {}).",
+                  variant, age, duration, key, row_sum));
+            }
+            tmpvec.push_back(std::move(row));
           }
           one_age_map[std::stoi(duration)] = tmpvec;
         }
@@ -376,6 +405,13 @@ VaxSched load_vax_sched(const string &fname) {
     }
     sched.vaxesincluded.push_back(spec);
   };
+  const float mix_sum = std::accumulate(sched.vaxesincluded.begin(), sched.vaxesincluded.end(), 0.0f,
+                                        [](float acc, const PerVaxSpec& s) { return acc + s.mix; });
+  if (!sched.vaxesincluded.empty() && !approx_equal(mix_sum, 1.0, 1e-6)) {
+    throw std::runtime_error(fmt::format(
+        "vax schedule '{}': mix values across vaxesincluded must sum to 1.0 (got {}).",
+        fname, mix_sum));
+  }
   // other members
   sched.dayrange = {jdata["dayrange"][0], jdata["dayrange"][1]}; // vector of 2 set to pair
   sched.targetpct = jdata["targetpct"];

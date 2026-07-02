@@ -102,6 +102,40 @@ void test_compile_time_trait_names_and_lookup() {
   CHECK(!trait_from_string<Status>("bad_status").has_value());
 }
 
+// Agegrp is the primary comorbidity marker for covid and is heavily used
+// throughout the sim, so its string-construction path (resolve_name, distinct
+// from the generic trait_from_string<T> lookup) gets full round-trip coverage.
+void test_agegrp_string_constructor_round_trips_all_names() {
+  CHECK(Agegrp("unknown")  == UNKNOWN);
+  CHECK(Agegrp("age0_19")  == AGE0_19);
+  CHECK(Agegrp("age20_39") == AGE20_39);
+  CHECK(Agegrp("age40_59") == AGE40_59);
+  CHECK(Agegrp("age60_79") == AGE60_79);
+  CHECK(Agegrp("age80_up") == AGE80_UP);
+
+  // resolve_name lowercases its input before matching
+  CHECK(Agegrp("AGE0_19")  == AGE0_19);
+  CHECK(Agegrp("Age80_Up") == AGE80_UP);
+
+  // unmatched input falls back to unknown, per resolve_name's default case
+  CHECK(Agegrp("not_a_group") == UNKNOWN);
+}
+
+// Status and Condition share Agegrp's resolve_name-based string constructor
+// pattern; confirm it holds for them too (lighter coverage -- these columns
+// see far less direct string-construction use in the sim than Agegrp does).
+void test_status_and_condition_string_constructors() {
+  CHECK(Status("unexposed")  == UNEXPOSED);
+  CHECK(Status("INFECTIOUS") == INFECTIOUS);
+  CHECK(Status("Recovered")  == RECOVERED);
+  CHECK(Status("not_a_status") == NONE);
+
+  CHECK(Condition("nil")    == NIL);
+  CHECK(Condition("SEVERE") == SEVERE);
+  CHECK(Condition("Mild")   == MILD);
+  CHECK(Condition("not_a_condition") == UNINFECTED);
+}
+
 void test_runtime_traits_register_and_render_names() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
@@ -133,6 +167,27 @@ void test_runtime_traits_register_and_render_names() {
   CHECK(none_sd.show() == "none");
   CHECK(distancing.show() == "distancing");
   CHECK(SDCase::names.size() == 2);
+}
+
+// Ring was the last PopData column/trait type added; unlike Variant/Vax/SDCase
+// its registration constructor reserves an empty sentinel at index 0 before
+// the first real name, which is worth pinning down explicitly.
+void test_ring_runtime_registration_renders_names() {
+  test_support::RingNamesGuard ring_guard;
+  Ring::names.clear();
+
+  const Ring jail{"Jail"};
+  const Ring school{"School"};
+
+  CHECK(Ring::names.size() == 3);  // "" sentinel, then "Jail", "School"
+  CHECK(jail.v == 1);
+  CHECK(school.v == 2);
+  CHECK(jail.show() == "Jail");
+  CHECK(school.show() == "School");
+
+  // the reserved sentinel slot has an empty name, so it still falls back
+  // to numeric rendering even though names is now populated
+  CHECK(Ring{0}.show() == "0");
 }
 
 void test_runtime_histories_render_values() {
@@ -295,7 +350,10 @@ void run_traits_tests(const test_support::TestRunOptions& options) {
   test_primitive_wrappers();
   test_wrapper_comparisons();
   test_compile_time_trait_names_and_lookup();
+  test_agegrp_string_constructor_round_trips_all_names();
+  test_status_and_condition_string_constructors();
   test_runtime_traits_register_and_render_names();
+  test_ring_runtime_registration_renders_names();
   test_runtime_histories_render_values();
   test_runtime_trait_lookup();
   test_histories_empty_state();

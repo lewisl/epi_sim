@@ -2,147 +2,134 @@
 
 ## Current Task
 
-Bring the component tests under `test/` back into alignment with current `src/`
-behavior, one group at a time, without changing `src` merely to satisfy stale
-tests.
+Reviewing test coverage across `test/*.cpp` (work distributed across several
+agents/models this round, for comparison). This session covered, in order:
+`r0_simulation.cpp` (review only), `test_vaccination.cpp`, `test_traits.cpp`,
+and `test_parameters.cpp` — the last one turned into an active source-hardening
+pass, not just a review, because `test_parameters.cpp` only tested the loader
+"happy path" and had zero coverage of input-validation/invariant gaps.
 
-This expanded into adding a new `templates` test group for project/case
-scaffolding. That test work exposed real user-facing issues in the scaffolding
-and project-dir commands, especially around stale filesystem state and optimistic
-assumptions about config/filesystem interactions.
+## Key Distinction Driving the parameters Work
 
-The journey also included a review-driven hardening pass over `test_traits.cpp`:
-after comparing an outside Codex-harness review with the local review, the traits
-tests were tightened around global trait-name isolation and focused behavior gaps,
-without turning the file into exhaustive enum-value coverage.
+Two different kinds of tests for parameter loading:
+1. **Parser correctness** — given well-formed input (matching `src/template.cpp`,
+   the single source of truth for default params — see prior note on that),
+   does the loader populate structs correctly? (`test_model_params_loading`,
+   pre-existing.)
+2. **Invariant/input validation** — regardless of what values a user picks for
+   a new pathogen, are required keys present, types right, and "must sum to
+   1.0" constraints enforced? This was almost entirely untested, and in several
+   cases not even implemented in `src/`. This session's real work.
 
-## Test Work Completed
+## Guards Added to `src/parameters.cpp` This Session (all four verified twice:
+synthetic-JSON unit test in `test_parameters.cpp`, AND real end-to-end via a
+scaffolded case dir + `xmake run epi_sim --use-dir`)
 
-- Updated existing component tests:
-  - `setup`
-  - `parameters`
-  - `traits`
-  - `disease_modeling`
-  - `runsim`
-  - `plot`
-  - `pop_serialize`
-  - `series`
-  - `vaccination`
-- Removed relic `test/example_test.cpp`.
-- Added `test/test_templates.cpp` and wired it into `test_main.cpp` and
-  `xmake.lua` as the explicit-only group `templates`.
-- Revisited `test_traits.cpp` after review comparison and added targeted cleanup:
-  `SDCaseNamesGuard`, `Ring::names` isolation for primitive wrapper checks,
-  direct wrapper comparisons, empty history checks, runtime history overflow
-  checks, and runtime `trait_from_string` coverage for `Variant`, `Vax`, and
-  `SDCase`.
-- Expanded `pop_serialize` coverage (11 -> 88 checks) to close review-identified
-  gaps in `test_pop_serialize.cpp`:
-  - `test_render_pop_cell_covers_every_column`: exercises the public
-    `render_pop_cell` across all 22 columns, including previously-unasserted
-    `deadday`, `sdcase`, `quar`, `quarday`, `recovday`/`recovday_hist`, and the
-    `vax`/`vax_hist`/`vaxday`/`vaxday_hist` family; person 4 is set to `DEAD`
-    with `deadday`/`sdcase` so those columns render meaningful values. Also
-    asserts the unknown-column `std::invalid_argument` throw.
-  - `test_set_output_file_creates_timestamped_csv`: covers `set_output_file`
-    (timestamped `.csv` under a unique `$HOME` subdir, then cleans up).
-  - `test_serialize_all_columns_after_simulation`: runs a 30-day headless
-    simulation (`setup_sim` -> `runsim`, `model.headless = true`), then
-    serializes representative unexposed/infectious/recovered agents with the
-    `"all"` column sentinel. Asserts `get_all_column_names().size() ==
-    ColumnName::COUNT`, that the serialized header names every column, and that
-    output reflects varied end-of-run state; writes an inspectable pretty
-    artifact `all_columns_after_sim.txt`.
-  - Notes: sim is deterministic (fixed RNG seed in `runsim`) and cheap
-    (~1 ms compute, headless = no disk/plots). It runs `dovax=false`; vax
-    schedules start after the 30-day window, and at 30 days there are 0 deaths,
-    so `deadday`/vax columns are covered deterministically via the fixture test
-    rather than the sim. The sim test lives in the default no-arg sweep via
-    `run_pop_serialize_tests`.
-- `templates` creates real project/case scaffold directories under `$HOME`,
-  preserves/restores `~/.config/epi_sim/project-dir.toml`, and cleans normal
-  test output. With `--artifacts`, it leaves inspectable scaffold directories.
+1. `load_variants_data`: primary variant (`variants[1]`) must be named `"base"`
+   — throws otherwise. (The check slots into an already-existing-but-unused
+   `const Variant &primary = variants[1];` line — that variable was clearly
+   set up for this check and never finished.)
+2. `load_variants_data`: **real bug fix**, not just a gap — if the *first*
+   variant processed has an empty `sendrisk`/`recvrisk`, the old code read
+   `infectparams[1]` before it existed (only the dummy index-0 entry exists on
+   the first loop iteration) — out-of-bounds `vector::operator[]`, UB. Now
+   throws a clear error instead ("must supply non-empty sendrisk/recvrisk;
+   there is no earlier variant to derive them from").
+3. `load_progression_set`: explicit (non-null) `progression_tree` rows must be
+   exactly 6 floats summing to 1.0. Previously unvalidated — a bad row just
+   made `xo::categorical_fast()` silently fall back to index 0 (`ToRecover`)
+   forever for that row, i.e. a silently-wrong simulation, not a crash.
+4. `load_vax_sched`: `mix` values across `vaxesincluded` in one schedule must
+   sum to 1.0. Same silent-fallback risk via `categorical_fast()` — without
+   this, a bad `mix` means first-shot brand selection always silently picks
+   brand index 0.
 
-## Project/Case Scaffolding Decisions
+All four throw `std::runtime_error` with a specific, named message (which
+variant/agegrp/day/condition/schedule-file, and the bad value).
 
-- `--set-project-dir <dir>` is non-interactive.
-- Relative project paths resolve under `$HOME`, so `foo` means `~/foo`.
-- Existing project dirs are activated without overwriting contents.
-- Missing project dirs are created without case scaffolding.
-- Case scaffolding belongs to `--init-case` or `--setup-dir`, not
-  `--set-project-dir`.
-- Existing case dirs are reused structurally:
-  - ensure `input/` exists
-  - ensure `output/` exists
-  - do not inspect or overwrite parameter files
-- Full template files are written only for newly created case dirs.
+## Already-existing guards (no source change) that got their first tests
 
-## Stale Config Behavior
+- `load_ring_traits` — already had thorough validation (missing keys, dup
+  names, out-of-range percentages/probabilities, missing agegrp entries,
+  pct_of_population sum-to-1.0). This is the best-designed validation in the
+  file and was the template for the new guards above. Added 11 error-path
+  tests + 1 happy-path test in `test_parameters.cpp`.
+- `load_vax_sched_set` — directory-existence guards. Added 2 tests (missing
+  dir, path-not-a-directory).
 
-If a user deletes the active project directory manually, the TOML pointer can
-become stale. This is treated as stale-but-informative state, not corruption.
+## Manual/Real-World Verification Mechanism
 
-- `--set-project-dir <same-dir>` recreates the missing project directory.
-- `--set-project-dir <different-dir>` creates or activates the new project dir.
-- `--init-case`, `--use-case`, and `--show-cases` remain strict and fail when
-  the configured project dir is missing.
-- `--show-project-dir` is diagnostic: it reports the stale value and prints a
-  recovery hint without exiting as an error.
+Per explicit direction: don't build special validation tooling or hardcode
+bad-file paths into the test binary. Instead use the app's own plumbing:
+```
+xmake run epi_sim --setup-dir bad-param-case   # scaffolds a real case under ~/bad-param-case (writes src/template.cpp content)
+# ...perturb one file in ~/bad-param-case/input/...
+xmake run epi_sim --use-dir bad-param-case     # observe the guard fire for real
+```
+`~/bad-param-case` still exists, currently in its clean scaffolded state
+(all perturbations reverted after each check). It's a reusable manual
+verification target, not a repeatable automated test, and lives outside the
+git repo (under `$HOME`, not `sample_parameters/`).
 
-CLI scaffold/config messages now print in a small block:
+An earlier `sample_parameters_bad/` directory (copied from `sample_parameters/`)
+was tried and removed — the scaffolded-case approach above is the one we're
+using; don't recreate `sample_parameters_bad/`.
 
-```text
----
-  message
----
+## Remaining Items on the Parameters Invariant-Gap List (not yet done)
+
+1. **`load_vax_sched_set` silently returns an empty schedule set** if
+   `vax_sched_dir` has zero `.json` files, even when `dovax==true` — no error,
+   no warning, vaccination just silently never happens. Needs a guard.
+2. **`load_json_params`'s misleading error message** — any JSON parse failure
+   (even a syntax error in an existing, readable file) is reported as
+   `"Invalid file path for json file: ..."`, which is wrong/confusing for a
+   syntax error specifically. Lower severity (not UB), more a diagnostics-
+   quality fix.
+3. **Abend-style crash presentation** (separately flagged, not yet addressed):
+   there's no top-level try/catch around `--use-dir`/`--use-case`/`--r0-sim`
+   in `epi_sim.cpp::main()`. Even with all the guards above working perfectly,
+   the user still sees a raw `libc++abi: terminating due to uncaught
+   exception...` crash rather than the clean `print_cli_block`-style message
+   the rest of the CLI (scaffold/config commands) already uses. Discussed as
+   a natural companion fix; not yet implemented — needs discussion on where
+   to catch (wrap each CLI branch in epi_sim.cpp? wrap runsim/build_model?).
+
+## Also Flagged, Not Yet Actioned
+
+- `agegrp_from_string` (parameters.cpp) silently returns `UNKNOWN` with just a
+  `fmt::println` warning for an unrecognized agegrp string, rather than
+  throwing — e.g. a typo'd age filter in a vax schedule silently excludes
+  everyone rather than erroring.
+- nlohmann::json `operator[]` auto-vivification footgun: missing nested keys
+  (e.g. a variant missing its whole `"spread"` object) produce a generic
+  `type_error` ("type must be array, but is null") rather than a message
+  naming the missing key — same class of issue as the guards already added,
+  just not yet swept across every loader.
+
+## Working Agreement Notes (established this session, saved to auto-memory too)
+
+- When "reviewing/fixing tests" is the framing, default to changing
+  `test/*.cpp`, not `src/`. If test work surfaces a genuine `src/` bug (like
+  the `infectparams[1]` OOB read), surface it and discuss before touching
+  `src/` — don't fix it silently as a drive-by.
+- After running tests/builds, quote the actual captured output fragment in
+  the response, not just a paraphrased "N passed" summary.
+- Guards belong in `src/`; tests for those guards belong in
+  `test/*.cpp` — do both, plus the manual scaffolded-case check, for anything
+  that changes `src/` validation behavior.
+
+## Validation Snapshot (last run this session)
+
+```
+xmake run test parameters   -> 122 checks: 122 passed, 0 failed
+xmake run test              -> 602 checks: 602 passed, 0 failed
 ```
 
-This makes them easier to see in cluttered command output while preserving
-visual indentation inside multi-line messages.
+## Next Concrete Step
 
-## Validation
-
-Last successful checks:
-
-```bash
-xmake run test traits
-xmake run test traits --artifacts
-xmake build test
-xmake run test templates
-xmake run test
-xmake build epi_sim
-git diff --check
-```
-
-Observed results:
-
-- `xmake run test templates`: 173 checks passed.
-- `xmake run test traits`: 123 checks passed.
-- `xmake run test traits --artifacts`: 123 checks passed.
-- `xmake run test pop_serialize`: 88 checks passed (was 11).
-- `xmake run test pop_serialize --artifacts`: 88 checks passed;
-  `all_columns_after_sim.txt` artifact written.
-- `xmake run test`: 464 checks passed (was 387; +77 from `pop_serialize`).
-- `xmake build epi_sim`: passed.
-- `~/.config/epi_sim/project-dir.toml` restored to:
-  `/Users/lewislevin/epi-sim-project`.
-- Only known leftover scaffold dirs under `$HOME` are earlier artifact-mode
-  outputs kept intentionally for inspection:
-  - `/Users/lewislevin/epi_sim_test_project_3876906879`
-  - `/Users/lewislevin/epi_sim_test_explicit_case_2255858649`
-
-## Lessons / Rationale
-
-`test_traits.cpp` now isolates runtime trait-name globals more consistently:
-`SDCase::names` has a test-support guard like `Variant::names` and `Vax::names`,
-and primitive wrapper tests clear/restore `Ring::names` before checking numeric
-fallback rendering. Focused coverage was added for wrapper-to-wrapper comparisons,
-empty history state, runtime history overflow, and runtime `trait_from_string`
-lookups without expanding into exhaustive enum value tables.
-
-The scaffold test was useful beyond coverage: it revealed assumptions that were
-easy to miss when the feature was always used in the intended order. Filesystem
-and config scripting should not assume users will clean up state manually or
-follow the happy path. The current behavior favors non-destructive repair,
-clear diagnostics, and preserving user-edited parameter files over aggressive
-cleanup or regeneration.
+Pick up remaining item 1 (empty `vax_sched_dir` silently accepted when
+`dovax==true`) the same way as the others: draft the guard → apply → unit
+test → full suite → real check via `bad-param-case` (set `dovax:true`, point
+`vax_sched_dir` at an empty directory, run `--use-dir`) → revert perturbation.
+Then item 2 (misleading JSON parse error message), then decide on the
+abend/crash-presentation fix.

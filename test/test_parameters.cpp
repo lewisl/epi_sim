@@ -2,7 +2,305 @@
 
 namespace {
 
+namespace fs = std::filesystem;
+
 constexpr std::string_view GROUP = "parameters";
+
+// Writes `content` to a fresh temp file under a uniquely-named temp dir and
+// returns its path. Caller removes the parent dir when done (fs::remove_all).
+fs::path write_temp_json(std::string_view label, std::string_view content) {
+  const auto tmp_dir = fs::temp_directory_path() /
+                       fmt::format("epi_sim_{}_{}", label, std::random_device{}());
+  fs::create_directories(tmp_dir);
+  const auto path = tmp_dir / "input.json";
+  std::ofstream out(path);
+  out << content;
+  return path;
+}
+
+// Runs `action`, asserting it throws std::runtime_error with a message
+// containing `expected_substring`.
+void expect_throws_containing(const std::function<void()>& action,
+                              std::string_view expected_substring) {
+  bool threw = false;
+  std::string message;
+  try {
+    action();
+  } catch (const std::runtime_error& e) {
+    threw = true;
+    message = e.what();
+  }
+  CHECK(threw);
+  CHECK(message.find(expected_substring) != std::string::npos);
+}
+
+// Minimal well-formed variant body: valid unless empty_sendrisk/empty_recvrisk
+// force the "no earlier variant to derive from" cases.
+json minimal_variant_body(bool empty_sendrisk = false, bool empty_recvrisk = false) {
+  json body;
+  body["spread"]["sendrisk"] = empty_sendrisk ? json::array() : json::array({0.1, 0.2});
+  body["spread"]["recvrisk"] = empty_recvrisk ? json::array() : json::array({0.1, 0.2});
+  body["spread"]["basemultiplier"] = 1.0;
+  body["immunity"]["recovery_immunity"] = json::object();
+  body["immunity"]["immunehalflife"] = 360;
+  return body;
+}
+
+//
+// load_variants_data: guards just added to parameters.cpp -- the primary
+// variant must be named "base", and it can't rely on the "derive from base"
+// shorthand for its own sendrisk/recvrisk since there is no earlier variant.
+//
+
+void test_load_variants_data_rejects_non_base_primary() {
+  test_support::VariantNamesGuard variant_guard;
+  json jdata;
+  jdata["not_base"] = minimal_variant_body();
+
+  expect_throws_containing([&] { (void)load_variants_data(jdata); },
+                           "must be named 'base'");
+}
+
+void test_load_variants_data_rejects_empty_base_sendrisk() {
+  test_support::VariantNamesGuard variant_guard;
+  json jdata;
+  jdata["base"] = minimal_variant_body(/*empty_sendrisk=*/true);
+
+  expect_throws_containing([&] { (void)load_variants_data(jdata); },
+                           "must supply non-empty sendrisk");
+}
+
+void test_load_variants_data_rejects_empty_base_recvrisk() {
+  test_support::VariantNamesGuard variant_guard;
+  json jdata;
+  jdata["base"] = minimal_variant_body(false, /*empty_recvrisk=*/true);
+
+  expect_throws_containing([&] { (void)load_variants_data(jdata); },
+                           "must supply non-empty recvrisk");
+}
+
+// Minimal well-formed progression body for a single agegrp/breakday; the
+// "severe" row is the one perturbed per test.
+json minimal_progression_body(vector<float> severe_row) {
+  json body;
+  body["progression_tree"]["age0_19"]["5"]["nil"]    = json::array({0, 0.4, 0.5, 0.1, 0, 0});
+  body["progression_tree"]["age0_19"]["5"]["mild"]   = json::array({0, 0.3, 0.6, 0.1, 0, 0});
+  body["progression_tree"]["age0_19"]["5"]["sick"]   = json::array({0, 0, 0, 1, 0, 0});
+  body["progression_tree"]["age0_19"]["5"]["severe"] = severe_row;
+  body["progression_factors"]["riskadjust"] = json::array();
+  body["progression_factors"]["vaxhalflifeadjust"] = json::object();
+  return body;
+}
+
+//
+// load_progression_set: guard just added -- an explicit progression_tree row
+// must be exactly 6 probabilities summing to 1.0.
+//
+
+void test_load_progression_set_rejects_row_not_summing_to_one() {
+  json jdata;
+  jdata["base"] = minimal_progression_body({0, 0, 0, 0, 0.5, 0});  // sums to 0.5
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "must sum to 1.0");
+}
+
+void test_load_progression_set_rejects_wrong_row_length() {
+  json jdata;
+  jdata["base"] = minimal_progression_body({0, 0, 0, 1, 0});  // only 5 entries
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "must have exactly 6 probabilities");
+}
+
+//
+// load_vax_sched: guard just added -- mix values across vaxesincluded must
+// sum to 1.0 (categorical_fast silently falls back to brand index 0 otherwise).
+//
+
+void test_load_vax_sched_rejects_mix_not_summing_to_one() {
+  test_support::VaxNamesGuard vax_guard;
+  Vax::names = {"none", "pfizer", "moderna"};
+  const auto path = write_temp_json("sched_bad_mix", R"({
+    "vaxesincluded": {
+      "pfizer": {"mix": 0.5, "starting_doses": 100, "pct2ndshot": 1.0, "pctboost": 1.0, "alternate": []},
+      "moderna": {"mix": 0.3, "starting_doses": 100, "pct2ndshot": 1.0, "pctboost": 1.0, "alternate": []}
+    },
+    "dayrange": [1, 30],
+    "targetpct": 1.0,
+    "filtervec": ["age20_39"],
+    "shotmode": "all",
+    "pattern": [1.0, 1.0]
+  })");
+  expect_throws_containing([&] { (void)load_vax_sched(path.string()); },
+                           "must sum to 1.0");
+  fs::remove_all(path.parent_path());
+}
+
+//
+// load_ring_traits: these guards already exist in parameters.cpp -- these
+// tests pin down their current, correct behavior (no source changes here).
+//
+
+void test_load_ring_traits_happy_path() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = test_support::project_dir() / "sample_parameters" / "rings.json";
+
+  RingTraits rt = load_ring_traits(path.string());
+
+  CHECK(rt.ring_count() == 2);
+  CHECK(Ring::names.size() == 3);  // sentinel + ring_1 + ring_2
+  CHECK(Ring::names[1] == "ring_1");
+  CHECK(Ring::names[2] == "ring_2");
+  CHECK(approx_equal(rt.pct_of_population[1], 0.4, 1e-6));
+  CHECK(approx_equal(rt.pct_of_population[2], 0.6, 1e-6));
+  // out_ring_prob is indexed directly by the Agegrp's raw (1-based) value, not zidx
+  CHECK(approx_equal(rt.out_ring_prob[1][AGE0_19.v], 0.05, 1e-6));
+  CHECK(approx_equal(rt.out_ring_prob[2][AGE80_UP.v], 0.15, 1e-6));
+}
+
+void test_load_ring_traits_rejects_missing_rings_key() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_no_key", R"({"not_rings":[]})");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "expected top-level 'rings' key");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_non_array_rings() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_not_array", R"({"rings": {"a":1}})");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "expected an array under top-level 'rings' key");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_empty_rings_array() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_empty", R"({"rings": []})");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "expected at least one ring");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_duplicate_names() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_dup_name", R"({
+    "rings": [
+      {"name":"dup","pct_of_population":0.5,"out_ring_prob_by_agegrp":
+        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}},
+      {"name":"dup","pct_of_population":0.5,"out_ring_prob_by_agegrp":
+        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}
+    ]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "duplicate ring name");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_missing_pct_of_population() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_no_pct", R"({
+    "rings": [{"name":"ring_1","out_ring_prob_by_agegrp":
+      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "missing pct_of_population");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_pct_out_of_range() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_pct_range", R"({
+    "rings": [{"name":"ring_1","pct_of_population":1.5,"out_ring_prob_by_agegrp":
+      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "pct_of_population=");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_missing_out_ring_prob() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_no_prob", R"({
+    "rings": [{"name":"ring_1","pct_of_population":1.0}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "missing out_ring_prob_by_agegrp");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_unknown_agegrp() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_bad_agegrp", R"({
+    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
+      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1,"bogus_age":0.1}}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "unknown agegrp");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_prob_out_of_range() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_prob_range", R"({
+    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
+      {"age0_19":1.5,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "out_ring_prob=");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_missing_agegrp_entry() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_missing_entry", R"({
+    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
+      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1}}]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "missing out_ring_prob for agegrp");
+  fs::remove_all(path.parent_path());
+}
+
+void test_load_ring_traits_rejects_pct_sum_not_one() {
+  test_support::RingNamesGuard ring_guard;
+  const auto path = write_temp_json("rings_bad_sum", R"({
+    "rings": [
+      {"name":"ring_1","pct_of_population":0.4,"out_ring_prob_by_agegrp":
+        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}},
+      {"name":"ring_2","pct_of_population":0.4,"out_ring_prob_by_agegrp":
+        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}
+    ]
+  })");
+  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
+                           "must sum to 1.0");
+  fs::remove_all(path.parent_path());
+}
+
+//
+// load_vax_sched_set: directory-existence guards already exist -- pin down
+// current behavior (no source changes here).
+//
+
+void test_load_vax_sched_set_rejects_missing_directory() {
+  const auto missing_dir = fs::temp_directory_path() /
+                           fmt::format("epi_sim_missing_sched_dir_{}", std::random_device{}());
+  expect_throws_containing([&] { (void)load_vax_sched_set(missing_dir.string()); },
+                           "does not exist");
+}
+
+void test_load_vax_sched_set_rejects_non_directory_path() {
+  const auto tmp_dir = fs::temp_directory_path() /
+                       fmt::format("epi_sim_sched_file_{}", std::random_device{}());
+  fs::create_directories(tmp_dir);
+  const auto file_path = tmp_dir / "not_a_dir.json";
+  { std::ofstream out(file_path); out << "{}"; }
+
+  expect_throws_containing([&] { (void)load_vax_sched_set(file_path.string()); },
+                           "is not a directory");
+  fs::remove_all(tmp_dir);
+}
 
 void test_model_params_loading(const test_support::TestRunOptions& options) {
   fmt::print("\n=== Testing ModelParams Loading ===\n\n");
@@ -179,6 +477,26 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
 void run_parameter_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running parameter tests...");
   test_model_params_loading(options);
+  test_load_variants_data_rejects_non_base_primary();
+  test_load_variants_data_rejects_empty_base_sendrisk();
+  test_load_variants_data_rejects_empty_base_recvrisk();
+  test_load_progression_set_rejects_row_not_summing_to_one();
+  test_load_progression_set_rejects_wrong_row_length();
+  test_load_vax_sched_rejects_mix_not_summing_to_one();
+  test_load_ring_traits_happy_path();
+  test_load_ring_traits_rejects_missing_rings_key();
+  test_load_ring_traits_rejects_non_array_rings();
+  test_load_ring_traits_rejects_empty_rings_array();
+  test_load_ring_traits_rejects_duplicate_names();
+  test_load_ring_traits_rejects_missing_pct_of_population();
+  test_load_ring_traits_rejects_pct_out_of_range();
+  test_load_ring_traits_rejects_missing_out_ring_prob();
+  test_load_ring_traits_rejects_unknown_agegrp();
+  test_load_ring_traits_rejects_prob_out_of_range();
+  test_load_ring_traits_rejects_missing_agegrp_entry();
+  test_load_ring_traits_rejects_pct_sum_not_one();
+  test_load_vax_sched_set_rejects_missing_directory();
+  test_load_vax_sched_set_rejects_non_directory_path();
   if (options.write_artifacts) {
     fmt::println("parameter artifacts written under '{}'",
                  test_support::artifact_group_dir(options, GROUP).string());

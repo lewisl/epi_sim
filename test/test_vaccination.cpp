@@ -171,6 +171,78 @@ void test_vaccinate_booster_after_delay() {
   CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
 }
 
+void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Variant::names = {"none"};
+  Vax::names = {"none", "pfizer", "moderna"};
+
+  const int popn = 30;
+  PopData pop(popn, {0.2, 0.2, 0.2, 0.2, 0.2});
+  set_agegrp(pop, AGE20_39);
+  AllSeries series = make_series(pop, 20);
+
+  VaxSet vaxset;
+  vaxset.params.push_back(VaxParams{});  // index 0: unused placeholder
+  vaxset.params.push_back(VaxParams{});  // index 1: pfizer, single-dose
+  vaxset.params.push_back(VaxParams{});  // index 2: moderna, single-dose
+
+  PerVaxSpec pfizer_spec;
+  pfizer_spec.vax = Vax{1};
+  pfizer_spec.mix = 0.5f;
+  pfizer_spec.starting_doses = popn;
+  pfizer_spec.doses = popn;
+  pfizer_spec.pct2ndshot = 1.0f;
+  pfizer_spec.pctboost = 1.0f;
+
+  PerVaxSpec moderna_spec;
+  moderna_spec.vax = Vax{2};
+  moderna_spec.mix = 0.5f;
+  moderna_spec.starting_doses = popn;
+  moderna_spec.doses = popn;
+  moderna_spec.pct2ndshot = 1.0f;
+  moderna_spec.pctboost = 1.0f;
+
+  VaxSched sched;
+  sched.vaxesincluded = {pfizer_spec, moderna_spec};
+  sched.dayrange = {1, 30};
+  sched.targetpct = 1.0f;
+  sched.filtervec = {AGE20_39};
+  sched.shotmode = "all";
+  sched.pattern = {1.0f, 1.0f};
+  sched.spreadfunc = [](int) { return 1.0f; };
+
+  VaxSchedSet schedset;
+  schedset.schedules.push_back({"mixed_brand_sched", sched});
+
+  xo::seed(7);
+  vaccinate(10, schedset, vaxset, pop, series);
+
+  int pfizer_count = 0, moderna_count = 0;
+  for (size_t p = 1; p <= pop.popn; ++p) {
+    CHECK(pop.vaxstatus[p] == Vaxstat::full);
+    const bool is_pfizer  = pop.vax[p] == Vax{1};
+    const bool is_moderna = pop.vax[p] == Vax{2};
+    CHECK(is_pfizer || is_moderna);
+    if (is_pfizer)  ++pfizer_count;
+    if (is_moderna) ++moderna_count;
+  }
+
+  // both brands actually got used -- otherwise this isn't exercising mixed-brand selection
+  CHECK(pfizer_count > 0);
+  CHECK(moderna_count > 0);
+  CHECK(pfizer_count + moderna_count == popn);
+
+  const auto& result_specs = schedset.schedules[0].second.vaxesincluded;
+  CHECK(result_specs[0].doses == popn - pfizer_count);
+  CHECK(result_specs[1].doses == popn - moderna_count);
+
+  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == pfizer_count);
+  CHECK(series.new_vax.at(uint8_t(Vax{2}), AgeBucket::total)[10] == moderna_count);
+  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == pfizer_count);
+  CHECK(series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[10] == moderna_count);
+}
+
 void test_vax_history_overflow_retains_latest_days() {
   test_support::VaxNamesGuard vax_guard;
   Vax::names = {"none", "pfizer"};
@@ -298,6 +370,7 @@ void run_vaccination_tests(const test_support::TestRunOptions& options) {
   test_vaccinate_uses_scalar_recovday_eligibility();
   test_vaccinate_second_shot_after_delay();
   test_vaccinate_booster_after_delay();
+  test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand();
   test_vax_history_overflow_retains_latest_days();
   write_vaccination_artifact(options);
   if (options.write_artifacts) {
