@@ -23,6 +23,7 @@
 // forward declaration
 namespace {
   double run_r0_sim(Model & model, PopData & rtpop, Variant variant, int scale);
+  std::optional<double> run_rt_sim(Model & model, PopData & r0pop, Variant use_variant, int scale, vector<float> & indoor_seq);
 }
 
 /*
@@ -55,8 +56,7 @@ double r0_sim(Model & model) {
 
 
 /*
-    double rt_sim(locdat, age_dist, progressionset, trvec, infectset, vaxset, 
-                socialparams, density_factor, scale)
+    void rt_sim(PopData locdat, Model & model) 
 
 Simulates r at time t given the characteristics of the simulation
 you are running. This shows how r is affected by public health
@@ -74,9 +74,7 @@ void rt_sim(PopData locdat, Model & model) {
     Variant use_variant = 1;
 
     const int saved_day = sim::current_day;
-    sim::reset_day();
-
-
+    sim::reset_day();  // day back to 0--assume incremented at start of day loop
 
     // create a subset of the actual model indoor_seq for running the rt simulation
     vector<float> rt_indoor_seq{};
@@ -98,7 +96,7 @@ void rt_sim(PopData locdat, Model & model) {
 
 
     std::optional<double> rt = run_rt_sim(model, rtpop, use_variant, scale, rt_indoor_seq);
-    sim::current_day = saved_day;
+    sim::current_day = saved_day;  // make sure both of these get the day reset properly for continuing the simulation
     sim::ds.day = saved_day;
 
     if (!rt) {
@@ -130,7 +128,7 @@ void seed_gen1(vector<size_t> & gen1_spreaders, PopData & rtpop, AllSeries & r0s
     cnt_by_age.push_back(static_cast<int>(std::round((age_dist[i] / min_share) * scale)));
   }
 
-  fmt::println("spreaders by age: {} = {}", cnt_by_age, sum(cnt_by_age));
+  // fmt::println("spreaders by age: {} = {}", cnt_by_age, sum(cnt_by_age));
  
   vector<int> remaining{cnt_by_age};  // make a copy
   for (size_t p = 1; p <= rtpop.popn; ++p) {
@@ -261,7 +259,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
 //
 // simulation for rt with context of actual simulation
 //
-std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant, int scale, vector<float> indoor_seq) {
+std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant, int scale, vector<float> & indoor_seq) {
 
   // Snapshot the global day counter so a midstream simulation (future use)
   // isn't disturbed. We drive the R0 day loop starting from day 1.
@@ -285,7 +283,6 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
 
   float density_factor = model.mp.geodata.density[locale_idx];
 
-
   // keep track of spreaders and outcomes
   AllSeries rtseries(DURATIONLIM, rtpop, Variant::names.size(), 1, 1);  
   // keep track of the other infected people and throw it away
@@ -294,7 +291,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
   array<float, 6> probvec{};
   vector<double> age_dist = model.age_dist;
 
-  vector<size_t> gen1_spreaders{};  // mutated in place
+  vector<size_t> gen1_spreaders{};  // mutated in place by seed_gen1
 
 
   seed_gen1(gen1_spreaders, rtpop, rtseries, age_dist, variant, scale);
@@ -312,37 +309,38 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
     // start a new day for the side loop of DURATIONLIM DAYS.
     sim::incr_day();
     sim::ds.day = sim::get_day();
-    rtseries.init_history_series(d);
 
     // loop over gen 1 spreaders
     for (size_t p : gen1_spreaders) {
       auto person = rtpop.agent(p);
+      // if (sendrisk <= 0.0f) continue;
+      if (person.status() != INFECTIOUS) continue;
+      if (person.sickday() >= sim::ds.day) continue;  // newly infected today (shouldn't happen for gen1 after day 1) — be safe
+
       const Duration spr_duration = person.duration();
       const Variant spr_variant = person.variant();
       const float sendrisk = infectparams[idx(spr_variant)].sendrisk[spr_duration];
-      if (sendrisk <= 0.0f) continue;
-      if (person.status() != INFECTIOUS) continue;
 
-      spread(rtpop, rtseries, person, socialparams, infectparams, vaxset,
-              dovax, contacts, density_factor, indoor_seq, model.sd_cases,
-              model.mp.ringtraits, model.ring_members, model.ring_lengths);
-      rt_infected += rtseries.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[d];
-    }
+      if (sendrisk > 0.0f) {
+        spread(rtpop, rtseries, person, socialparams, infectparams, vaxset,
+                dovax, contacts, density_factor, indoor_seq, model.sd_cases,
+                model.mp.ringtraits, model.ring_members, model.ring_lengths);
+      }
+    
 
-    // daily progression for spreaders: to get better or die
-    for (size_t p : gen1_spreaders) {
-      auto person = rtpop.agent(p);
+      // daily progression for spreaders: to get better or die
       progression(person, rtseries, progressionset, infectparams, probvec, dovax, vaxset);
+    
     }
   
 
     // now simulate the rest of the population to provide realistic context
-    // ALSO exclude the seeded spreaders!
+    // excluding the seeded spreaders!
     for (size_t p = 1; p <= rtpop.popn; ++p) {
 
       // get an agent at index p
       auto person = rtpop.agent(p);
-      if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day || std::ranges::contains(gen1_spreaders, p)) continue;
+      if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day || (std::ranges::contains(gen1_spreaders, p))) continue;
 
       // spread kernel
       auto spr_duration = person.duration();      
@@ -351,7 +349,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
         spread(rtpop, throwaway_series, person, socialparams, infectparams, vaxset,
-                dovax, contacts, density_factor, model.indoor_seq, model.sd_cases,
+                dovax, contacts, density_factor, indoor_seq, model.sd_cases,
                 model.mp.ringtraits, model.ring_members, model.ring_lengths);
       }
 
@@ -360,7 +358,9 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
 
     } // end persons loop
 
-  }
+    rt_infected += rtseries.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[d];
+
+  }   // end day loop
 
 
   fmt::println("rt infected: {}", rt_infected);
