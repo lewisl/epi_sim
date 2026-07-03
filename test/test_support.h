@@ -7,6 +7,7 @@
 #include "../src/parameters.h"
 #include "../src/population.h"
 #include "../src/pop_serialize.h"
+#include "../src/template.h"
 #include "../src/traits.h"
 
 #include <cctype>
@@ -92,11 +93,14 @@ struct SampleParamPaths {
   string social;
   string vaccines;
   string vax_sched_dir;
+  string seed;
+  string social_dist;
+  string rings;
 };
 
 inline fs::path project_dir() {
   const fs::path cwd = fs::current_path();
-  if (fs::exists(cwd / "sample_parameters")) return cwd;
+  if (fs::exists(cwd / "xmake.lua")) return cwd;
   return fs::path(std::getenv("HOME")) / "code" / "epi_sim";
 }
 
@@ -110,14 +114,46 @@ inline std::string unique_name(std::string_view prefix) {
   return fmt::format("{}{}", prefix, std::random_device{}());
 }
 
+// Materializes the scaffold template strings (src/template.cpp, the single
+// source of truth for parameter fixtures) into a per-process temp directory.
+// Created once on first use; lives for the process lifetime.
+inline const fs::path& template_params_dir() {
+  static const fs::path dir = [] {
+    const fs::path root = fs::temp_directory_path() / unique_name("epi_sim_test_params_");
+    const fs::path vax_dir = root / "vaccine_100k";
+    fs::create_directories(vax_dir);
+    auto write = [](const fs::path& path, const std::string& text) {
+      std::ofstream out(path);
+      if (!out) {
+        throw std::runtime_error(fmt::format("cannot write test param '{}'", path.string()));
+      }
+      out << text;
+    };
+    write(root / "geodata.csv", geodata_csv);
+    write(root / "variants.json", variants_json);
+    write(root / "socialparams.json", socialparams_json);
+    write(root / "vaccines.json", vaccines_json);
+    write(root / "seed.json", seed_json);
+    write(root / "soc_dist.json", social_dist_json);
+    write(root / "rings.json", rings_json);
+    write(vax_dir / "loc38015_old.json", vaxsched::loc38015_old_json);
+    write(vax_dir / "loc38015_young.json", vaxsched::loc38015_young_json);
+    return root;
+  }();
+  return dir;
+}
+
 inline SampleParamPaths sample_paths() {
-  const fs::path root = project_dir();
+  const fs::path& root = template_params_dir();
   return {
-      .geodata = (root / "sample_parameters" / "geo2data.csv").string(),
-      .variants = (root / "sample_parameters" / "variants.json").string(),
-      .social = (root / "sample_parameters" / "socialparams.json").string(),
-      .vaccines = (root / "sample_parameters" / "vaccines.json").string(),
-      .vax_sched_dir = (root / "sample_parameters" / "vaccine_100k").string(),
+      .geodata = (root / "geodata.csv").string(),
+      .variants = (root / "variants.json").string(),
+      .social = (root / "socialparams.json").string(),
+      .vaccines = (root / "vaccines.json").string(),
+      .vax_sched_dir = (root / "vaccine_100k").string(),
+      .seed = (root / "seed.json").string(),
+      .social_dist = (root / "soc_dist.json").string(),
+      .rings = (root / "rings.json").string(),
   };
 }
 

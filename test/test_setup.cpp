@@ -14,14 +14,14 @@ Config sample_config() {
   config.calendar_start = "2020-01-01";
   config.dovax = false;
   config.age_dist = {0.251, 0.271, 0.255, 0.184, 0.039};
-  config.seed = (test_support::project_dir() / "sample_parameters" / "seed_basic.json").string();
+  config.seed = paths.seed;
   config.geodata = paths.geodata;
   config.variants = paths.variants;
   config.social_params = paths.social;
-  config.social_dist = (test_support::project_dir() / "sample_parameters" / "soc_dist.json").string();
+  config.social_dist = paths.social_dist;
   config.vaccines = paths.vaccines;
   config.vax_sched_dir = paths.vax_sched_dir;
-  config.rings = (test_support::project_dir() / "sample_parameters" / "rings.json").string();
+  config.rings = paths.rings;
   return config;
 }
 

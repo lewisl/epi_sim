@@ -15,6 +15,7 @@
 #include <fmt/ranges.h>
 #include "param_init.h"
 #include "template.h"
+#include "input_verify.h"
 
 namespace fs = std::filesystem;
 
@@ -40,7 +41,10 @@ Model build_model(fs::path case_dir) {
   }
 
   fs::path input_dir = config_path.parent_path();
+  input_verify(input_dir);
   json config_json = load_json_params(config_path.string());
+
+  bool dovax = config_json["dovax"];
 
   Config config{
       .days = config_json["days"],
@@ -48,7 +52,7 @@ Model build_model(fs::path case_dir) {
       .calendar_start = config_json["calendar_start"],
       .seed = resolve_config_path(input_dir, config_json, "seed").string(),
       .social_dist = resolve_optional_config_path(input_dir, config_json, "social_dist"),
-      .dovax = config_json["dovax"],
+      .dovax = dovax,
       .do_social_distancing = config_json.value("do_social_distancing", false),
       .do_rings = config_json.value("do_rings", false),
       .debug = config_json.value("debug", false),
@@ -56,8 +60,10 @@ Model build_model(fs::path case_dir) {
       .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
       .variants = resolve_config_path(input_dir, config_json, "variants").string(),
       .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),
-      .vaccines = resolve_config_path(input_dir, config_json, "vaccines").string(),
-      .vax_sched_dir = resolve_config_path(input_dir, config_json, "vax_sched_dir").string(),
+      .vaccines = dovax ? resolve_config_path(input_dir, config_json, "vaccines").string()
+                        : std::string{},
+      .vax_sched_dir = dovax ? resolve_config_path(input_dir, config_json, "vax_sched_dir").string()
+                             : std::string{},
       .rings = resolve_optional_config_path(input_dir, config_json, "rings"),
       .output_dir = config_json.contains("output")
           ? resolve_config_path(case_dir, config_json, "output").string()

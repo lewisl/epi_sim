@@ -36,18 +36,6 @@ RunsimResult tally(const PopData& pop) {
   return r;
 }
 
-// The scaffolded config.json carries the production template defaults
-// (locale 38015, 180 days). Shrink only "days" so the test stays fast;
-// every other scaffolded file (variants/social/vaccines/rings/soc_dist/vax
-// schedules) is left untouched as the canonical template content.
-void shrink_scaffolded_days(const fs::path& case_dir, int days) {
-  const fs::path config_path = case_dir / "input" / "config.json";
-  json cfg = load_json_params(config_path.string());
-  cfg["days"] = days;
-  std::ofstream out(config_path);
-  out << cfg.dump(2);
-}
-
 void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
@@ -59,10 +47,6 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
       test_support::home_dir() / test_support::unique_name("epi_sim_test_runsim_case_");
   setup_dir(case_dir.string());
 
-  shrink_scaffolded_days(case_dir, 30);
-  fs::copy_file(test_support::project_dir() / "test" / "fixtures" / "runsim" / "seed_test.json",
-                case_dir / "input" / "seed.json", fs::copy_options::overwrite_existing);
-
   Model model = build_model(case_dir);
   // Exercises sanitize_filename_component's path-safety stripping (src/helpers.cpp) --
   // the only test in the suite that checks it.
@@ -70,8 +54,9 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
 
   CHECK(model.seedcases.size() == 2);
   CHECK(model.sd_cases.empty());
+  CHECK(model.ndays == 180);
 
-  const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from seed_test.json
+  const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from the scaffolded seed.json
 
   runsim(model);
 
@@ -80,7 +65,9 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(r.ever_infectious > seeded);
   CHECK(r.n_unexposed + r.n_infectious + r.n_recovered + r.n_dead == static_cast<int>(r.popn));
   CHECK(r.n_recovered > 0);
-  CHECK(r.n_recovered < r.ever_infectious);
+  CHECK(r.n_dead > 0);
+  CHECK(r.n_infectious <= seeded);
+  CHECK(r.n_recovered + r.n_dead + r.n_infectious == r.ever_infectious);
 
   int series_count = 0;
   int pop_count = 0;

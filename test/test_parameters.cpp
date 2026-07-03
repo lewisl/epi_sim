@@ -1,5 +1,8 @@
 #include "test_support.h"
 
+#include "../src/input_verify.h"
+#include "../src/template.h"
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -144,9 +147,9 @@ void test_load_vax_sched_rejects_mix_not_summing_to_one() {
 
 void test_load_ring_traits_happy_path() {
   test_support::RingNamesGuard ring_guard;
-  const auto path = test_support::project_dir() / "sample_parameters" / "rings.json";
+  const auto path = test_support::sample_paths().rings;
 
-  RingTraits rt = load_ring_traits(path.string());
+  RingTraits rt = load_ring_traits(path);
 
   CHECK(rt.ring_count() == 2);
   CHECK(Ring::names.size() == 3);  // sentinel + ring_1 + ring_2
@@ -472,6 +475,215 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   fmt::println("=== ModelParams Loading Test Completed ===");
 }
 
+//
+// input_verify: throw-free structural/invariant checks over a case's input
+// files. Fixtures are parsed from the scaffold templates (src/template.cpp,
+// the single source of truth) and perturbed one field at a time.
+//
+
+using input_verify_detail::Errors;
+
+bool has_error_containing(const Errors& e, std::string_view sub) {
+  for (const auto& m : e.msgs) {
+    if (m.find(sub) != std::string::npos) return true;
+  }
+  return false;
+}
+
+// config_json carries // comments (matching the on-disk scaffold), so it must
+// be parsed with comment-stripping enabled, like the production loader does.
+json parse_config() {
+  return json::parse(config_json, nullptr, true, true);
+}
+
+// A freshly scaffolded case (all template inputs) must produce zero errors.
+void test_input_verify_accepts_template_inputs() {
+  using namespace input_verify_detail;
+  Errors e;
+  bool dovax = false, do_rings = false, do_sd = false;
+  int locale = 0;
+  check_config(parse_config(), e, dovax, do_rings, do_sd, locale);
+  check_variants(json::parse(variants_json), e);
+  check_vaccines(json::parse(vaccines_json), e);
+  check_vax_sched(json::parse(vaxsched::loc38015_old_json), "loc38015_old", e);
+  check_vax_sched(json::parse(vaxsched::loc38015_young_json), "loc38015_young", e);
+  check_socialparams(json::parse(socialparams_json), e);
+  check_seed(json::parse(seed_json), e);
+  check_soc_dist(json::parse(social_dist_json), e);
+  check_rings(json::parse(rings_json), e);
+
+  CHECK(!e.any());
+  CHECK(locale == 38015);
+  CHECK(dovax == false);
+}
+
+void test_check_config_rejects_missing_days() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg.erase("days");
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "missing required key 'days'"));
+}
+
+void test_write_error_log_writes_complete_report() {
+  const fs::path dir = fs::temp_directory_path() /
+                       test_support::unique_name("epi_sim_input_error_log_");
+  fs::create_directories(dir);
+  const fs::path log_path = dir / "input-error-log.txt";
+  const std::string report =
+      "Input validation failed for '/tmp/case/input'. 1 problem(s) found:\n"
+      "  1. config.json: missing required key 'days'.\n";
+
+  CHECK(input_verify_detail::write_error_log(log_path, report));
+  CHECK(test_support::read_file_text(log_path) == report);
+
+  fs::remove_all(dir);
+}
+
+void test_check_config_rejects_nonpositive_days() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["days"] = 0;
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "'days' must be > 0"));
+}
+
+void test_check_config_rejects_bad_calendar_start() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["calendar_start"] = "2020/01/01";
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "'calendar_start' must be a YYYY-MM-DD date"));
+}
+
+void test_check_config_rejects_age_dist_wrong_size() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["age_dist"] = {0.5, 0.5};
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "'age_dist' must have exactly 5 entries"));
+}
+
+void test_check_config_rejects_age_dist_bad_sum() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["age_dist"] = {0.1, 0.1, 0.1, 0.1, 0.1};
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "'age_dist' must sum to 1.0"));
+}
+
+void test_check_config_requires_vax_keys_when_dovax() {
+  Errors e;
+  bool dovax = false, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["dovax"] = true;
+  cfg.erase("vaccines");
+  cfg.erase("vax_sched_dir");
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(dovax == true);
+  CHECK(has_error_containing(e, "missing required key 'vaccines'"));
+  CHECK(has_error_containing(e, "missing required key 'vax_sched_dir'"));
+}
+
+void test_check_variants_rejects_non_base_first() {
+  Errors e;
+  json bad = json::object();
+  bad["delta"] = json::parse(variants_json)["base"];
+  input_verify_detail::check_variants(bad, e);
+  CHECK(has_error_containing(e, "the first variant must be named 'base'"));
+}
+
+void test_check_variants_rejects_wrong_progression_row_length() {
+  Errors e;
+  json v = json::parse(variants_json);
+  v["base"]["progression_tree"]["age0_19"]["5"]["nil"] = {0, 0.4, 0.5, 0.1, 0};
+  input_verify_detail::check_variants(v, e);
+  CHECK(has_error_containing(e, "must have exactly 6 probabilities"));
+}
+
+void test_check_variants_rejects_progression_row_bad_sum() {
+  Errors e;
+  json v = json::parse(variants_json);
+  v["base"]["progression_tree"]["age0_19"]["5"]["nil"] = {0, 0.4, 0.5, 0.2, 0, 0};
+  input_verify_detail::check_variants(v, e);
+  CHECK(has_error_containing(e, "probabilities must sum to 1.0"));
+}
+
+void test_check_vaccines_rejects_missing_int_key() {
+  Errors e;
+  json vac = json::parse(vaccines_json);
+  vac["Pfizer"].erase("halflife");
+  input_verify_detail::check_vaccines(vac, e);
+  CHECK(has_error_containing(e, "missing required key 'halflife'"));
+}
+
+void test_check_vax_sched_rejects_mix_bad_sum() {
+  Errors e;
+  json s = json::parse(vaxsched::loc38015_old_json);
+  s["vaxesincluded"]["Pfizer"]["mix"] = 0.9;
+  input_verify_detail::check_vax_sched(s, "loc38015_old", e);
+  CHECK(has_error_containing(e, "'mix' values must sum to 1.0"));
+}
+
+void test_check_vax_sched_rejects_bad_dayrange_length() {
+  Errors e;
+  json s = json::parse(vaxsched::loc38015_old_json);
+  s["dayrange"] = {350};
+  input_verify_detail::check_vax_sched(s, "loc38015_old", e);
+  CHECK(has_error_containing(e, "'dayrange' must have exactly 2 entries"));
+}
+
+void test_check_socialparams_rejects_missing_key() {
+  Errors e;
+  json sp = json::parse(socialparams_json);
+  sp.erase("gammashape");
+  input_verify_detail::check_socialparams(sp, e);
+  CHECK(has_error_containing(e, "missing required key 'gammashape'"));
+}
+
+void test_check_seed_rejects_entry_missing_key() {
+  Errors e;
+  json seed = json::parse(seed_json);
+  seed[0].erase("triggerday");
+  input_verify_detail::check_seed(seed, e);
+  CHECK(has_error_containing(e, "missing required key 'triggerday'"));
+}
+
+void test_check_soc_dist_rejects_bad_contact_delta_length() {
+  Errors e;
+  json sd = json::parse(social_dist_json);
+  sd[0]["contact_delta"] = {0.2};
+  input_verify_detail::check_soc_dist(sd, e);
+  CHECK(has_error_containing(e, "'contact_delta' must have exactly 2 entries"));
+}
+
+void test_check_rings_rejects_pct_bad_sum() {
+  Errors e;
+  json r = json::parse(rings_json);
+  r["rings"][0]["pct_of_population"] = 0.1;
+  input_verify_detail::check_rings(r, e);
+  CHECK(has_error_containing(e, "'pct_of_population' values must sum to 1.0"));
+}
+
+void test_check_rings_rejects_missing_agegrp() {
+  Errors e;
+  json r = json::parse(rings_json);
+  r["rings"][0]["out_ring_prob_by_agegrp"].erase("age80_up");
+  input_verify_detail::check_rings(r, e);
+  CHECK(has_error_containing(e, "missing agegrp 'age80_up'"));
+}
+
 }  // namespace
 
 void run_parameter_tests(const test_support::TestRunOptions& options) {
@@ -497,6 +709,25 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_ring_traits_rejects_pct_sum_not_one();
   test_load_vax_sched_set_rejects_missing_directory();
   test_load_vax_sched_set_rejects_non_directory_path();
+  test_input_verify_accepts_template_inputs();
+  test_check_config_rejects_missing_days();
+  test_write_error_log_writes_complete_report();
+  test_check_config_rejects_nonpositive_days();
+  test_check_config_rejects_bad_calendar_start();
+  test_check_config_rejects_age_dist_wrong_size();
+  test_check_config_rejects_age_dist_bad_sum();
+  test_check_config_requires_vax_keys_when_dovax();
+  test_check_variants_rejects_non_base_first();
+  test_check_variants_rejects_wrong_progression_row_length();
+  test_check_variants_rejects_progression_row_bad_sum();
+  test_check_vaccines_rejects_missing_int_key();
+  test_check_vax_sched_rejects_mix_bad_sum();
+  test_check_vax_sched_rejects_bad_dayrange_length();
+  test_check_socialparams_rejects_missing_key();
+  test_check_seed_rejects_entry_missing_key();
+  test_check_soc_dist_rejects_bad_contact_delta_length();
+  test_check_rings_rejects_pct_bad_sum();
+  test_check_rings_rejects_missing_agegrp();
   if (options.write_artifacts) {
     fmt::println("parameter artifacts written under '{}'",
                  test_support::artifact_group_dir(options, GROUP).string());
