@@ -1,8 +1,10 @@
 ## TODO
+- distribution packaging
+- user documentation
+- updated and accurate readme
 - 2nd shot/booster should probabilistically substitute an alternate brand when the person's own brand is out of stock, instead of just skipping them that day (check Julia code for correct behavior)
 - would we ever want history series for shots delivered?
 - should their inputs for the series history to be serialized or just we always just serialize everything?
-- distribution packaging
 - fix cumbersome seedcase code?
 - use comments in json files!
 - test and trace
@@ -20,7 +22,7 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
-- r0 calculations
+- r0 calculations and rt as well.
 - achieve better repeatability and comparison of simulation runs by bundling inputs and outputs for a simulation run in suitably named directories
 - consolidate the series serialization code for printing and serialization
 - implement rings
