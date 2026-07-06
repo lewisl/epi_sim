@@ -1,6 +1,56 @@
 # Session Notes
 
-## Current State
+## Latest Session: FTXUI Bootstrap TUI (scratch/tui)
+
+Built a working bootstrap TUI per `scratch/tui/tui-prompt.md`. `src/` untouched.
+
+### What exists now
+
+- `xmake.lua`: `add_requires("ftxui")` (v6.1.9); the `this` target builds
+  `scratch/tui/tui_example.cpp` + `scratch/tui/stubs.cpp` with
+  `add_packages("ftxui", {components = "component"})` and `vcpkg::fmt`.
+  Build/run: `xmake run this`.
+- `scratch/tui/stubs.cpp`: command stubs refactored to **return** strings
+  (no stdout printing, which would corrupt the full-screen TUI).
+- `scratch/tui/tui_example.cpp` (~510 lines): all TUI logic.
+
+### Feature summary
+
+- Opening screen: centered title + welcome box; output screen: scrolling log,
+  sidebar (Case/Population/Output/Plots), prompt box pinned at bottom.
+- Footer below the shaded panels: cwd left, case tag / "No case selected..."
+  right, one blank row of separation.
+- Styling: flat shaded panels (`kBoxBg` gray, no borders), purple left accent
+  rule (`kAccent` RGB(140,100,230)) on welcome box, prompt box, and command
+  echo lines in the log; bold `>` input marker.
+- `/` menu (only when input is empty): custom-rendered rows — fixed 20-col
+  command name + `paragraphAlignLeft` description with hanging indent (FTXUI's
+  stock `Menu` render is bypassed; the component is kept for arrows/Enter).
+  Menu is centered on the opening screen, inline above the prompt box on the
+  output screen. `/help` opens a help-topics submenu (Esc steps back).
+- Type-to-jump in menus: a letter moves the highlight to the next match
+  (cycles on repeat, `/` prefix ignored); Enter required to select.
+- Quit is a menu command `/q` only — no bare `q`, no Esc-to-quit (deliberate).
+- Real text input in the prompt box (FTXUI `Input`, single-line; long text
+  scrolls horizontally — soft-wrap while typing deliberately skipped as
+  cursor math isn't worth it for a bootstrap). Enter echoes typed text to the
+  log. Output log lines word-wrap via `paragraphAlignLeft`.
+- Argument-taking commands (`/set-project-dir`, `/init-case`, `/use-case`,
+  `/setup-dir`, `/use-dir`): selecting them logs an ask prompt, pre-fills the
+  input with the command name, cursor after it; Enter dispatches the stub with
+  the argument (`finish_pending_command`); Esc cancels (`app.pending_cmd`).
+- Scrolling: `app.scroll` + `focusPositionRelative`; arrows/PageUp/PageDown/
+  mouse wheel scroll the log (Home/End belong to the input); resets to bottom
+  on new output.
+
+### Next steps for the TUI track
+
+1. Wire stubs to the real command implementations in `src/`.
+2. Typed-command dispatch (typing `/init-case foo` + Enter should execute,
+   not just echo).
+3. Populate the sidebar from application state.
+
+## Current State (prior track: input validation / runsim)
 
 Input validation and the `runsim` integration test were the most recent focus.
 Completed work that no longer needs to drive the session:
@@ -37,7 +87,8 @@ xmake run test              -> 626 checks: 626 passed, 0 failed
 - Use `xmake` only. `runsim` is excluded from the no-arg test sweep and must be
   run explicitly.
 
-## Next Task
+## Next Task (prior track — superseded in priority by TUI next steps above if
+the user continues the TUI work)
 
 Audit the older guards in the parameter-loading/initialization path and decide
 which are still required now that `input_verify` catches many structure and
