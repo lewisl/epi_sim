@@ -4,11 +4,31 @@
 
 Built a working bootstrap TUI per `scratch/tui/tui-prompt.md`. `src/` untouched.
 
+### FTXUI 7 / vcpkg compatibility note
+
+- Switched `xmake.lua` to use `vcpkg::ftxui` for the main and scratch TUI
+  targets, and added it to the test target because the test target compiles
+  `src/tui_example.cpp`.
+- Renamed the local TUI state struct from `App` to `TuiApp` in both
+  `src/tui_example.cpp` and `scratch/tui/tui_example.cpp` because FTXUI 7 adds
+  `ftxui::App`, which collides under `using namespace ftxui`.
+- Replaced namespace-scope `Color::RGB(...)` constants with lazy color helper
+  functions because FTXUI 7 calls terminal color-support code during color
+  construction, which crashed before `main` when those colors were static
+  initializers.
+- While removing `using namespace ftxui`, keep foreground and background
+  decorators distinct: `ftxui::color(...)` is foreground text color, while
+  `ftxui::bgcolor(...)` is needed for filled panels, selected menu rows, and
+  the left accent bar.
+- Validation: `xmake b -r epi_sim`, `xmake b -r this`, direct
+  `./build/macosx/arm64/release/epi_sim --help`, and `xmake run epi_sim --tui`
+  all work.
+
 ### What exists now
 
-- `xmake.lua`: `add_requires("ftxui")` (v6.1.9); the `this` target builds
+- `xmake.lua`: `add_requires("vcpkg::ftxui")`; the `this` target builds
   `scratch/tui/tui_example.cpp` + `scratch/tui/stubs.cpp` with
-  `add_packages("ftxui", {components = "component"})` and `vcpkg::fmt`.
+  `add_packages("vcpkg::ftxui")` and `vcpkg::fmt`.
   Build/run: `xmake run this`.
 - `scratch/tui/stubs.cpp`: command stubs refactored to **return** strings
   (no stdout printing, which would corrupt the full-screen TUI).

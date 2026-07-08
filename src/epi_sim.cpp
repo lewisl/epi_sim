@@ -6,6 +6,7 @@
 #include "sim.h"
 #include "r0_simulation.h"
 #include "show_help.h"
+#include "tui_example.h"
 
 
 //
@@ -84,6 +85,11 @@ int main(int argc, char** argv) {
         if (val.empty()) {show_help(); exit(0);}
         if (val == "topics") {show_topics(); exit(0);}
         else { show_help(val); exit(0);}
+      }
+
+      // just for testing of the tui before fully integrated
+      else if (flag == "--tui") {
+        run_tui();
       }
 
       else {
