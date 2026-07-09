@@ -19,20 +19,13 @@
 
 namespace fs = std::filesystem;
 
-
-std::string format_cli_block(std::string_view message) {
-  std::string out = "---\n";
-  for (std::string_view line : absl::StrSplit(message, '\n')) {
-    out += fmt::format("  {}\n", line);
-  }
-  out += "---\n";
-  return out;
-}
-
 void print_cli_block(std::string_view message, FILE* stream = stdout) {
-  fmt::print(stream, "{}", format_cli_block(message));
-}
+  fmt::println(stream, "---");
 
+  for (std::string_view line : absl::StrSplit(message, '\n')) {
+    fmt::println(stream, "  {}", line);
+  }
+}
 
 //
 // build the simulation model
@@ -383,7 +376,7 @@ Model use_managed_case(std::string case_label) {
   return build_model(case_dir);
 }
 
-std::string show_cases() {
+void show_cases() {
   fs::path project_dir = read_project_dir();
 
 
@@ -398,7 +391,7 @@ std::string show_cases() {
     cnt++;
   }
   if (cnt == 0) cases << "  No cases initialized yet.";
-  return format_cli_block(cases.str());
+  return print_cli_block(cases.str());
 }
 
 Model use_dir(std::string path_arg) {

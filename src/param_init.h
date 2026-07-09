@@ -40,7 +40,7 @@ void setup_dir(std::string path_arg);
 
 Model use_managed_case(std::string case_label);
 
-std::string show_cases();
+void show_cases();
 
 Model use_dir(std::string path_arg);
 

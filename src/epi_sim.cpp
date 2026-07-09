@@ -6,7 +6,7 @@
 #include "sim.h"
 #include "r0_simulation.h"
 #include "show_help.h"
-#include "tui_example.h"
+#include "tui_terminal.h"
 
 
 //
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
 
       // just for testing of the tui before fully integrated
       else if (flag == "--tui") {
-        run_tui();
+        run_terminal_tui();
       }
 
       else {

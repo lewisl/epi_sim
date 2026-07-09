@@ -138,7 +138,8 @@ std::string call_stub(int idx, const std::string arg) {
       return fmt::format("Case {} used to run simulation. Completed.", arg);
       }
     case 4: {
-      return show_cases();
+      show_cases();
+      return "";
       }
     case 5: return setup_dir_stub(arg);
     case 6: return use_dir_stub(arg);

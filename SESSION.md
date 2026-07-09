@@ -1,6 +1,76 @@
 # Session Notes
 
-## Latest Session: FTXUI Bootstrap TUI (scratch/tui)
+## Latest Session: TerminalOutput TUI Prototype
+
+Implemented a new sequential `ScreenInteractive::TerminalOutput()` path for
+`epi_sim --tui`, while preserving the full-screen prototype as `run_tui()`.
+
+### What changed
+
+- Added `src/tui_terminal.cpp` / `src/tui_terminal.h` with `run_terminal_tui()`.
+- Switched `src/epi_sim.cpp` so `--tui` calls `run_terminal_tui()`.
+- The new runner keeps C++ mainline control:
+  - every command/help/text prompt opens a short-lived TerminalOutput widget;
+  - after the widget exits, real command functions run normally and may print to
+    stdout/stderr;
+  - the outer loop keeps `TerminalAppState` alive until `/q`.
+- `TerminalAppState` retains the active `Model`, current case label/path, and
+  last output directory after `/run-case` or `/run-dir`.
+- Help browsing uses `hlptxt::help_map` and allows repeated topic selection
+  before returning to the command menu.
+- `/list-output-files` and `/plot` are first-pass state follow-ups: they report
+  files/HTML plot paths from the last run output directory.
+- Updated the old full-screen `src/tui_example.cpp` only for compatibility with
+  the active `show_cases()` signature, which now prints and returns `void`.
+
+### Validation
+
+- `xmake build epi_sim` passed.
+- `xmake run test parameters` passed: 146 checks, 0 failed.
+- `xmake run epi_sim --help` passed.
+- TTY smoke: launched `./build/macosx/arm64/release/epi_sim --tui`, rendered the
+  inline command menu, selected `/q`, and exited cleanly.
+
+### Notes
+
+- This deliberately does not capture stdout/stderr and does not refactor command
+  functions to return strings.
+- `xmake run test runsim` was not run in this pass because it opens browser tabs
+  by design; simulation code itself was not changed.
+
+### Follow-up visual cleanup
+
+- TerminalOutput widgets now use horizontal separators only, with no side box
+  borders, to reduce broken line drawing in normal shell scrollback.
+- Command and text-input panels are fixed at 76 columns.
+- Selected menu rows use black text over FTXUI's `Grey84` palette color, which
+  maps to the terminal's normal light-gray background slot in the current TTY
+  smoke.
+- Text-entry prompts use the same black-on-light-gray styling for typed values,
+  avoiding FTXUI's default inverted prompt highlight.
+- Text-entry prompts now use a small custom single-line component instead of
+  FTXUI `Input`, so Esc is handled before any character can be echoed into the
+  field. The prompt also handles raw ESC bytes and the `^[` representation.
+- VS Code terminal cursor-position replies such as `[47;1R` are treated as
+  terminal control traffic in text prompts. They are consumed incrementally even
+  when delivered as ordinary character events, so they cannot become command
+  arguments.
+- `/q` now exits without echoing `/q` to the terminal after the menu closes.
+- On exit, the runner clears upward through the rendered main-menu block,
+  including the TerminalOutput cursor row, and emits a blank line. It no longer
+  walks the cursor back down through the erased block, which could scroll the
+  terminal by the full menu height.
+- Menu-to-menu transitions that do not print normal output now clear the
+  just-closed widget before redrawing. This is used for `/back` from help topics
+  and menu Esc cancellation, while command selections and help-topic selections
+  keep their menu in scrollback because stdout output follows.
+- Menu type-to-jump is restored: pressing the first letter of a command/topic
+  advances the highlighted row, ignoring a leading slash.
+- Validation after cleanup: `xmake build epi_sim`, `xmake run test parameters`,
+  a prompt Esc TTY smoke, an injected `[47;1R` prompt smoke, `/help -> /back`
+  and top-menu Esc TTY smokes, and a `/q` TTY smoke all passed.
+
+## Previous Session: FTXUI Bootstrap TUI (scratch/tui)
 
 Built a working bootstrap TUI per `scratch/tui/tui-prompt.md`. `src/` untouched.
 
