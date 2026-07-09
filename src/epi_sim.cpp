@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         exit(0);
       }
 
-      else if (flag == "--use-case") {
+      else if (flag == "--run-case") {
         if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
         Model model = use_managed_case(val);
         runsim(model);

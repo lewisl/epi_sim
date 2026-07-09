@@ -1,4 +1,6 @@
 ## TODO
+- a nice tui for running the app
+- should init_case overwrite an existing case?
 - distribution packaging
 - user documentation
 - updated and accurate readme

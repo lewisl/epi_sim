@@ -20,6 +20,7 @@
 
 #include "stubs.h"
 #include "show_help.h"
+#include "param_init.h"
 
 // namespace fu = ftxui;
 using namespace ftxui;
@@ -39,12 +40,12 @@ const std::vector<Command> commands = {
      "Enter the project directory..."},
     {"/init-case", "Create a case folder in the project with template input files",
      "Enter a name for the new case..."},
-    {"/use-case", "Run a simulation using the case from the project folder",
+    {"/run-case", "Run a simulation using the case from the project folder",
      "Enter the case name..."},
     {"/show-cases", "Show names of case folders in the current project", ""},
     {"/setup-dir", "Create a single-case folder with template input files",
      "Enter the case directory..."},
-    {"/use-dir", "Run the simulation using the inputs for the case folder",
+    {"/run-dir", "Run the simulation using the inputs for the case folder",
      "Enter the case directory..."},
     {"/list-output-files", "List all the output files for the current case", ""},
     {"/plot", "Show plots for the current case as tabs in your browser", ""},
@@ -120,12 +121,25 @@ void open_help_menu(TuiApp& app) {
 }
 
 // Call the stub for the command at the given index with the given argument.
-std::string call_stub(int idx, const std::string& arg) {
+std::string call_stub(int idx, const std::string arg) {
   switch (idx) {
-    case 1: return set_project_dir_stub(arg);
-    case 2: return init_case_stub(arg);
-    case 3: return use_case_stub(arg);
-    case 4: return show_cases_stub();
+    case 1: {
+      set_project_dir(arg);
+      return fmt::format("Project directory {} created and will be used as current default.", arg);
+    } 
+    case 2: {
+        if (arg.empty()) { return fmt::format("No value for case dir provided.\n");}
+        init_case(arg);
+        return fmt::format("Case {} initialized and created.", arg);
+        }
+    case 3: {
+      Model model = use_managed_case(arg);
+      runsim(model);
+      return fmt::format("Case {} used to run simulation. Completed.", arg);
+      }
+    case 4: {
+      return show_cases();
+      }
     case 5: return setup_dir_stub(arg);
     case 6: return use_dir_stub(arg);
     case 7: return list_output_files_stub(arg);
