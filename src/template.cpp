@@ -8,6 +8,7 @@ const std::string config_json = R"TAG({
     "do_social_distancing": false,    // apply social distancing cases: true or false
     "do_rings": false,                // assign ring membership and use ring contact rules: true or false
     "debug": false,                   // print verbose debug diagnostics such as overflow warnings
+    "rt_sim_interval": 0,             // every interval days estimate Rt: 0 = never
     "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],
 
     "case_desc": "young: no distancing; old: rigorous; Moderna 50pct",

@@ -5,7 +5,6 @@ add_requires("vcpkg::ftxui")
 set_languages("c++23")
 set_toolchains("llvm")
 set_optimize("fastest")
--- set_pcxxheader("src/lib_includes.h") -- put all includes for stdlib, stl, external packages here
 
 target("epi_sim")
     set_kind("binary")

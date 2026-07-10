@@ -1,5 +1,4 @@
 ## TODO
-- a nice tui for running the app
 - should init_case overwrite an existing case?
 - distribution packaging
 - user documentation
@@ -24,6 +23,8 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- add int rt_sim_interval to config.json and wire it in: update the templates, too
+- a nice tui for running the app
 - r0 calculations and rt as well.
 - achieve better repeatability and comparison of simulation runs by bundling inputs and outputs for a simulation run in suitably named directories
 - consolidate the series serialization code for printing and serialization

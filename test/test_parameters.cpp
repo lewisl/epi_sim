@@ -552,6 +552,21 @@ void test_check_config_rejects_nonpositive_days() {
   CHECK(has_error_containing(e, "'days' must be > 0"));
 }
 
+void test_check_config_rejects_negative_rt_sim_interval() {
+  Errors e;
+  bool dovax, dr, dsd;
+  int locale;
+  json cfg = parse_config();
+  cfg["rt_sim_interval"] = 0;
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(!has_error_containing(e, "'rt_sim_interval'"));
+
+  e.msgs.clear();
+  cfg["rt_sim_interval"] = -1;
+  input_verify_detail::check_config(cfg, e, dovax, dr, dsd, locale);
+  CHECK(has_error_containing(e, "'rt_sim_interval' must be >= 0"));
+}
+
 void test_check_config_rejects_bad_calendar_start() {
   Errors e;
   bool dovax, dr, dsd;
@@ -713,6 +728,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_check_config_rejects_missing_days();
   test_write_error_log_writes_complete_report();
   test_check_config_rejects_nonpositive_days();
+  test_check_config_rejects_negative_rt_sim_interval();
   test_check_config_rejects_bad_calendar_start();
   test_check_config_rejects_age_dist_wrong_size();
   test_check_config_rejects_age_dist_bad_sum();

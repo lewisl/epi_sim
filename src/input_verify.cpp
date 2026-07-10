@@ -142,6 +142,12 @@ void check_config(const json& cfg, Errors& e, bool& dovax, bool& do_rings,
   need_bool(cfg, "dovax", ctx, e);
   dovax = read_flag("dovax");
 
+  need_int(cfg, "rt_sim_interval", ctx, e);
+  if (cfg.contains("rt_sim_interval") && cfg["rt_sim_interval"].is_number_integer() &&
+      cfg["rt_sim_interval"].get<int>() < 0)
+    e.add(fmt::format("{}: 'rt_sim_interval' must be >= 0 (got {}).", ctx,
+                      cfg["rt_sim_interval"].get<int>()));
+
   // age_dist: array of exactly 5 numbers summing to ~1.0 (current null-crash source).
   need_array(cfg, "age_dist", ctx, e);
   if (cfg.contains("age_dist") && cfg["age_dist"].is_array()) {

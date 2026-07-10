@@ -22,6 +22,7 @@ struct Config {
   bool do_social_distancing {false};
   bool do_rings {false};
   bool debug {false};
+  int rt_sim_interval{};
   std::vector<double> age_dist{};
   std::string geodata {};
   std::string variants {};

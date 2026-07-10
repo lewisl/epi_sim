@@ -14,6 +14,7 @@ struct Model {
   bool do_social_distancing{};
   bool do_rings{};
   bool debug{};
+  int rt_sim_interval{};
   vector<double> age_dist;
   bool headless{false};  // when true, runsim skips disk writes and browser plots; set by tests
   std::filesystem::path output_dir {};

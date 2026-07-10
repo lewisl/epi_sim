@@ -116,10 +116,10 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
                series);
       vax_timing.cum();
     }
-
-    if (d_i % 10 == 0) {
+    if (model.rt_sim_interval) {
+    if (d_i % model.rt_sim_interval == 0) {
       rt_sim(pop, model);
-    }
+    }}
 
     // Loop through all people and process infectious ones (no vector allocation needed)
     for (size_t p = 1; p <= pop.popn; ++p) {

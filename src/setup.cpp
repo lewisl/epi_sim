@@ -174,12 +174,14 @@ Model setup_sim(Config config)
       bool do_social_distancing = config.do_social_distancing;
       bool do_rings = config.do_rings;
       bool debug = config.debug;
+      int rt_sim_interval = config.rt_sim_interval;
       std::vector<double> age_dist = config.age_dist;
       fs::path output_dir = config.output_dir;
       std::string case_label = config.case_label;
       fs::path seed = config.seed;
       fs::path social_dist = config.social_dist;
 
+      
     ModelParams mp = setup_model_params(dovax,
         do_rings,
         config.geodata,  // convert filesystem::path objects to string
@@ -233,6 +235,7 @@ Model setup_sim(Config config)
       .do_social_distancing = do_social_distancing,
       .do_rings = do_rings,
       .debug = debug,
+      .rt_sim_interval = rt_sim_interval,
       .age_dist = age_dist,
       .output_dir = std::move(output_dir),
       .case_label = std::move(case_label),
