@@ -15,6 +15,7 @@
 #include "ftxui/component/component_options.hpp"
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/dom/elements.hpp"
+#include "ftxui/screen/screen.hpp"
 
 #include "param_init.h"
 #include "show_help.h"
@@ -74,10 +75,17 @@ const std::vector<Command> commands = {
 };
 
 constexpr int PANEL_WIDTH = 76;
+constexpr std::string_view MENU_FOOTER_TEXT = "Enter selects. Esc cancels.";
+constexpr std::string_view CASE_FOOTER_PREFIX = "Current case: ";
 
-Color selection_bg() {
-  return Color::Grey84;
-}
+// Color selection_bg() {
+//   return Color::Grey84;
+// }
+
+Color selection_bg() { return Color::Palette256(153); }  // light steel blue
+Color rule_color()   { return Color::Palette256(67);  }  // steel blue
+Color faint_color()  { return Color::Palette256(254); }  // very light grey
+Color output_rule_color() { return Color::Palette256(245); }  // mid grey
 
 void clear_terminal_lines(int line_count, bool leave_blank_line = true) {
   if (line_count <= 0) return;
@@ -114,8 +122,38 @@ std::string trim(std::string value) {
   return value;
 }
 
+void print_element(Element element) {
+  auto screen = Screen::Create(Dimension::Fit(element));
+  Render(screen, element);
+  fmt::print("{}\r\n", screen.ToString());
+}
+
+void print_command_card(const Command& command, std::string_view arg) {
+  std::string command_text = command.name;
+  if (!arg.empty()) command_text = fmt::format("{} {}", command.name, arg);
+
+  const auto card_row = [](std::string_view text_value) {
+    return text(text_value) | color(Color::Black) | bgcolor(faint_color()) |
+           size(WIDTH, EQUAL, PANEL_WIDTH);
+  };
+  Element blank_line = text("") | size(WIDTH, EQUAL, PANEL_WIDTH);
+  print_element(vbox({blank_line, card_row(""), card_row(command_text),
+                      card_row(""), blank_line}));
+}
+
+void print_output_boundary(bool leading_blank) {
+  Element output_rule = separator() | color(output_rule_color()) |
+                        size(WIDTH, EQUAL, PANEL_WIDTH);
+  Element blank_line = text("") | size(WIDTH, EQUAL, PANEL_WIDTH);
+  if (leading_blank) {
+    print_element(vbox({blank_line, std::move(output_rule), blank_line}));
+  } else {
+    print_element(vbox({std::move(output_rule), std::move(blank_line)}));
+  }
+}
+
 Element menu_panel(std::string_view prompt, const std::vector<std::string>& entries,
-                   int selected) {
+                   int selected, std::string_view case_label) {
   Elements rows;
   for (int i = 0; i < static_cast<int>(entries.size()); ++i) {
     Element row = text(entries[i]) | size(WIDTH, EQUAL, PANEL_WIDTH);
@@ -125,12 +163,25 @@ Element menu_panel(std::string_view prompt, const std::vector<std::string>& entr
     rows.push_back(row);
   }
 
+  Elements footer = {text(std::string(MENU_FOOTER_TEXT)) | dim};
+  if (!case_label.empty()) {
+    const int max_case_text_width =
+        PANEL_WIDTH - static_cast<int>(MENU_FOOTER_TEXT.size()) - 1;
+    std::string case_text = fmt::format("{}{}", CASE_FOOTER_PREFIX, case_label);
+    if (static_cast<int>(case_text.size()) > max_case_text_width) {
+      case_text.resize(max_case_text_width - 3);
+      case_text += "...";
+    }
+    footer.push_back(filler());
+    footer.push_back(text(case_text) | dim);
+  }
+
   return vbox({
              text(std::string(prompt)) | bold | size(WIDTH, EQUAL, PANEL_WIDTH),
              separator(),
              vbox(std::move(rows)),
              separator(),
-             text("Enter selects. Esc cancels.") | dim | size(WIDTH, EQUAL, PANEL_WIDTH),
+             hbox(std::move(footer)) | size(WIDTH, EQUAL, PANEL_WIDTH),
          }) | size(WIDTH, EQUAL, PANEL_WIDTH);
 }
 
@@ -250,7 +301,8 @@ bool is_backspace_event(const Event& event) {
 }
 
 std::optional<int> choose_menu(std::string_view prompt,
-                               const std::vector<std::string>& entries) {
+                               const std::vector<std::string>& entries,
+                               std::string_view case_label = {}) {
   if (entries.empty()) return std::nullopt;
 
   std::vector<std::string> menu_entries = entries;
@@ -265,7 +317,7 @@ std::optional<int> choose_menu(std::string_view prompt,
   auto menu = Menu(&menu_entries, &selected, menu_opt);
 
   auto root = CatchEvent(Renderer(menu, [&] {
-                           return menu_panel(prompt, menu_entries, selected);
+                           return menu_panel(prompt, menu_entries, selected, case_label);
                          }),
                          [&](Event event) {
                            if (is_cancel_event(event)) {
@@ -489,61 +541,62 @@ void dispatch_command(TerminalAppState& state, const Command& command) {
     }
   }
 
-  fmt::println("");
-  fmt::println("{}", command.name);
+  print_command_card(command, arg);
+  print_output_boundary(false);
 
-  bool print_trailing_blank = true;
-  switch (command.action) {
-    case CommandAction::Help:
-      print_trailing_blank = run_help_topics();
-      break;
-    case CommandAction::SetProjectDir:
-      set_project_dir(arg);
-      break;
-    case CommandAction::InitCase:
-      init_case(arg);
-      break;
-    case CommandAction::RunCase:
-      run_case(state, arg);
-      break;
-    case CommandAction::ShowCases:
-      show_cases();
-      break;
-    case CommandAction::SetupDir:
-      setup_dir(arg);
-      state.current_case_dir = arg;
-      break;
-    case CommandAction::RunDir:
-      run_dir(state, arg);
-      break;
-    case CommandAction::ListOutputFiles:
-      list_output_files(state);
-      break;
-    case CommandAction::Plot:
-      show_plot_files(state);
-      break;
-    case CommandAction::Quit:
-      break;
+  try {
+    switch (command.action) {
+      case CommandAction::Help:
+        run_help_topics();
+        break;
+      case CommandAction::SetProjectDir:
+        set_project_dir(arg);
+        break;
+      case CommandAction::InitCase:
+        init_case(arg);
+        break;
+      case CommandAction::RunCase:
+        run_case(state, arg);
+        break;
+      case CommandAction::ShowCases:
+        show_cases();
+        break;
+      case CommandAction::SetupDir:
+        setup_dir(arg);
+        state.current_case_dir = arg;
+        break;
+      case CommandAction::RunDir:
+        run_dir(state, arg);
+        break;
+      case CommandAction::ListOutputFiles:
+        list_output_files(state);
+        break;
+      case CommandAction::Plot:
+        show_plot_files(state);
+        break;
+      case CommandAction::Quit:
+        break;
+    }
+  } catch (const std::exception& e) {
+    fmt::println(stderr, "Command failed: {}", e.what());
   }
 
-  if (print_trailing_blank) fmt::println("");
+  print_output_boundary(true);
 }
 
 }  // namespace
 
 int run_terminal_tui() {
   TerminalAppState state;
-  fmt::println("epi_sim terminal menu");
+  // fmt::println("epi_sim terminal menu");
+  fmt::println("");
 
   while (!state.quit) {
-    auto selected = choose_menu("Choose a command", command_menu_entries());
+    auto selected = choose_menu("Choose a command", command_menu_entries(),
+                                state.current_case_label);
     if (!selected) continue;
 
-    try {
-      dispatch_command(state, commands[*selected]);
-    } catch (const std::exception& e) {
-      fmt::println(stderr, "Command failed: {}", e.what());
-    }
+    dispatch_command(state, commands[*selected]);
   }
 
   clear_terminal_lines(static_cast<int>(commands.size()) + 6);

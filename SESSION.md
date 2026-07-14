@@ -19,6 +19,15 @@ menu for `epi_sim --tui`. The earlier full-screen TUI work is preserved on the
 - Help topics come from the shared `hlptxt::help_map`.
 - `/list-output-files` and `/plot` report files associated with the most recent
   run output directory.
+- The top-level command-menu footer shows the most recently completed run as
+  `Current case: <label>` at its right edge; long labels are truncated to keep
+  the fixed-width footer to one line. Help-topic menus retain their original
+  footer.
+- Accepted non-quit commands render a light-gray FTXUI command card and gray
+  output boundaries, while command and simulation functions continue to print
+  directly to the console. The command card has three highlighted rows (blank,
+  command, blank), with unhighlighted blank rows before and after it; cancelled
+  and empty prompts remain unframed.
 - Menu cancellation, `/help -> /back`, `/q`, type-to-jump, prompt Esc handling,
   and VS Code cursor-position traffic have dedicated handling.
 
@@ -30,6 +39,14 @@ command functions to return display strings.
 - `xmake build epi_sim` passed.
 - `xmake run test parameters` passed: 146 checks, 0 failed.
 - `xmake run epi_sim --help` passed.
+- `xmake build epi_sim` passed after the command-menu footer update.
+- TTY smoke confirmed the no-active-case command menu retains its original
+  single-line footer and exits cleanly through `/q`.
+- `xmake build epi_sim` passed after adding framed command output. TTY smokes
+  passed for `/list-output-files`, nested `/help`, prompt cancellation, and
+  `/q`.
+- The static FTXUI renderer appends `\r\n` after each printed element so later
+  rules and ordinary `fmt` output always start at the terminal's first column.
 - TTY smokes passed for menu rendering and `/q`, prompt Esc, injected `[47;1R`
   traffic, `/help -> /back`, and top-menu Esc.
 - `xmake run test runsim` was not rerun for the TUI change because it opens
@@ -46,6 +63,26 @@ command functions to return display strings.
 - `docs/input verification.md` maps the preflight validation flow, shared error
   accumulator, and file-specific checks.
 
+### Near-term architecture: completed run state and series
+
+- `Model` is the runnable configuration plus the population at its current
+  simulation tick; `AllSeries` is the separately accumulated, completed
+  time-series history.
+- Change `runsim(Model&)` to return its completed `AllSeries` so the terminal
+  runner can retain it beside the live `Model` for post-run commands.
+- Time the complete history-accumulation path. The current `History time`
+  measurement covers only `AllSeries::finalize_series()`, not the per-day and
+  transition updates made during the simulation.
+- Move runtime variant, vaccine, ring, and related definitions from mutable
+  static registries into per-run model-owned data. Keep compact numeric trait
+  IDs and direct indexed access in hot loops; compile-time tables such as
+  `Status` and `Agegrp` remain global constants.
+- Retaining one active run is the initial target. If multiple completed runs are
+  retained later, each must keep the definitions that interpret its `AllSeries`.
+- Since all series are already collected, make future serialization and plotting
+  choose from curated output bundles after a run rather than presenting
+  individual-series checkboxes or deciding collection before the run starts.
+
 ## Next Steps
 
 Work in small, independently testable changes:
@@ -56,10 +93,9 @@ Work in small, independently testable changes:
 2. Make run-state updates transactional: build and run a local `Model`, then
    replace `TerminalAppState::active_model` and its metadata only after the run
    succeeds. A failed run should leave the previous successful state coherent.
-3. Decide whether retaining the full `Model` is required by a near-term
-   interactive command. Current follow-ups use only output metadata; retaining
-   `Model::pop`, parameters, and ring data may hold substantial memory without a
-   current consumer.
+3. Retain the active `Model` and completed `AllSeries` after a successful run
+   for post-run commands, replacing both together transactionally on the next
+   successful run.
 4. Reduce dependence on fixed 76-column rendering and hard-coded line counts.
    Test a narrow terminal and prefer a cleanup strategy that cannot erase prior
    shell output or leave wrapped menu fragments behind.

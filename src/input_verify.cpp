@@ -6,13 +6,18 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
-#include <numeric>
 #include <optional>
 #include <sstream>
 
 namespace fs = std::filesystem;
 
+
+
 namespace input_verify_detail {
+
+//
+// re-usable detail and value tests
+//  
 namespace {
 
 // The five real age-group keys shared by rings / socialparams / progression.
@@ -108,6 +113,10 @@ bool write_error_log(const fs::path& log_path, std::string_view report) {
   return static_cast<bool>(log);
 }
 
+
+//
+//   check config.json
+//
 void check_config(const json& cfg, Errors& e, bool& dovax, bool& do_rings,
                   bool& do_social_distancing, int& locale) {
   constexpr std::string_view ctx = "config.json";
@@ -187,6 +196,9 @@ void check_config(const json& cfg, Errors& e, bool& dovax, bool& do_rings,
   if (do_social_distancing) need_string(cfg, "social_dist", ctx, e);
 }
 
+//
+// check variants.json
+//
 void check_variants(const json& j, Errors& e) {
   constexpr std::string_view ctx = "variants.json";
   if (!j.is_object() || j.empty()) {
@@ -249,6 +261,10 @@ void check_variants(const json& j, Errors& e) {
   }
 }
 
+
+//
+// check vaccines.json
+//
 void check_vaccines(const json& j, Errors& e) {
   constexpr std::string_view ctx = "vaccines.json";
   if (!j.is_object() || j.empty()) {
@@ -270,6 +286,10 @@ void check_vaccines(const json& j, Errors& e) {
   }
 }
 
+
+//
+// check specific vax_sched schedules
+//
 void check_vax_sched(const json& j, std::string_view label, Errors& e) {
   const std::string ctx = fmt::format("vax schedule '{}'", label);
   if (!j.is_object()) {
@@ -306,6 +326,10 @@ void check_vax_sched(const json& j, std::string_view label, Errors& e) {
   }
 }
 
+
+//
+// check socialparams.json
+//
 void check_socialparams(const json& j, Errors& e) {
   constexpr std::string_view ctx = "socialparams.json";
   if (!j.is_object()) {
@@ -318,6 +342,9 @@ void check_socialparams(const json& j, Errors& e) {
   need_object(j, "touchfactors", ctx, e);
 }
 
+//
+// check seed.json
+//
 void check_seed(const json& j, Errors& e) {
   constexpr std::string_view ctx = "seed.json";
   if (!j.is_array()) {
@@ -338,6 +365,10 @@ void check_seed(const json& j, Errors& e) {
   }
 }
 
+
+//
+// check soc_dist.json
+//
 void check_soc_dist(const json& j, Errors& e) {
   constexpr std::string_view ctx = "soc_dist.json";
   if (!j.is_array()) {
@@ -367,6 +398,10 @@ void check_soc_dist(const json& j, Errors& e) {
   }
 }
 
+
+//
+// check rings.json
+//
 void check_rings(const json& j, Errors& e) {
   constexpr std::string_view ctx = "rings.json";
   if (!j.is_object() || !j.contains("rings")) {
@@ -405,6 +440,10 @@ void check_rings(const json& j, Errors& e) {
     e.add(fmt::format("{}: 'pct_of_population' values must sum to 1.0 (got {}).", ctx, pct_sum));
 }
 
+
+//
+// check geodata.csv
+//
 void check_geodata_csv(const fs::path& p, int locale, Errors& e) {
   constexpr std::string_view ctx = "geodata.csv";
   std::ifstream in(p);
@@ -463,98 +502,113 @@ void check_geodata_csv(const fs::path& p, int locale, Errors& e) {
 
 }  // namespace input_verify_detail
 
+
+//
+// verify existenced of required files, and then their contents
+//
 void input_verify(const fs::path& input_dir) {
   using namespace input_verify_detail;
   Errors err;
 
-  // config.json existence is guaranteed by build_model's gate above this call.
-  const fs::path config_path = input_dir / "config.json";
-  const auto cfg_opt = try_load_json(config_path, "config.json", err);
+  //
+  // helpers and details verification functions
+  //
 
-  bool dovax = false, do_rings = false, do_social_distancing = false;
-  int locale = 0;
-  if (cfg_opt)
-    check_config(*cfg_opt, err, dovax, do_rings, do_social_distancing, locale);
+      // config.json existence is guaranteed by build_model's gate above this call.
+      const fs::path config_path = input_dir / "config.json";
+      const auto cfg_opt = try_load_json(config_path, "config.json", err);
 
-  // Resolve a config filename key to a path under input_dir; nullopt if the key
-  // is absent or not a string (already flagged by check_config).
-  auto resolve = [&](const char* key) -> std::optional<fs::path> {
-    if (!cfg_opt || !cfg_opt->is_object() || !cfg_opt->contains(key) ||
-        !(*cfg_opt)[key].is_string())
-      return std::nullopt;
-    const fs::path rel = (*cfg_opt)[key].get<std::string>();
-    return rel.is_absolute() ? rel : input_dir / rel;
-  };
+      bool dovax = false, do_rings = false, do_social_distancing = false;
+      int locale = 0;
+      if (cfg_opt)
+        check_config(*cfg_opt, err, dovax, do_rings, do_social_distancing, locale);
 
-  auto verify_json_file = [&](const char* key, std::string_view label,
-                              void (*checker)(const json&, Errors&)) {
-    const auto p = resolve(key);
-    if (!p) return;
-    if (!fs::exists(*p)) {
-      err.add(fmt::format("{}: file '{}' does not exist.", label, p->string()));
-      return;
-    }
-    const auto j = try_load_json(*p, label, err);
-    if (j) checker(*j, err);
-  };
+      // Resolve a config filename key to a path under input_dir; nullopt if the key
+      // is absent or not a string (already flagged by check_config).
+      auto resolve = [&](const char* key) -> std::optional<fs::path> {
+        if (!cfg_opt || !cfg_opt->is_object() || !cfg_opt->contains(key) ||
+            !(*cfg_opt)[key].is_string())
+          return std::nullopt;
+        const fs::path rel = (*cfg_opt)[key].get<std::string>();
+        return rel.is_absolute() ? rel : input_dir / rel;
+      };
 
-  verify_json_file("seed", "seed.json", check_seed);
-  verify_json_file("variants", "variants.json", check_variants);
-  verify_json_file("social_params", "socialparams.json", check_socialparams);
+      auto verify_json_file = [&](const char* key, std::string_view label,
+                                  void (*checker)(const json&, Errors&)) {
+        const auto p = resolve(key);
+        if (!p) return;
+        if (!fs::exists(*p)) {
+          err.add(fmt::format("{}: file '{}' does not exist.", label, p->string()));
+          return;
+        }
+        const auto j = try_load_json(*p, label, err);
+        if (j) checker(*j, err);
+      };
 
-  if (const auto geo = resolve("geodata")) {
-    if (!fs::exists(*geo))
-      err.add(fmt::format("geodata.csv: file '{}' does not exist.", geo->string()));
-    else
-      check_geodata_csv(*geo, locale, err);
-  }
+  //
+  // examine individual files for existence and contents
+  //
 
-  if (dovax) {
-    verify_json_file("vaccines", "vaccines.json", check_vaccines);
-    if (const auto dir = resolve("vax_sched_dir")) {
-      if (!fs::exists(*dir))
-        err.add(fmt::format("vax_sched_dir: '{}' does not exist.", dir->string()));
-      else if (!fs::is_directory(*dir))
-        err.add(fmt::format("vax_sched_dir: '{}' is not a directory.", dir->string()));
-      else {
-        int json_count = 0;
-        for (const auto& entry : fs::directory_iterator(*dir)) {
-          if (entry.is_regular_file() && entry.path().extension() == ".json") {
-            ++json_count;
-            const auto j = try_load_json(entry.path(), entry.path().filename().string(), err);
-            if (j) check_vax_sched(*j, entry.path().stem().string(), err);
+      verify_json_file("seed", "seed.json", check_seed);
+      verify_json_file("variants", "variants.json", check_variants);
+      verify_json_file("social_params", "socialparams.json", check_socialparams);
+
+      if (const auto geo = resolve("geodata")) {
+        if (!fs::exists(*geo))
+          err.add(fmt::format("geodata.csv: file '{}' does not exist.", geo->string()));
+        else
+          check_geodata_csv(*geo, locale, err);
+      }
+
+      if (dovax) {
+        verify_json_file("vaccines", "vaccines.json", check_vaccines);
+        if (const auto dir = resolve("vax_sched_dir")) {
+          if (!fs::exists(*dir))
+            err.add(fmt::format("vax_sched_dir: '{}' does not exist.", dir->string()));
+          else if (!fs::is_directory(*dir))
+            err.add(fmt::format("vax_sched_dir: '{}' is not a directory.", dir->string()));
+          else {
+            int json_count = 0;
+            for (const auto& entry : fs::directory_iterator(*dir)) {
+              if (entry.is_regular_file() && entry.path().extension() == ".json") {
+                ++json_count;
+                const auto j = try_load_json(entry.path(), entry.path().filename().string(), err);
+                if (j) check_vax_sched(*j, entry.path().stem().string(), err);
+              }
+            }
+            if (json_count == 0)
+              err.add(fmt::format("vax_sched_dir: '{}' contains no .json schedule files.",
+                                  dir->string()));
           }
         }
-        if (json_count == 0)
-          err.add(fmt::format("vax_sched_dir: '{}' contains no .json schedule files.",
-                              dir->string()));
       }
-    }
-  }
 
-  if (do_social_distancing)
-    verify_json_file("social_dist", "soc_dist.json", check_soc_dist);
+      if (do_social_distancing)
+        verify_json_file("social_dist", "soc_dist.json", check_soc_dist);
 
-  if (do_rings)
-    verify_json_file("rings", "rings.json", check_rings);
+      if (do_rings)
+        verify_json_file("rings", "rings.json", check_rings);
 
-  if (err.any()) {
-    std::string report = fmt::format(
-        "Input validation failed for '{}'. {} problem(s) found:\n",
-        input_dir.string(), err.msgs.size());
-    for (size_t i = 0; i < err.msgs.size(); ++i)
-      report += fmt::format("  {}. {}\n", i + 1, err.msgs[i]);
-    fmt::print(stderr, "{}", report);
+  //
+  // output results if failures found
+  //
+      if (err.any()) {
+        std::string report = fmt::format(
+            "Input validation failed for '{}'. {} problem(s) found:\n",
+            input_dir.string(), err.msgs.size());
+        for (size_t i = 0; i < err.msgs.size(); ++i)
+          report += fmt::format("  {}. {}\n", i + 1, err.msgs[i]);
+        fmt::print(stderr, "{}", report);
 
-    const fs::path log_path = fs::current_path() / "input-error-log.txt";
-    if (write_error_log(log_path, report)) {
-      fmt::print(stderr, "Wrote error log to {}\n", log_path.string());
-    } else {
-      fmt::print(stderr, "Could not write error log to {}\n", log_path.string());
-    }
-    std::exit(EXIT_FAILURE);
-  }
+        const fs::path log_path = fs::current_path() / "input-error-log.txt";
+        if (write_error_log(log_path, report)) {
+          fmt::print(stderr, "Wrote error log to {}\n", log_path.string());
+        } else {
+          fmt::print(stderr, "Could not write error log to {}\n", log_path.string());
+        }
+        std::exit(EXIT_FAILURE);
+      }
 
-  fmt::println("Input structure validated for files, json keys, and csv columns. "
-               "Not all values can be validated.  Running simulation...");
+      fmt::println("Input structure validated for files, json keys, and csv columns. "
+                  "Not all values can be validated.  Running simulation...");
 }

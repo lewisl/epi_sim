@@ -20,7 +20,7 @@
 namespace fs = std::filesystem;
 
 void print_cli_block(std::string_view message, FILE* stream = stdout) {
-  fmt::println(stream, "---");
+  // fmt::println(stream, "---");
 
   for (std::string_view line : absl::StrSplit(message, '\n')) {
     fmt::println(stream, "  {}", line);
