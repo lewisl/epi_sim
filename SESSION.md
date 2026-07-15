@@ -49,6 +49,10 @@ command functions to return display strings.
   rules and ordinary `fmt` output always start at the terminal's first column.
 - TTY smokes passed for menu rendering and `/q`, prompt Esc, injected `[47;1R`
   traffic, `/help -> /back`, and top-menu Esc.
+- `choose_menu()` and `ask_text()` now keep their FTXUI composition short by
+  naming the rendering and event-policy helpers; the behavior remains the
+  same. `xmake build epi_sim` and a TTY smoke of type-to-jump, `/help ->
+  /back`, prompt typing/Backspace/Esc, empty Enter, and `/q` passed.
 - `xmake run test runsim` was not rerun for the TUI change because it opens
   browser tabs by design and the simulation loop was not changed.
 
@@ -63,6 +67,14 @@ command functions to return display strings.
 - `docs/input verification.md` maps the preflight validation flow, shared error
   accumulator, and file-specific checks.
 
+### 2026-07-14: History timing scope
+
+- `History time` now includes the `AllSeries` updates in seed cases, spread
+  infections, and progression recoveries/deaths, plus `finalize_series()`.
+- `sim::history_timing` is global instrumentation state, reset at each
+  `runsim()` start; Rt transition updates accumulate when Rt estimation is enabled.
+- `xmake run test` passed: 628 checks, 0 failed.
+
 ### Near-term architecture: completed run state and series
 
 - `Model` is the runnable configuration plus the population at its current
@@ -70,9 +82,8 @@ command functions to return display strings.
   time-series history.
 - Change `runsim(Model&)` to return its completed `AllSeries` so the terminal
   runner can retain it beside the live `Model` for post-run commands.
-- Time the complete history-accumulation path. The current `History time`
-  measurement covers only `AllSeries::finalize_series()`, not the per-day and
-  transition updates made during the simulation.
+- The complete transition-history path is timed. Per-day history initialization
+  and direct updates outside the transition methods remain outside `History time`.
 - Move runtime variant, vaccine, ring, and related definitions from mutable
   static registries into per-run model-owned data. Keep compact numeric trait
   IDs and direct indexed access in hot loops; compile-time tables such as

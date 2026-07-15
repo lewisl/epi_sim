@@ -1,4 +1,5 @@
 ## TODO
+- move trait struct definitions into model somehow.  see what we did for Julia.
 - distribution packaging
 - user documentation
 - updated and accurate readme

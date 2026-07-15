@@ -213,7 +213,7 @@ class PopData {
       // change status of 1 person, keeping all traits consistent. the person is the object: person.make_well(series)
       void make_sick(Variant var, AllSeries & series, Condition condition = NIL, uint8_t durationdays = 1);
       void make_well(AllSeries & series);
-      void make_dead(AllSeries & series);  
+      void make_dead(AllSeries & series);
       
 	  };  // end of struct AgentView
 

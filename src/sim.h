@@ -7,6 +7,7 @@
 #include "random.h"
 #include "series.h"
 #include "cases.h"
+#include "timing.h"
 
 // Forward declaration
 struct Model;
@@ -39,6 +40,8 @@ struct Config {
 namespace sim {
     inline int current_day = 0;
     inline bool debug = false;
+    // Instrumentation only; reset at the beginning of each main simulation.
+    inline Timing history_timing{};
 
     inline int get_day() {
         return current_day;

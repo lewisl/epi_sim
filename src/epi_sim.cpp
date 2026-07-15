@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
   std::string val;
 
 
-  if (argc == 1) show_help(); 
+  if (argc == 1) run_terminal_tui();; 
 
   
   for (int i = 1; i < argc; i += 2) {

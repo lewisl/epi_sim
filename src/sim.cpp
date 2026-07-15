@@ -54,11 +54,11 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   // reset day counter to zero
   sim::reset_day();
   sim::debug = model.debug;
+  sim::history_timing.reset();
 
   // setup timers for performance metering
   Timing spread_timing;
   Timing progression_timing;
-  Timing history_timing;
   Timing vax_timing;
 
 
@@ -169,10 +169,10 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
 
   } // day loop
 
-  history_timing.start();
+  sim::history_timing.start();
   series.finalize_series();
   // debugging only: series.validate_variant_invariant();
-  history_timing.cum();
+  sim::history_timing.cum();
 
   //
   // at end of simulation
@@ -216,7 +216,7 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   SummaryData sumstruct = print_summary(pop); fmt::println("");
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
-        spread_timing.show(), progression_timing.show(), history_timing.show(), vax_timing.show());
+        spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
 
   if (model.headless) return;  // headless runs skip browser plots
 

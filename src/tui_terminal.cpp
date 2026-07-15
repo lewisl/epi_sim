@@ -20,6 +20,7 @@
 #include "param_init.h"
 #include "show_help.h"
 #include "sim.h"
+#include "r0_simulation.h"
 
 using namespace ftxui;
 
@@ -33,7 +34,7 @@ enum class CommandAction {
   ShowCases,
   SetupDir,
   RunDir,
-  ListOutputFiles,
+  R0Sim,
   Plot,
   Quit,
 };
@@ -53,6 +54,18 @@ struct TerminalAppState {
   std::filesystem::path last_output_dir;
 };
 
+struct MenuState {
+  std::vector<std::string> entries;
+  int selected = 0;
+  bool cancelled = false;
+};
+
+struct TextPromptState {
+  std::string input;
+  std::string pending_control;
+  bool cancelled = false;
+};
+
 const std::vector<Command> commands = {
     {"/help", "Browse help topics", "", CommandAction::Help},
     {"/set-project-dir", "Create or activate a project directory",
@@ -67,8 +80,8 @@ const std::vector<Command> commands = {
      "Case directory path:", CommandAction::SetupDir},
     {"/run-dir", "Run a standalone case directory and keep the model alive",
      "Case directory path:", CommandAction::RunDir},
-    {"/list-output-files", "List files in the last run output directory", "",
-     CommandAction::ListOutputFiles},
+    {"/r0_sim", "Simulate academic definition of R0", "Case name or case directory: ",
+     CommandAction::R0Sim},
     {"/plot", "Show where the last run plot files were written", "",
      CommandAction::Plot},
     {"/q", "Quit epi_sim", "", CommandAction::Quit},
@@ -152,12 +165,12 @@ void print_output_boundary(bool leading_blank) {
   }
 }
 
-Element menu_panel(std::string_view prompt, const std::vector<std::string>& entries,
-                   int selected, std::string_view case_label) {
+Element render_menu_panel(std::string_view prompt, const MenuState& state,
+                          std::string_view case_label) {
   Elements rows;
-  for (int i = 0; i < static_cast<int>(entries.size()); ++i) {
-    Element row = text(entries[i]) | size(WIDTH, EQUAL, PANEL_WIDTH);
-    if (i == selected) {
+  for (int i = 0; i < static_cast<int>(state.entries.size()); ++i) {
+    Element row = text(state.entries[i]) | size(WIDTH, EQUAL, PANEL_WIDTH);
+    if (i == state.selected) {
       row = row | color(Color::Black) | bgcolor(selection_bg());
     }
     rows.push_back(row);
@@ -283,14 +296,15 @@ void jump_menu_selection(const std::vector<std::string>& entries, int& selected,
   }
 }
 
-void cancel_menu(ScreenInteractive& screen, bool& cancelled) {
-  cancelled = true;
+void cancel_menu(ScreenInteractive& screen, MenuState& state) {
+  state.cancelled = true;
   screen.Exit();
 }
 
-void cancel_prompt(ScreenInteractive& screen, bool& cancelled, std::string& input) {
-  cancelled = true;
-  input.clear();
+void cancel_text_prompt(ScreenInteractive& screen, TextPromptState& state) {
+  state.cancelled = true;
+  state.input.clear();
+  state.pending_control.clear();
   screen.Exit();
 }
 
@@ -300,117 +314,128 @@ bool is_backspace_event(const Event& event) {
          event.input() == "\b";
 }
 
+bool handle_menu_event(ScreenInteractive& screen, MenuState& state,
+                       Event event) {
+  if (is_cancel_event(event)) {
+    cancel_menu(screen, state);
+    return true;
+  }
+  if (event.is_character() && !event.character().empty()) {
+    jump_menu_selection(state.entries, state.selected,
+                        event.character().front());
+    return true;
+  }
+  return false;
+}
+
+Element render_text_prompt(std::string_view prompt, std::string_view placeholder,
+                           const TextPromptState& state) {
+  Element rendered_input =
+      state.input.empty() ? (text(std::string(placeholder)) | dim)
+                          : text(state.input);
+  rendered_input = rendered_input | color(Color::Black) |
+                   bgcolor(selection_bg()) |
+                   size(WIDTH, EQUAL, PANEL_WIDTH - 2);
+  return vbox({
+      text(std::string(prompt)) | bold |
+          size(WIDTH, EQUAL, PANEL_WIDTH),
+      separator(),
+      hbox({text("> "), rendered_input}) |
+          size(WIDTH, EQUAL, PANEL_WIDTH),
+      separator(),
+      text("Enter accepts. Esc cancels.") | dim |
+          size(WIDTH, EQUAL, PANEL_WIDTH),
+  }) | size(WIDTH, EQUAL, PANEL_WIDTH);
+}
+
+bool handle_text_prompt_event(ScreenInteractive& screen,
+                              TextPromptState& state, Event event) {
+  if (event.is_cursor_position()) {
+    cancel_text_prompt(screen, state);
+    return true;
+  }
+  if (is_cancel_event(event)) {
+    cancel_text_prompt(screen, state);
+    return true;
+  }
+  if (event == Event::Return) {
+    flush_pending_prompt_text(state.input, state.pending_control);
+    screen.Exit();
+    return true;
+  }
+  if (is_backspace_event(event)) {
+    if (!state.pending_control.empty()) {
+      state.pending_control.pop_back();
+    } else if (!state.input.empty()) {
+      state.input.pop_back();
+    }
+    return true;
+  }
+  if (event.is_character()) {
+    std::string value = event.character();
+    if (contains_cancel_sequence(value)) {
+      cancel_text_prompt(screen, state);
+      return true;
+    }
+    if (append_prompt_text(value, state.input, state.pending_control)) {
+      cancel_text_prompt(screen, state);
+    }
+    return true;
+  }
+  return false;
+}
+
 std::optional<int> choose_menu(std::string_view prompt,
                                const std::vector<std::string>& entries,
                                std::string_view case_label = {}) {
   if (entries.empty()) return std::nullopt;
 
-  std::vector<std::string> menu_entries = entries;
-  int selected = 0;
-  bool cancelled = false;
+  MenuState state;
+  state.entries = entries;
 
   auto screen = ScreenInteractive::TerminalOutput();
   screen.TrackMouse(false);
 
   MenuOption menu_opt;
   menu_opt.on_enter = [&] { screen.Exit(); };
-  auto menu = Menu(&menu_entries, &selected, menu_opt);
+  auto menu = Menu(&state.entries, &state.selected, menu_opt);
 
-  auto root = CatchEvent(Renderer(menu, [&] {
-                           return menu_panel(prompt, menu_entries, selected, case_label);
-                         }),
-                         [&](Event event) {
-                           if (is_cancel_event(event)) {
-                             cancel_menu(screen, cancelled);
-                             return true;
-                           }
-                           if (event.is_character() && !event.character().empty()) {
-                             jump_menu_selection(menu_entries, selected,
-                                                 event.character().front());
-                             return true;
-                           }
-                           return false;
-                         });
+  // FTXUI redraws from state, sends keys to the handler, then blocks here.
+  auto render_menu = [&] { return render_menu_panel(prompt, state, case_label); };
+  auto handle_event = [&](Event event) {
+    return handle_menu_event(screen, state, event);
+  };
+  auto visual = Renderer(menu, render_menu);
+  auto root = CatchEvent(visual, handle_event);
 
   screen.Loop(root);
-  if (cancelled) {
+  if (state.cancelled) {
     clear_menu_widget(entries.size());
     return std::nullopt;
   }
-  return selected;
+  return state.selected;
 }
 
 std::optional<std::string> ask_text(std::string_view prompt) {
-  std::string input;
-  std::string pending_control;
+  TextPromptState state;
   std::string placeholder = "Type a value and press Enter";
-  bool cancelled = false;
 
   auto screen = ScreenInteractive::TerminalOutput();
   screen.TrackMouse(false);
 
-  auto root = CatchEvent(Renderer([&] {
-                           Element rendered_input =
-                               input.empty() ? (text(placeholder) | dim)
-                                             : text(input);
-                           rendered_input = rendered_input | color(Color::Black) |
-                                            bgcolor(selection_bg()) |
-                                            size(WIDTH, EQUAL, PANEL_WIDTH - 2);
-                           return vbox({
-                                      text(std::string(prompt)) | bold |
-                                          size(WIDTH, EQUAL, PANEL_WIDTH),
-                                      separator(),
-                                      hbox({text("> "), rendered_input}) |
-                                          size(WIDTH, EQUAL, PANEL_WIDTH),
-                                      separator(),
-                                      text("Enter accepts. Esc cancels.") | dim |
-                                          size(WIDTH, EQUAL, PANEL_WIDTH),
-                                  }) | size(WIDTH, EQUAL, PANEL_WIDTH);
-                         }),
-                         [&](Event event) {
-                           if (event.is_cursor_position()) {
-                             cancel_prompt(screen, cancelled, input);
-                             pending_control.clear();
-                             return true;
-                           }
-                           if (is_cancel_event(event)) {
-                             cancel_prompt(screen, cancelled, input);
-                             pending_control.clear();
-                             return true;
-                           }
-                           if (event == Event::Return) {
-                             flush_pending_prompt_text(input, pending_control);
-                             screen.Exit();
-                             return true;
-                           }
-                           if (is_backspace_event(event)) {
-                             if (!pending_control.empty()) {
-                               pending_control.pop_back();
-                             } else if (!input.empty()) {
-                               input.pop_back();
-                             }
-                             return true;
-                           }
-                           if (event.is_character()) {
-                             std::string value = event.character();
-                             if (contains_cancel_sequence(value)) {
-                               cancel_prompt(screen, cancelled, input);
-                               pending_control.clear();
-                               return true;
-                             }
-                             if (append_prompt_text(value, input,
-                                                    pending_control)) {
-                               cancel_prompt(screen, cancelled, input);
-                               pending_control.clear();
-                             }
-                             return true;
-                           }
-                           return false;
-                         });
+  // FTXUI redraws from state, sends keys to the handler, then blocks here.
+  auto render_prompt = [&] {
+    return render_text_prompt(prompt, placeholder, state);
+  };
+  auto handle_event = [&](Event event) {
+    return handle_text_prompt_event(screen, state, event);
+  };
+  auto visual = Renderer(render_prompt);
+  auto root = CatchEvent(visual, handle_event);
 
   screen.Loop(root);
-  if (cancelled) return std::nullopt;
-  return trim(input);
+  if (state.cancelled) return std::nullopt;
+  return trim(state.input);
 }
 
 std::vector<std::string> command_menu_entries() {
@@ -433,6 +458,11 @@ void print_state_summary(const TerminalAppState& state) {
     fmt::println("Last output directory: {}", state.last_output_dir.string());
   }
 }
+
+
+// 
+// menu invoked user commands
+//
 
 bool run_help_topics() {
   bool printed_help = false;
@@ -459,27 +489,8 @@ bool run_help_topics() {
   }
 }
 
-void list_output_files(const TerminalAppState& state) {
-  if (state.last_output_dir.empty()) {
-    fmt::println("No run output directory is available yet.");
-    return;
-  }
-  if (!std::filesystem::exists(state.last_output_dir)) {
-    fmt::println("Last output directory does not exist: {}",
-                 state.last_output_dir.string());
-    return;
-  }
 
-  fmt::println("Output files in {}:", state.last_output_dir.string());
-  int count = 0;
-  for (const auto& entry : std::filesystem::directory_iterator(state.last_output_dir)) {
-    if (!entry.is_regular_file()) continue;
-    fmt::println("  {}", entry.path().filename().string());
-    ++count;
-  }
-  if (count == 0) fmt::println("  No output files found.");
-}
-
+// TODO:  do we need this?  maybe we can do a run plot that lists available plots from the current case's output dir
 void show_plot_files(const TerminalAppState& state) {
   if (state.last_output_dir.empty()) {
     fmt::println("No run output directory is available yet.");
@@ -501,10 +512,23 @@ void show_plot_files(const TerminalAppState& state) {
   if (count == 0) fmt::println("  No plot HTML files found.");
 }
 
+
 void run_case(TerminalAppState& state, const std::string& case_label) {
   state.active_model.reset();
   state.active_model.emplace(use_managed_case(case_label));
   runsim(*state.active_model);
+  state.current_case_label = case_label;
+  state.current_case_dir.clear();
+  state.last_output_dir = state.active_model->output_dir;
+  print_state_summary(state);
+}
+
+// todo: this doesn't really serve any purpose: replace with a command we need
+void r0sim(TerminalAppState& state, const std::string& case_label) {
+  state.active_model.reset();
+  state.active_model.emplace(use_managed_case(case_label));
+  float r0 = r0_sim(*state.active_model);
+  fmt::println("r0 estimate: {:.2f}", r0);
   state.current_case_label = case_label;
   state.current_case_dir.clear();
   state.last_output_dir = state.active_model->output_dir;
@@ -521,6 +545,9 @@ void run_dir(TerminalAppState& state, const std::string& path_arg) {
   print_state_summary(state);
 }
 
+//
+// dispatch command from user's menu choice
+//
 void dispatch_command(TerminalAppState& state, const Command& command) {
   if (command.action == CommandAction::Quit) {
     state.quit = true;
@@ -568,8 +595,8 @@ void dispatch_command(TerminalAppState& state, const Command& command) {
       case CommandAction::RunDir:
         run_dir(state, arg);
         break;
-      case CommandAction::ListOutputFiles:
-        list_output_files(state);
+      case CommandAction::R0Sim:
+        r0sim(state, arg);
         break;
       case CommandAction::Plot:
         show_plot_files(state);
