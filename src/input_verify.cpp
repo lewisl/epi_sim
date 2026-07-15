@@ -606,9 +606,10 @@ void input_verify(const fs::path& input_dir) {
         } else {
           fmt::print(stderr, "Could not write error log to {}\n", log_path.string());
         }
-        std::exit(EXIT_FAILURE);
+        // std::exit(EXIT_FAILURE);
+        throw std::runtime_error("Input validation failed; see errors above.");
       }
 
       fmt::println("Input structure validated for files, json keys, and csv columns. "
-                  "Not all values can be validated.  Running simulation...");
+                  "Not all values can be validated.  \nRunning simulation...");
 }

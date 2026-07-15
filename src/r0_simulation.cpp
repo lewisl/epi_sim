@@ -245,7 +245,8 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
       auto person = r0pop.agent(p);
       progression(person, r0series, progressionset, infectparams, probvec, dovax, vaxset);
     }
-}
+  }
+  fmt::println("infected spreaders seeded: {}", gen1_spreader_cnt);
   fmt::println("r0 infected: {}", r0_infected);
   double r0 = static_cast<double>(r0_infected) / static_cast<double>(gen1_spreader_cnt);
 

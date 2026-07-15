@@ -523,10 +523,11 @@ void run_case(TerminalAppState& state, const std::string& case_label) {
   print_state_summary(state);
 }
 
-// todo: this doesn't really serve any purpose: replace with a command we need
 void r0sim(TerminalAppState& state, const std::string& case_label) {
   state.active_model.reset();
-  state.active_model.emplace(use_managed_case(case_label));
+  auto model = r0_sim_setup(case_label);
+  if (!model) return;
+  state.active_model.emplace(std::move(*model));
   float r0 = r0_sim(*state.active_model);
   fmt::println("r0 estimate: {:.2f}", r0);
   state.current_case_label = case_label;
