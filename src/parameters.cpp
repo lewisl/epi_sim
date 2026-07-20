@@ -81,21 +81,22 @@ GeoData load_geodata_csv(const std::string& filename) {
 //
 
 
-std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata) {
+std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) {
 
   Variant::names.clear();
-  vector<Variant> variants;
-  variants.emplace_back(Variant{"none"});
+  Variant::names = {"none"};
+  vector<string> variant_names{"none"};
 
-  for (auto variant : jdata.items()) {
-    variants.emplace_back(Variant{variant.key()});
+  for (auto v : jdata.items()) {
+    variant_names.emplace_back(v.key());
+    const Variant variant(v.key());
   }
 
-  if (variants.size() < 2) {
+  if (variant_names.size() < 2) {
     throw std::runtime_error("No variants loaded from json file of variants. Can't run simulation.");
   }
 
-  const Variant &primary = variants[1];
+  const Variant &primary = Variant{1};
   if (primary.show() != "base") {
     throw std::runtime_error(fmt::format(
         "variants: the first variant in the JSON file must be named 'base' (got '{}'). "
@@ -157,7 +158,7 @@ std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata)
         .basemultiplier = variant.value()["spread"]["basemultiplier"].get<float>(),
         .immunehalflife = variant.value()["immunity"]["immunehalflife"]});
   }
-  return {variants, infectparams};
+  return {variant_names, infectparams};
 }
 
 /*
@@ -267,16 +268,16 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
   return {progressionset, trvec};
 }
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath) {
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<string>> load_infect_params(string fpath) {
   // use one big json file for multiple output structs, etc.
   json jdata = load_json_params(fpath);
 
-  auto [variants, infectparams] = load_variants_data(jdata);
+  auto [variant_names, infectparams] = load_variants_data(jdata);
 
   auto [progressionset, trvec] = load_progression_set(jdata);
 
 
-  return {infectparams, progressionset, trvec, variants};
+  return {infectparams, progressionset, trvec, variant_names};
 };
 
 /*
@@ -312,13 +313,18 @@ VaxSet load_vax_data(string fpath) {
 
   json vaxdata = load_json_params(fpath); // read data from json file input
 
-  Vax::names.clear();
+  // 2 different but parallel use of vax names:
+  Vax::names.clear();  // static in the struct with multiple instances sharing static member
+  vaxset.names.clear();  // instance variable vaxset updating "local" names member
   Vax::names.emplace_back("none");
+  vaxset.names.emplace_back("none");
   vaxset.params.clear();
   vaxset.params.emplace_back(VaxParams{});
 
-  for (const auto &[vaxname, body] : vaxdata.items()) {  // for each vax
-    const Vax vax{vaxname};
+  // for each vax
+  for (const auto &[vaxname, body] : vaxdata.items()) {  
+    const Vax vax{vaxname};  // create a Vax trait instance
+    vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
     (void)vax;
 
     VaxParams vx {};  // details for each vaccine
@@ -494,6 +500,8 @@ SocialParams load_social_params(string social_path) {
 RingTraits load_ring_traits(string fpath) {
   RingTraits rt{};
   Ring::names.clear();
+  vector<string> ring_names{""};
+  Ring::names = {""};
 
   json data = load_json_params(fpath);
   if (!data.contains("rings")) {
@@ -523,6 +531,8 @@ RingTraits load_ring_traits(string fpath) {
     if (std::find(Ring::names.begin(), Ring::names.end(), name) != Ring::names.end()) {
       throw std::runtime_error(fmt::format("rings: duplicate ring name '{}'.", name));
     }
+    ring_names.emplace_back(name);
+
     Ring registered{std::string_view{name}};
     if (static_cast<size_t>(registered.v) != n) {
       throw std::runtime_error(fmt::format(
@@ -575,7 +585,7 @@ RingTraits load_ring_traits(string fpath) {
     throw std::runtime_error(fmt::format(
         "rings: pct_of_population values must sum to 1.0 (got {}).", pct_sum));
   }
-
+  rt.ring_names = ring_names;
   return rt;
 }
 

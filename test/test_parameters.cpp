@@ -327,13 +327,13 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(geodata.indoor_st[locale_idx] == "0001-09-15");
   CHECK(geodata.indoor_end[locale_idx] == "0002-05-30");
 
-  auto [infectparams, progressionset, trvec, variants] = load_infect_params(paths.variants);
-  CHECK(!variants.empty());
-  CHECK(variants.size() == infectparams.size());
-  CHECK(variants.size() == progressionset.progression.size());
-  CHECK(variants[0].show() == "none");
-  CHECK(variants[1].show() == "base");
-  CHECK(variants[2].show() == "alpha");
+  auto [infectparams, progressionset, trvec, variant_names] = load_infect_params(paths.variants);
+  CHECK(!variant_names.empty());
+  CHECK(variant_names.size() == infectparams.size());
+  CHECK(variant_names.size() == progressionset.progression.size());
+  CHECK(variant_names[0] == "none");
+  CHECK(variant_names[1] == "base");
+  CHECK(variant_names[2] == "alpha");
   CHECK(infectparams[1].sendrisk.size() > 20);
   CHECK(approx_equal(infectparams[1].sendrisk[1], 0.3, 1e-6));
   CHECK(approx_equal(infectparams[1].sendrisk[2], 0.65, 1e-6));
@@ -449,7 +449,7 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
              << young_sched.targetpct << " / " << young_sched.filtervec.size() << "\n\n";
 
     artifact << "assembled ModelParams inputs:\n";
-    artifact << "  variants: " << variants.size() << "\n";
+    artifact << "  variants: " << variant_names.size() << "\n";
     artifact << "  vaxset: " << vaxset.size() << "\n";
     artifact << "  schedules: " << vaxschedset.size() << "\n";
 
@@ -458,7 +458,7 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
 
   ModelParams mp{
       .geodata = std::move(geodata),
-      .variants = std::move(variants),
+      .variant_names = std::move(variant_names),
       .infectparams = std::move(infectparams),
       .progressionset = std::move(progressionset),
       .trvec = std::move(trvec),
@@ -468,7 +468,7 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   };
 
   CHECK(mp.geodata.pop[locale_idx] == 95626);
-  CHECK(mp.variants[1].show() == "base");
+  CHECK(mp.variant_names[1] == "base");
   CHECK(mp.vaxset.size() == 3);
   CHECK(mp.vaxschedset.size() == 2);
 

@@ -28,8 +28,9 @@ std::string format_variant_name(Variant value) {
 std::string format_vax_name(Vax value) {
   const auto rendered = value.show();
   if (!rendered.empty()) return rendered;
-  return idx(value) == 0 ? std::string{"none"} :
-                           fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
+  // return idx(value) == 0 ? std::string{"none"} :
+  //                          fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
+  return fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
 RenderLines render_status(AgentView person, bool) { return {person.status().show()}; }

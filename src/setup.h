@@ -40,3 +40,5 @@ void assign_rings(PopData& pop, const std::vector<float>& pct_of_population);
 std::vector<std::vector<size_t>> build_ring_members(const PopData& pop, size_t ring_count);
 
 Model setup_sim(Config config);
+
+void install_runtime_trait_names(const Model& model);

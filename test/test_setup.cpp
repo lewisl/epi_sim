@@ -35,11 +35,11 @@ void test_sendrisk_indexing() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
   Model model = make_sample_model();
-  REQUIRE(model.mp.variants.size() > 1);
+  REQUIRE(model.mp.variant_names.size() > 1);
   REQUIRE(model.mp.infectparams.size() > 1);
 
   const auto& sendrisk = model.mp.infectparams[1].sendrisk;
-  CHECK(model.mp.variants[1].show() == "base");
+  CHECK(model.mp.variant_names[1] == "base");
   REQUIRE(sendrisk.size() == 25);
   CHECK(approx_equal(sendrisk[0], 0.0, 1e-6));
   CHECK(approx_equal(sendrisk[1], 0.3, 1e-6));
@@ -67,7 +67,7 @@ void test_setup_sim_builds_expected_model_shape() {
   const size_t locale_idx = static_cast<size_t>(std::distance(model.mp.geodata.fips.begin(), locale_it));
   CHECK(model.pop.popn == size_t(model.mp.geodata.pop[locale_idx]));
   CHECK(model.pop.popz == model.pop.popn + 1);
-  CHECK(model.mp.variants[1].show() == "base");
+  CHECK(model.mp.variant_names[1] == "base");
 }
 
 void test_social_distancing_file_is_not_loaded_when_flag_is_false() {
@@ -201,7 +201,7 @@ void write_setup_artifacts(const test_support::TestRunOptions& options) {
   artifact << "Setup summary\n";
   artifact << "=============\n\n";
   artifact << "setup_sim sendrisk:\n";
-  artifact << "  variants/infectparams: " << model.mp.variants.size() << "/"
+  artifact << "  variants/infectparams: " << model.mp.variant_names.size() << "/"
            << model.mp.infectparams.size() << "\n";
   artifact << "  base sendrisk size: " << sendrisk.size() << "\n";
   artifact << "  base sendrisk[0,1,2,5,24]: " << sendrisk[0] << ", "
@@ -213,7 +213,7 @@ void write_setup_artifacts(const test_support::TestRunOptions& options) {
   artifact << "  first/last calday: " << absl::FormatCivilTime(model.caldays.front()) << " -> "
            << absl::FormatCivilTime(model.caldays.back()) << "\n";
   artifact << "  popn/popz: " << model.pop.popn << "/" << model.pop.popz << "\n";
-  artifact << "  first variant: " << model.mp.variants[1].show() << "\n";
+  artifact << "  first variant: " << model.mp.variant_names[1] << "\n";
 
   test_support::write_artifact_text(options, GROUP, "setup_summary.txt", artifact.str());
 }

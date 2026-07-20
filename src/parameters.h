@@ -255,6 +255,7 @@ struct VaxParams {
 
 struct VaxSet {
   vector<VaxParams> params{};
+  vector<std::string> names{"none"};
 
   const VaxParams& at(Vax vax) const {
     const size_t vax_idx = idx(vax);
@@ -273,14 +274,14 @@ struct VaxSet {
     fmt::println("Total vaccines: {}", size());
 
     fmt::print("Shot types: ");
-    for (size_t i = 1; i < Vaxstatus::names.size(); ++i) {
+    for (size_t i = 1; i < Vaxstatus::names.size(); ++i) {  
       if (i > 1) fmt::print(", ");
-      fmt::print("{}", Vaxstatus::names[i]);
+      fmt::print("{}", Vaxstatus::names[i]);   
     }
     fmt::println("\n");
 
     for (size_t i = 1; i < params.size(); ++i) {
-      params[i].print(Vax::names[i]);
+      params[i].print(names[i]);
       fmt::println("");
     }
 
@@ -500,12 +501,10 @@ struct SocialParams {
 //
 struct ModelParams {
 
-  // Trait for each person in popdata
-
   GeoData geodata;
 
   //based on variants parameters json file
-  vector<Variant> variants;
+  vector<string> variant_names;
   vector<InfectParams> infectparams;
   ProgressionSet progressionset;
   array<float, 6> trvec;
@@ -516,12 +515,6 @@ struct ModelParams {
   RingTraits ringtraits;
 };
 
-// here we define all of the containers for the model parameters, load them,
-// and for convenience pass them into the model building and running code as
-// one container.
-// the file is organized by container type followed by struct model_params that
-// puts them into one container.
-
 
 // free function declarations for loading the structs from json file inputs
 
@@ -531,13 +524,13 @@ json load_json_params(string fpath);
 GeoData load_geodata_csv(const std::string& filename);
 
 
-std::tuple<vector<Variant>, vector<InfectParams>> load_variants_data(json jdata);
+std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata);
 
 
 std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
 
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<Variant>> load_infect_params(string fpath);
+std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<string>> load_infect_params(string fpath);
 
 
 VaxSet load_vax_data(string fpath);

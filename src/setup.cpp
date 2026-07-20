@@ -1,12 +1,3 @@
-/*
-Overall TODO
-- setup history series including 
-- with history series struct have caldays: simulation ordinal days converted to CivilDays
-- for simulation, create indoor_seq:  pre-calculate which days get the indoor uplift on transmission
-- turn runtime enum into a template
-- add status filtering to seeding
-*/
-
 
 #include "parameters.h"
 #include "helpers.h"
@@ -23,7 +14,7 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);
-  auto [infectparams, progressionset, trvec, variants] =
+  auto [infectparams, progressionset, trvec, variant_names] =
       load_infect_params(variants_path);
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
@@ -43,12 +34,11 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
     }
     ringtraits = load_ring_traits(rings_path);
   }
-
-  // Use aggregate initialization to construct model_params with all members at once
+  
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
       .geodata = std::move(geodata),
-      .variants = std::move(variants),
+      .variant_names = std::move(variant_names),
       .infectparams = std::move(infectparams),
       .progressionset = std::move(progressionset),
       .trvec = std::move(trvec),
@@ -247,3 +237,13 @@ Model setup_sim(Config config)
       .sd_cases = std::move(sd_cases)};
 }
 // clang-format on
+
+void install_runtime_trait_names(const Model& model) {
+  Variant::names = model.mp.variant_names;
+  Vax::names = model.mp.vaxset.names;
+  Ring::names = model.mp.ringtraits.ring_names;
+
+  SDCase::names = {"none"};
+  for (const auto& sd_case : model.sd_cases)
+    SDCase::names.push_back(sd_case.name);
+}

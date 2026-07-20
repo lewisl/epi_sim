@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   std::string flag;
   std::string val;
 
-  try {
+  try {                      // must capture throws from any sub commands on cli or tui path
     if (argc == 1) run_terminal_tui();; 
 
     

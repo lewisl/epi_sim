@@ -39,6 +39,10 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   vector<SeedCase>& seedcases = model.seedcases;
   vector<SocialDistancing> & sd_cases = model.sd_cases;
   vector<double> & age_dist = model.age_dist;
+  install_runtime_trait_names(model);   // set names vectors for compile time traits
+  // override dovax=true if any vax parameters within ModelParameters instance mp are empty
+  if ((Vax::names.size() <= 1) | (mp.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
+        model.dovax = false;
 
   // seed the random number generator
   xo::seed(99999);  // have used 12345
@@ -65,11 +69,7 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   // create useful pre-allocated vectors
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
 
-  // override dovax=true if any vax parameters within ModelParameters instance mp are empty
-    if (model.dovax) { 
-      if ((Vax::names.size() <= 1) | (mp.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
-            model.dovax = false;
-    }
+
 
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);

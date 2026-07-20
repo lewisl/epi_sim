@@ -1,8 +1,0 @@
-Index:
-  StandardLibrary: true
-
----
-If:
-  PathMatch: (^|.*/)scratch/.*\.(c|cc|cpp|cxx|m|mm)$
-Index:
-  Background: Skip

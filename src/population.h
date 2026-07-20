@@ -97,7 +97,7 @@ class PopData {
   vector<VaxdayHist> vaxday_hist;
 
   
-  AgentView agent(std::size_t i);
+  AgentView agent(std::size_t i);  // declaration, see definition below
 
     vector<Agegrp> age_distribution(int popn, const vector<int>& counts) {
       assert(counts.size() == 5);
