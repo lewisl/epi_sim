@@ -4,7 +4,7 @@
 
 #include "population.h"
 #include "parameters.h"
-#include "random.h"
+#include "random.h"     // really interesting that clangd says this is unused, while it is essential to include
 #include "series.h"
 #include "cases.h"
 #include "timing.h"
@@ -87,4 +87,4 @@ struct SummaryData {
 
 
 // Simulation runner
-void runsim(Model& model);
+AllSeries runsim(Model& model);

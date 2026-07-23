@@ -33,7 +33,7 @@ std::filesystem::path case_artifact_path(const Model& model,
 }  // namespace
 
 
-void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
+AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
   vector<SeedCase>& seedcases = model.seedcases;
@@ -218,7 +218,7 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
 
-  if (model.headless) return;  // headless runs skip browser plots
+  if (model.headless) return series;  // headless runs skip browser plots
 
   if (!model.dovax)
     seriesplot({{"now_infectious", "total"},
@@ -268,7 +268,7 @@ void runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistan
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  // net_infected removed (Step 1 refactor)
+  return series;
         
 } // end runsim function
 

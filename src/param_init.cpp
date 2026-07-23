@@ -72,7 +72,7 @@ Model build_model(fs::path case_dir) {
   fmt::println("Setup simulation...");
   Model model = setup_sim(config);
   fmt::println("Setup complete.");
-  return model;
+  return model;    // this could act as a move or, better, NRVO
 }
 
 //
