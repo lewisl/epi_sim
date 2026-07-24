@@ -1,5 +1,4 @@
 ## TODO
-- move trait struct definitions into model somehow.  see what we did for Julia.
 - distribution packaging
 - user documentation
 - updated and accurate readme
@@ -24,6 +23,7 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- refactor tui into app behavior (tui_app.cpp) and user relevant commands (tui_commands.cpp)
 - should init_case overwrite an existing case?  No--it shouldn't and it doesn't right now...
 - add int rt_sim_interval to config.json and wire it in: update the templates, too
 - a nice tui for running the app

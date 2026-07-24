@@ -6,7 +6,7 @@
 #include "sim.h"
 #include "r0_simulation.h"
 #include "show_help.h"
-#include "tui_terminal.h"
+#include "tui_commands.h"
 
 
 //

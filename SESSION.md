@@ -38,6 +38,12 @@ run succeeds.
 case inputs, runs the academic R0 estimate, prints the scalar result, and does
 not mutate `AppState`.
 
+The terminal TUI source-organization split from
+`design/tui_terminal_split.md` is complete. User-visible commands, retained
+state, and the main loop live in `src/tui_commands.cpp`; FTXUI painting,
+prompt, menu, and event helpers live in `src/tui_app.cpp`. The public
+entrypoint remains `run_terminal_tui()` in `src/tui_commands.h`.
+
 ## Completed-Run Architecture Decision
 
 `Model` remains the runnable configuration plus current population state.

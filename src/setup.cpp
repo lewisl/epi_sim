@@ -20,7 +20,6 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
     VaxSet vaxdata;
     VaxSchedSet vaxschedset;
     if (dovax) {
-      fmt::println("we got here to load valid vax parameters...");
       vaxdata = load_vax_data(vax_path);
       vaxschedset = load_vax_sched_set(vaxsched_dir);
     }
