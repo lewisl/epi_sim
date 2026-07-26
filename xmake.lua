@@ -9,6 +9,7 @@ set_optimize("fastest")
 target("epi_sim")
     set_kind("binary")
     set_default(false)
+    set_policy("build.optimization.lto", true)
     add_files("src/*.cpp")
     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
     add_packages("vcpkg::ftxui")
@@ -16,6 +17,7 @@ target("epi_sim")
 target("test")
     set_kind("binary")
     set_default(false)
+    set_policy("build.optimization.lto", true)
     add_files("test/test_main.cpp", "test/test_pop_serialize.cpp", "test/test_parameters.cpp",
         "test/test_disease_modeling.cpp", "test/test_vaccination.cpp", "test/test_traits.cpp",
         "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp",

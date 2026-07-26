@@ -90,6 +90,12 @@ enough to reconstruct valid `SeriesColSpec` selections for a retained
 - `xmake f --check` refreshed the stale per-target linker cache while retaining
   the configured vcpkg path. Both compiler and linker now use Homebrew LLVM
   22.1.8; `xmake build epi_sim` passed.
+- ThinLTO is enabled specifically for the `epi_sim` and `test` targets. A
+  global `build.optimization.lto` policy caused xmake to request an LTO-specific
+  rebuild of `toml++` plus CMake and Ninja; target-scoped policies avoid changing
+  third-party package requirements. A verbose `epi_sim` build confirmed
+  `-flto=thin` on compilation and linking, and `xmake run test` passed all 628
+  checks.
 - Removed the duplicate `socialparameters` help topic; `socialparams` is now
   the sole topic for `socialparams.json` in the TUI and CLI help maps.
 - Human developer changed `runsim(Model&)` to return `AllSeries` and wired

@@ -1,7 +1,7 @@
 ## TODO
 - distribution packaging
+- revise readme for credibility
 - user documentation
-- updated and accurate readme
 - should we ahve more consistency of structure for json files? should we have the category as the top key?  should we have a name descriptor?
 - 2nd shot/booster should probabilistically substitute an alternate brand when the person's own brand is out of stock, instead of just skipping them that day (check Julia code for correct behavior)
 - would we ever want history series for shots delivered?

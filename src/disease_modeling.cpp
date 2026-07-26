@@ -1,4 +1,3 @@
-#include "lib_includes.h"
 
 #include "population.h"
 #include "series.h"
@@ -38,6 +37,7 @@ float require_effectiveness(const VaxParams& params,
 
 // make_sick: make one person sick
 // AgentView class declaration is in population.h
+[[clang::always_inline]]
 void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
   auto this_age = agegrp();
@@ -84,6 +84,7 @@ AgentView class declaration is in population.h AgentView
 method applied to an AgentView instance:  person.make_well()
 as a method of AgentView, the instance variable is not used to apply methods or access members 
 */
+[[clang::always_inline]]
 void AgentView::make_well(AllSeries & series) {    // the object is person--the implied argument
   auto today = sim::get_day();
   auto this_age = agegrp();
@@ -112,6 +113,7 @@ void AgentView::make_well(AllSeries & series) {    // the object is person--the 
 }
 
 // this is an AgentView method:  where is the person?  called as person.make_dead(series)
+[[clang::always_inline]]
 void AgentView::make_dead(AllSeries & series) {
     auto today = sim::get_day();
     auto this_age = agegrp();
