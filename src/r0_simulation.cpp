@@ -27,9 +27,6 @@ namespace {
 }
 
 /*
-    r0_sim(popsize, age_dist, progressionset, trvec, infectset, vaxset, 
-                socialparams, density_factor=1.0, scale=3)
-
 Simulates r0. This overload creates a population and tracks how many infections
 are caused by first generation spreaders and NOT spreaders who were infected by the
 first generation (or later). 
@@ -200,7 +197,6 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   SocialParams & socialparams = model.mp.socialdata;
   AllSeries r0series(DURATIONLIM, r0pop, Variant::names.size(), 1, 1);  
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
-  array<float, 6> probvec{};
   vector<double> age_dist = model.age_dist;
 
   double density_factor = 1.0;
@@ -243,7 +239,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
     // daily progression for spreaders: to get better or die
     for (size_t p : gen1_spreaders) {
       auto person = r0pop.agent(p);
-      progression(person, r0series, progressionset, infectparams, probvec, dovax, vaxset);
+      progression(person, r0series, progressionset, infectparams, dovax, vaxset);
     }
   }
   fmt::println("infected spreaders seeded: {}", gen1_spreader_cnt);
@@ -289,7 +285,6 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
   // keep track of the other infected people and throw it away
   AllSeries throwaway_series(DURATIONLIM, rtpop, Variant::names.size(), 1, 1);
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
-  array<float, 6> probvec{};
   vector<double> age_dist = model.age_dist;
 
   vector<size_t> gen1_spreaders{};  // mutated in place by seed_gen1
@@ -330,7 +325,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
     
 
       // daily progression for spreaders: to get better or die
-      progression(person, rtseries, progressionset, infectparams, probvec, dovax, vaxset);
+      progression(person, rtseries, progressionset, infectparams, dovax, vaxset);
     
     }
   
@@ -355,7 +350,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
       }
 
       // progression kernel
-      progression(person, throwaway_series, progressionset, infectparams, probvec, dovax, vaxset);
+      progression(person, throwaway_series, progressionset, infectparams, dovax, vaxset);
 
     } // end persons loop
 

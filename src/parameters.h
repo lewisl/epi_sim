@@ -5,6 +5,7 @@
 #include "traits.h"
 #include "ring_traits.h"
 #include "helpers.h"    // for shifter
+#include "disease_constants.h"
 #include <functional>
 #include "cases.h"
 
@@ -119,11 +120,28 @@ struct ProgressionFactors {  // for one variant
   }
 };
 
-using Agetree = vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>>;
+inline constexpr size_t PROGRESSION_AGE_COUNT = Agegrp::names.size() - 1;
+inline constexpr size_t PROGRESSION_CONDITION_COUNT = Condition::names.size() - 1;
+inline constexpr size_t PROGRESSION_OUTCOME_COUNT = Progressionmap::names.size();
+inline constexpr size_t PROGRESSION_DAY_COUNT = static_cast<size_t>(DURATIONLIM) + 1;
+inline constexpr int16_t NO_PROGRESSION_ENTRY = -1;
+
+using OutcomeProbabilities = array<float, PROGRESSION_OUTCOME_COUNT>;
+using OutcomesByCurrentCondition =
+    array<OutcomeProbabilities, PROGRESSION_CONDITION_COUNT>;
+
+struct ProgressionTree {
+  // Direct [zero-based age][duration] lookup into packed entries. Day 0 is unused.
+  array<array<int16_t, PROGRESSION_DAY_COUNT>, PROGRESSION_AGE_COUNT> entry_index{};
+  vector<OutcomesByCurrentCondition> entries{};
+
+  ProgressionTree() {
+    for (auto& age_entries : entry_index) age_entries.fill(NO_PROGRESSION_ENTRY);
+  }
+};
 
 struct Progression { // for one variant
-  vector<absl::flat_hash_map<uint8_t,vector<vector<float>>>> tree {};
-  // Agetree tree {};  // index by variant index, string = variant name
+  ProgressionTree tree {};
   ProgressionFactors factors {};
 
   void print(std::string variant_name) const {
@@ -133,39 +151,26 @@ struct Progression { // for one variant
     tree_print();
   }
 
-    void tree_print() const {
-    if (tree.empty()) {
+  void tree_print() const {
+    if (tree.entries.empty()) {
       fmt::println("    Tree: <empty>");
       return;
     }
 
-    for (size_t age_idx = 0; age_idx < tree.size(); ++age_idx) {
-      const auto& breakday_map = tree[age_idx];
-      std::string age_name = Agegrp::names[age_idx+1UZ];
-      fmt::println("    Age group: {}", age_name);
+    for (size_t age_idx = 0; age_idx < PROGRESSION_AGE_COUNT; ++age_idx) {
+      fmt::println("    Age group: {}", Agegrp::names[age_idx + 1]);
+      bool has_breakday = false;
 
-      if (breakday_map.empty()) {
-        fmt::println("      <no breakdays>");
-        continue;
-      }
+      for (size_t day = 1; day < PROGRESSION_DAY_COUNT; ++day) {
+        const int16_t entry_idx = tree.entry_index[age_idx][day];
+        if (entry_idx == NO_PROGRESSION_ENTRY) continue;
+        has_breakday = true;
 
-      // Sort breakdays for consistent output
-      vector<uint8_t> breakdays;
-      for (const auto& [day, _] : breakday_map) {
-        breakdays.push_back(day);
-      }
-      std::sort(breakdays.begin(), breakdays.end());
-
-      for (uint8_t day : breakdays) {
-        const auto& condition_vec = breakday_map.at(day);
-        fmt::println("      Day {}: {} conditions", day, condition_vec.size());
-
-        for (size_t cond_idx = 0; cond_idx < condition_vec.size(); ++cond_idx) {
-          const auto &outcome_probs = condition_vec[cond_idx];
-          std::string cond_name = Condition::names[cond_idx + 1];
-          // string cond_name = Trait::Condition.to_str(cond_idx + 1); //(cond_idx < conditions.size()) ? conditions[cond_idx] : fmt::format("cond{}", cond_idx);
-
-          fmt::print("        {}: [", cond_name);
+        const auto& condition_rows = tree.entries[static_cast<size_t>(entry_idx)];
+        fmt::println("      Day {}: {} conditions", day, condition_rows.size());
+        for (size_t cond_idx = 0; cond_idx < condition_rows.size(); ++cond_idx) {
+          const auto& outcome_probs = condition_rows[cond_idx];
+          fmt::print("        {}: [", Condition::names[cond_idx + 1]);
           for (size_t i = 0; i < outcome_probs.size(); ++i) {
             if (i > 0) fmt::print(", ");
             fmt::print("{:.2f}", outcome_probs[i]);
@@ -173,9 +178,10 @@ struct Progression { // for one variant
           fmt::println("]");
         }
       }
+
+      if (!has_breakday) fmt::println("      <no breakdays>");
     }
   }
-
 };
 
 struct ProgressionSet {  // collection of all variants
@@ -192,20 +198,6 @@ struct ProgressionSet {  // collection of all variants
     fmt::println("\n=== End ProgressionSet ===\n");
   }
 };
-
-/*
-access will look like
-ProgressionSet progression{};  // assume it then gets loaded
-progression[0].tree[0][5][0][0]  
-    // we have 6 levels of qualifiers
-    // 1) for variant "base" index = 0, 
-    // 2) tree member, 
-    // 3) agegrp "age0_19" index = 0, 
-    // 4) breakday 5 key, 
-    // 5) condition "nil" by index = 0,
-    // 6) recovered probability by vector index for to recovered index = 0
-
-*/
 
 struct VaxParams {
   int reqdshots{1};
@@ -507,7 +499,6 @@ struct ModelParams {
   vector<string> variant_names;
   vector<InfectParams> infectparams;
   ProgressionSet progressionset;
-  array<float, 6> trvec;
 
   SocialParams socialdata;  // Changed from json to SocialParams
   VaxSet vaxset;
@@ -527,10 +518,10 @@ GeoData load_geodata_csv(const std::string& filename);
 std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata);
 
 
-std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata);
+ProgressionSet load_progression_set(json jdata);
 
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<string>> load_infect_params(string fpath);
+std::tuple<vector<InfectParams>, ProgressionSet, vector<string>> load_infect_params(string fpath);
 
 
 VaxSet load_vax_data(string fpath);

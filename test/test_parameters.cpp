@@ -116,6 +116,106 @@ void test_load_progression_set_rejects_wrong_row_length() {
                            "must have exactly 6 probabilities");
 }
 
+json base_progression_variant() {
+  return json::parse(variants_json)["base"];
+}
+
+void test_load_progression_set_maps_reordered_ages_and_packs_breakdays() {
+  json body = base_progression_variant();
+  const json original_tree = body["progression_tree"];
+  json reordered_tree = json::object();
+  for (auto it = Agegrp::names.rbegin(); it != Agegrp::names.rend() - 1; ++it) {
+    reordered_tree[*it] = original_tree[*it];
+  }
+  body["progression_tree"] = std::move(reordered_tree);
+
+  json jdata;
+  jdata["base"] = std::move(body);
+  ProgressionSet progressionset = load_progression_set(jdata);
+  const auto& tree = progressionset.progression[1].tree;
+
+  CHECK(tree.entries.size() == 25);
+  CHECK(tree.entry_index[zidx(AGE0_19)][6] == NO_PROGRESSION_ENTRY);
+
+  const int16_t young_entry = tree.entry_index[zidx(AGE0_19)][5];
+  REQUIRE(young_entry != NO_PROGRESSION_ENTRY);
+  const auto& young_nil = tree.entries[static_cast<size_t>(young_entry)][zidx(NIL)];
+  CHECK(approx_equal(young_nil[Progressmap::ToNil], 0.4, 1e-6));
+  CHECK(approx_equal(young_nil[Progressmap::ToMild], 0.5, 1e-6));
+
+  const int16_t old_entry = tree.entry_index[zidx(AGE80_UP)][5];
+  REQUIRE(old_entry != NO_PROGRESSION_ENTRY);
+  const auto& old_nil = tree.entries[static_cast<size_t>(old_entry)][zidx(NIL)];
+  CHECK(approx_equal(old_nil[Progressmap::ToNil], 0.1, 1e-6));
+  CHECK(approx_equal(old_nil[Progressmap::ToSick], 0.4, 1e-6));
+}
+
+void test_load_progression_set_rejects_out_of_range_breakday() {
+  json body = base_progression_variant();
+  body["progression_tree"]["age0_19"]["26"] =
+      body["progression_tree"]["age0_19"]["5"];
+  body["progression_tree"]["age0_19"].erase("5");
+  json jdata;
+  jdata["base"] = std::move(body);
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "invalid breakday '26'");
+}
+
+void test_load_progression_set_requires_terminal_breakday() {
+  json body = base_progression_variant();
+  body["progression_tree"]["age0_19"].erase("25");
+  json jdata;
+  jdata["base"] = std::move(body);
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "must define terminal breakday 25");
+}
+
+void test_load_progression_set_requires_terminal_outcome() {
+  json body = base_progression_variant();
+  body["progression_tree"]["age0_19"]["25"]["nil"] = {0, 1, 0, 0, 0, 0};
+  json jdata;
+  jdata["base"] = std::move(body);
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "must transition only to recover or dead");
+}
+
+void test_load_progression_set_requires_every_age_group() {
+  json body = base_progression_variant();
+  body["progression_tree"].erase("age80_up");
+  json jdata;
+  jdata["base"] = std::move(body);
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "is missing age group 'age80_up'");
+}
+
+void test_load_progression_set_rejects_wrong_riskadjust_length() {
+  json jdata;
+  jdata["base"] = base_progression_variant();
+  jdata["derived"] = base_progression_variant();
+  jdata["derived"]["progression_tree"] = nullptr;
+  jdata["derived"]["progression_factors"]["riskadjust"] = {1, 1};
+
+  expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                           "riskadjust must be empty or contain exactly 6 values");
+}
+
+void test_load_seed_case_rejects_duration_above_limit() {
+  test_support::VariantNamesGuard variant_guard;
+  Variant::names = {"none", "base"};
+  json seed = json::parse(seed_json)[0];
+  for (auto& term : seed["change"]["terms"]) {
+    if (term["trait"] == "duration") term["val"] = DURATIONLIM + 1;
+  }
+  ModelParams mp;
+
+  expect_throws_containing([&] { (void)load_seed_case(seed, mp); },
+                           "outside the supported range");
+}
+
 //
 // load_vax_sched: guard just added -- mix values across vaxesincluded must
 // sum to 1.0 (categorical_fast silently falls back to brand index 0 otherwise).
@@ -327,7 +427,7 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(geodata.indoor_st[locale_idx] == "0001-09-15");
   CHECK(geodata.indoor_end[locale_idx] == "0002-05-30");
 
-  auto [infectparams, progressionset, trvec, variant_names] = load_infect_params(paths.variants);
+  auto [infectparams, progressionset, variant_names] = load_infect_params(paths.variants);
   CHECK(!variant_names.empty());
   CHECK(variant_names.size() == infectparams.size());
   CHECK(variant_names.size() == progressionset.progression.size());
@@ -340,16 +440,27 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(approx_equal(infectparams[1].sendrisk[5], 0.85, 1e-6));
   CHECK(approx_equal(infectparams[1].recvrisk[0], 0.1, 1e-6));
   CHECK(approx_equal(infectparams[1].recvrisk[4], 0.56, 1e-6));
-  CHECK(progressionset.progression[1].tree.size() == 5);
-  CHECK(progressionset.progression[1].tree[0].contains(5));
-  const auto& base_age0_day5_nil = progressionset.progression[1].tree[0].at(5)[0];
+  const auto& base_tree = progressionset.progression[1].tree;
+  CHECK(base_tree.entries.size() == 25);
+  const int16_t base_age0_day5 = base_tree.entry_index[zidx(AGE0_19)][5];
+  REQUIRE(base_age0_day5 != NO_PROGRESSION_ENTRY);
+  const auto& base_age0_day5_nil =
+      base_tree.entries[static_cast<size_t>(base_age0_day5)][zidx(NIL)];
   CHECK(base_age0_day5_nil.size() == 6);
-  CHECK(approx_equal(base_age0_day5_nil[1], 0.4, 1e-6));
-  CHECK(approx_equal(base_age0_day5_nil[2], 0.5, 1e-6));
+  CHECK(approx_equal(base_age0_day5_nil[Progressmap::ToNil], 0.4, 1e-6));
+  CHECK(approx_equal(base_age0_day5_nil[Progressmap::ToMild], 0.5, 1e-6));
   CHECK(progressionset.progression[2].factors.riskadjust.size() == 6);
   CHECK(approx_equal(progressionset.progression[2].factors.riskadjust[3], 1.1, 1e-6));
-  CHECK(std::all_of(trvec.begin(), trvec.end(),
-                     [](float value) { return approx_equal(value, 0.0, 1e-6); }));
+  const auto& alpha_tree = progressionset.progression[2].tree;
+  const int16_t alpha_age0_day5 = alpha_tree.entry_index[zidx(AGE0_19)][5];
+  REQUIRE(alpha_age0_day5 != NO_PROGRESSION_ENTRY);
+  const auto& alpha_age0_day5_nil =
+      alpha_tree.entries[static_cast<size_t>(alpha_age0_day5)][zidx(NIL)];
+  CHECK(approx_equal(
+      std::accumulate(alpha_age0_day5_nil.begin(), alpha_age0_day5_nil.end(), 0.0f),
+      1.0, 1e-6));
+  CHECK(alpha_age0_day5_nil[Progressmap::ToSick] >
+        base_age0_day5_nil[Progressmap::ToSick]);
 
   SocialParams socialdata = load_social_params(paths.social);
   CHECK(approx_equal(socialdata.gammashape, 1.0, 1e-6));
@@ -461,7 +572,6 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
       .variant_names = std::move(variant_names),
       .infectparams = std::move(infectparams),
       .progressionset = std::move(progressionset),
-      .trvec = std::move(trvec),
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxset),
       .vaxschedset = std::move(vaxschedset),
@@ -709,6 +819,13 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_variants_data_rejects_empty_base_recvrisk();
   test_load_progression_set_rejects_row_not_summing_to_one();
   test_load_progression_set_rejects_wrong_row_length();
+  test_load_progression_set_maps_reordered_ages_and_packs_breakdays();
+  test_load_progression_set_rejects_out_of_range_breakday();
+  test_load_progression_set_requires_terminal_breakday();
+  test_load_progression_set_requires_terminal_outcome();
+  test_load_progression_set_requires_every_age_group();
+  test_load_progression_set_rejects_wrong_riskadjust_length();
+  test_load_seed_case_rejects_duration_above_limit();
   test_load_vax_sched_rejects_mix_not_summing_to_one();
   test_load_ring_traits_happy_path();
   test_load_ring_traits_rejects_missing_rings_key();

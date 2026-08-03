@@ -2,6 +2,7 @@
 
 #include "parameters.h"
 #include "helpers.h"    // for shifter range compressor
+#include <charconv>
 #include <cstdint>
 
 // using json = nlohmann::json;
@@ -77,7 +78,7 @@ GeoData load_geodata_csv(const std::string& filename) {
 
 
 //
-// variant data supplies infectset, progressionset, trvec, variants
+// variant data supplies infectparams, progressionset, and variant names
 //
 
 
@@ -162,81 +163,157 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
 }
 
 /*
-vector indexed by agegrp int of
-  vector indexed by breakday of
-     vector<vector<float> a matrix of progression probabilities
-
-to parse: 
-"<variant>" 
-      "progression_tree"
-          "<agegrp>"
-              "<breakday>"
-                  4 sickness conditions: "nil", "mild", "sick", "severe"
-                  for each of vector<float> in [0.0, 1.0]: [recover, nil, mild, sick, severe, dead]
-
-if no tree apply riskadjust and vaxhalflifeadjust to base
+The JSON progression tree is converted once into a packed lookup table:
+  [age][duration] -> packed breakday entry -> [current condition][outcome]
+The six outcomes are recover, nil, mild, sick, severe, and dead.
 */
 
+namespace {
 
-std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
-  // json jdata = load_json_params(fpath);
+uint8_t parse_progression_day(std::string_view text, std::string_view variant,
+                              std::string_view age) {
+  unsigned day{};
+  const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), day);
+  if (error != std::errc{} || end != text.data() + text.size() ||
+      day < 1 || day > DURATIONLIM) {
+    throw std::runtime_error(fmt::format(
+        "progression_tree: variant '{}' age '{}' has invalid breakday '{}'; "
+        "expected an integer in 1..{}.",
+        variant, age, text, DURATIONLIM));
+  }
+  return static_cast<uint8_t>(day);
+}
+
+void validate_terminal_progression(const ProgressionTree& tree,
+                                   std::string_view variant) {
+  for (size_t age_idx = 0; age_idx < PROGRESSION_AGE_COUNT; ++age_idx) {
+    const int16_t terminal_entry = tree.entry_index[age_idx][DURATIONLIM];
+    if (terminal_entry == NO_PROGRESSION_ENTRY) {
+      throw std::runtime_error(fmt::format(
+          "progression_tree: variant '{}' age '{}' must define terminal breakday {}.",
+          variant, Agegrp::names[age_idx + 1], DURATIONLIM));
+    }
+
+    const auto& condition_rows = tree.entries[static_cast<size_t>(terminal_entry)];
+    for (size_t cond_idx = 0; cond_idx < condition_rows.size(); ++cond_idx) {
+      for (size_t outcome = Progressmap::ToNil; outcome <= Progressmap::ToSevere;
+           ++outcome) {
+        if (!approx_equal(condition_rows[cond_idx][outcome], 0.0, 1e-6)) {
+          throw std::runtime_error(fmt::format(
+              "progression_tree: variant '{}' age '{}' day {} condition '{}' "
+              "must transition only to recover or dead.",
+              variant, Agegrp::names[age_idx + 1], DURATIONLIM,
+              Condition::names[cond_idx + 1]));
+        }
+      }
+    }
+  }
+}
+
+}  // namespace
+
+ProgressionSet load_progression_set(json jdata) {
   ProgressionSet progressionset{};
 
-    // add empty dummy for entry 0, not used
-    progressionset.progression.emplace_back(Agetree{}, ProgressionFactors{} );
+  // Index 0 aligns with Variant::none and is never used by progression().
+  progressionset.progression.emplace_back();
 
-  for (const auto &[variant, body] : jdata.items()) { // variant loop
-
+  for (const auto &[variant, body] : jdata.items()) {
     ProgressionFactors factors{};
+    const auto& jsontree = body["progression_tree"];
+    const auto& jsonfactors = body["progression_factors"];
 
-    auto jsontree = body["progression_tree"];
-    auto jsonfactors = body["progression_factors"];
-
-    // create members of ProgressionFactors factors
     factors.riskadjust = jsonfactors["riskadjust"].get<vector<float>>();
-    for (const auto &[vax, num] : jsonfactors["vaxhalflifeadjust"].get<absl::flat_hash_map<string, float>>()) {
-            factors.vaxhalflifeadjust[vax] = num;
-    };
+    if (!factors.riskadjust.empty() &&
+        factors.riskadjust.size() != PROGRESSION_OUTCOME_COUNT) {
+      throw std::runtime_error(fmt::format(
+          "progression_factors: variant '{}' riskadjust must be empty or contain "
+          "exactly {} values, got {}.",
+          variant, PROGRESSION_OUTCOME_COUNT, factors.riskadjust.size()));
+    }
+    for (const auto &[vax, num] :
+         jsonfactors["vaxhalflifeadjust"].get<absl::flat_hash_map<string, float>>()) {
+      factors.vaxhalflifeadjust[vax] = num;
+    }
 
-    // create members of Agetree tree
-    Agetree age_vec;
+    ProgressionTree tree;
     if (jsontree.is_null()) {
-      // Copy base tree (index 1) and apply riskadjust — base must appear first in JSON, well 2nd because nulls are at idx 0
-      age_vec = progressionset.progression[1].tree;
-      if (!factors.riskadjust.empty()) {          // TODO this is an error if jsontree is null!
-        for (auto& breakday_map : age_vec) {
-          for (auto& [day, cond_vec] : breakday_map) {
-            for (auto& row : cond_vec) {
-              float sum = 0.0f;
-              for (float x : row) sum += x;
-              if (sum != 0.0f) {
-                for (size_t i = 0; i < row.size(); ++i)
-                  row[i] *= factors.riskadjust[i];
-                sum = 0.0f;
-                for (float x : row) sum += x;
-                for (float& x : row) x /= sum;  // normalize to 1.0 after multiplying times riskadjust...
-              }
+      if (progressionset.progression.size() <= 1 ||
+          progressionset.progression[1].tree.entries.empty()) {
+        throw std::runtime_error(fmt::format(
+            "progression_tree: variant '{}' cannot inherit before a non-null base tree is loaded.",
+            variant));
+      }
+
+      tree = progressionset.progression[1].tree;
+      if (!factors.riskadjust.empty()) {
+        for (auto& condition_rows : tree.entries) {
+          for (auto& row : condition_rows) {
+            for (size_t i = 0; i < row.size(); ++i) row[i] *= factors.riskadjust[i];
+            const float sum = std::accumulate(row.begin(), row.end(), 0.0f);
+            if (sum <= 0.0f) {
+              throw std::runtime_error(fmt::format(
+                  "progression_factors: variant '{}' riskadjust produces a zero-sum row.",
+                  variant));
             }
+            for (float& value : row) value /= sum;
           }
         }
       }
     } else {
+      array<bool, PROGRESSION_AGE_COUNT> seen_ages{};
+      size_t breakday_count = 0;
       for (const auto& [age, body_age] : jsontree.items()) {
-        absl::flat_hash_map<uint8_t, vector<vector<float>>> one_age_map {};
+        breakday_count += body_age.size();
+      }
+      tree.entries.reserve(breakday_count);
+
+      for (const auto& [age, body_age] : jsontree.items()) {
+        const auto age_it = std::find(Agegrp::names.begin() + 1,
+                                      Agegrp::names.end(), age);
+        if (age_it == Agegrp::names.end()) {
+          throw std::runtime_error(fmt::format(
+              "progression_tree: variant '{}' has unknown age group '{}'.",
+              variant, age));
+        }
+        const size_t age_idx =
+            static_cast<size_t>(std::distance(Agegrp::names.begin(), age_it) - 1);
+        if (seen_ages[age_idx]) {
+          throw std::runtime_error(fmt::format(
+              "progression_tree: variant '{}' repeats age group '{}'.", variant, age));
+        }
+        seen_ages[age_idx] = true;
+
         for (const auto& [duration, body_duration] : body_age.items()) {
-          vector<vector<float>> tmpvec{};
-          // Explicitly load in Cond enum order: Nil(0), Mild(1), Sick(2), Severe(3)
-          // nlohmann::json iterates object keys alphabetically (mild < nil < severe < sick),
-          // so we MUST NOT rely on .items() iteration order here.
-          for (size_t ci = 1; ci < Condition::names.size(); ++ci) {
-            string key = Condition::names[ci];
-            std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-            vector<float> row = body_duration[key].get<vector<float>>();
-            if (row.size() != 6) {
+          const uint8_t day = parse_progression_day(duration, variant, age);
+          if (tree.entry_index[age_idx][day] != NO_PROGRESSION_ENTRY) {
+            throw std::runtime_error(fmt::format(
+                "progression_tree: variant '{}' age '{}' repeats breakday {}.",
+                variant, age, day));
+          }
+
+          OutcomesByCurrentCondition condition_rows{};
+          for (size_t cond_idx = 0; cond_idx < PROGRESSION_CONDITION_COUNT;
+               ++cond_idx) {
+            const string& key = Condition::names[cond_idx + 1];
+            const auto& json_row = body_duration[key];
+            if (!json_row.is_array() || json_row.size() != PROGRESSION_OUTCOME_COUNT) {
               throw std::runtime_error(fmt::format(
                   "progression_tree: variant '{}' age '{}' day '{}' condition '{}' "
-                  "must have exactly 6 probabilities (recover,nil,mild,sick,severe,dead), got {}.",
-                  variant, age, duration, key, row.size()));
+                  "must have exactly {} probabilities (recover,nil,mild,sick,severe,dead), got {}.",
+                  variant, age, duration, key, PROGRESSION_OUTCOME_COUNT,
+                  json_row.is_array() ? json_row.size() : 0));
+            }
+
+            auto& row = condition_rows[cond_idx];
+            for (size_t outcome = 0; outcome < row.size(); ++outcome) {
+              row[outcome] = json_row[outcome].get<float>();
+              if (row[outcome] < 0.0f || row[outcome] > 1.0f) {
+                throw std::runtime_error(fmt::format(
+                    "progression_tree: variant '{}' age '{}' day '{}' condition '{}' "
+                    "probability {} must be in [0,1] (got {}).",
+                    variant, age, duration, key, outcome, row[outcome]));
+              }
             }
             const float row_sum = std::accumulate(row.begin(), row.end(), 0.0f);
             if (!approx_equal(row_sum, 1.0, 1e-6)) {
@@ -245,54 +322,41 @@ std::tuple<ProgressionSet, array<float, 6>> load_progression_set(json jdata) {
                   "probabilities must sum to 1.0 (got {}).",
                   variant, age, duration, key, row_sum));
             }
-            tmpvec.push_back(std::move(row));
           }
-          one_age_map[std::stoi(duration)] = tmpvec;
+
+          const size_t entry_idx = tree.entries.size();
+          tree.entries.push_back(std::move(condition_rows));
+          tree.entry_index[age_idx][day] = static_cast<int16_t>(entry_idx);
         }
-        age_vec.push_back(one_age_map);
       }
-    } // end null-tree branch
-    
-    Progression pg {
-      .tree = age_vec,
-      .factors = factors
-      };
 
-    progressionset.progression.push_back(pg);
+      for (size_t age_idx = 0; age_idx < seen_ages.size(); ++age_idx) {
+        if (!seen_ages[age_idx]) {
+          throw std::runtime_error(fmt::format(
+              "progression_tree: variant '{}' is missing age group '{}'.",
+              variant, Agegrp::names[age_idx + 1]));
+        }
+      }
+      validate_terminal_progression(tree, variant);
+    }
 
-  } // variant loop
+    progressionset.progression.push_back(Progression{
+        .tree = std::move(tree),
+        .factors = std::move(factors),
+    });
+  }
 
-  // pre-allocate small vector for performance in progression kernel function
-  array<float, 6> trvec {}; 
-  
-  return {progressionset, trvec};
+  return progressionset;
 }
 
-std::tuple<vector<InfectParams>, ProgressionSet, array<float, 6>, vector<string>> load_infect_params(string fpath) {
-  // use one big json file for multiple output structs, etc.
+std::tuple<vector<InfectParams>, ProgressionSet, vector<string>>
+load_infect_params(string fpath) {
   json jdata = load_json_params(fpath);
-
   auto [variant_names, infectparams] = load_variants_data(jdata);
-
-  auto [progressionset, trvec] = load_progression_set(jdata);
-
-
-  return {infectparams, progressionset, trvec, variant_names};
-};
-
-/*
-access will look like
-ProgressionSet progression{};  // assume it then gets loaded
-progression[0].tree[0][5][0][0]  
-    // we have 6 levels of qualifiers
-    // 1) for variant "base" index = 0, 
-    // 2) tree member, 
-    // 3) agegrp "age0_19" index = 0, 
-    // 4) breakday 5 key, 
-    // 5) condition "nil" by index = 0,
-    // 6) recovered probability by vector index for to recovered index = 0
-
-*/
+  ProgressionSet progressionset = load_progression_set(jdata);
+  return {std::move(infectparams), std::move(progressionset),
+          std::move(variant_names)};
+}
 
 //
 // vaccine data

@@ -38,6 +38,16 @@ run succeeds.
 case inputs, runs the academic R0 estimate, prints the scalar result, and does
 not mutate `AppState`.
 
+Progression parameters now load into a packed `ProgressionTree`. A fixed
+`entry_index[age][duration]` table maps directly to contiguous breakday matrices
+stored as `[current condition][six outcomes]`; non-breakdays contain
+`NO_PROGRESSION_ENTRY`. `progression()` performs no hash lookup or allocation
+and copies the selected six probabilities into a local `std::array` before
+person-specific immunity adjustment. The obsolete shared `ModelParams::trvec`
+scratch array is removed. Explicit trees must cover all five age groups, use
+breakdays in `1..DURATIONLIM`, and terminate every condition through recover or
+dead on day 25. Seed durations are rejected above `DURATIONLIM`.
+
 The terminal TUI source-organization split from
 `design/tui_terminal_split.md` is complete. User-visible commands, retained
 state, and the main loop live in `src/tui_commands.cpp`; FTXUI painting,
@@ -107,6 +117,16 @@ enough to reconstruct valid `SeriesColSpec` selections for a retained
 - Human developer ran `xmake run test`; all tests passed. For future test
   coverage around `runsim`, tests can set `Model::headless = true` before
   calling `runsim()` to skip plot/browser output.
+- Packed progression loading and direct progression lookup passed
+  `xmake run test parameters`, `xmake run test disease_modeling`,
+  `xmake run test setup`, the full `xmake run test` sweep (652 checks),
+  `xmake run test runsim` (30 checks), and `xmake build epi_sim`.
+- A quick comparison using the simulation's internal timers showed progression
+  approximately 20–25% faster and overall runtime approximately 10% faster;
+  spread remains the dominant bottleneck.
+- Maintainable spread-runtime opportunities and a staged measurement/validation
+  plan are recorded in `design/spread optimization.md` for future review. No
+  spread implementation changes were made during that review.
 
 ## Next Steps
 

@@ -14,7 +14,7 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);
-  auto [infectparams, progressionset, trvec, variant_names] =
+  auto [infectparams, progressionset, variant_names] =
       load_infect_params(variants_path);
   // vax related parameters don't need to be loaded if dovax == false
     VaxSet vaxdata;
@@ -40,7 +40,6 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
       .variant_names = std::move(variant_names),
       .infectparams = std::move(infectparams),
       .progressionset = std::move(progressionset),
-      .trvec = std::move(trvec),
       .socialdata = std::move(socialdata),
       .vaxset = std::move(vaxdata),
       .vaxschedset = std::move(vaxschedset),

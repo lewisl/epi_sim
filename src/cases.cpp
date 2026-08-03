@@ -64,7 +64,12 @@ int32_t parse_term_val(const string& trait, const json& jval, const ModelParams&
     return int32_t(ridx);
   }
   // Numeric traits: duration, quar
-  return jval.get<int32_t>();
+  const int32_t value = jval.get<int32_t>();
+  if (trait == "duration" && (value < 0 || value > DURATIONLIM)) {
+    throw std::runtime_error(fmt::format(
+        "Duration value {} is outside the supported range 0..{}", value, DURATIONLIM));
+  }
+  return value;
 }
 
 // Returns true if all filter terms match the person (AND semantics).

@@ -1,6 +1,7 @@
 #include "test_support.h"
 
 #include "../src/disease_modeling.h"
+#include "../src/progression.h"
 #include "../src/series.h"
 #include "../src/sim.h"
 
@@ -232,6 +233,64 @@ void test_recoveffect_uses_scalar_recovday() {
   CHECK(approx_equal(naive_factor, 1.0f, 1e-6));
 }
 
+void test_progression_uses_packed_breakday_outcomes() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  Variant::names = {"none", "base"};
+  Vax::names = {"none"};
+
+  vector<InfectParams> infectparams(2);
+  VaxSet vaxset;
+
+  {
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
+    AllSeries series = make_series(pop, 5);
+    ProgressionSet progressionset;
+    progressionset.progression.resize(2);
+
+    sim::reset_day();
+    sim::incr_day();
+    sim::ds.day = sim::get_day();
+    auto person = pop.agent(1);
+    person.make_sick(Variant{1}, series, MILD, 4);
+
+    progression(person, series, progressionset, infectparams, false, vaxset);
+
+    CHECK(person.status() == INFECTIOUS);
+    CHECK(person.cond() == MILD);
+    CHECK(person.duration() == 5);
+  }
+
+  {
+    PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
+    AllSeries series = make_series(pop, 5);
+    ProgressionSet progressionset;
+    progressionset.progression.resize(2);
+    auto& tree = progressionset.progression[1].tree;
+    OutcomesByCurrentCondition outcomes{};
+    outcomes[zidx(MILD)][Progressmap::ToRecover] = 1.0f;
+    outcomes[zidx(SEVERE)][Progressmap::ToDead] = 1.0f;
+    tree.entries.push_back(outcomes);
+    tree.entry_index[zidx(AGE0_19)][5] = 0;
+    tree.entry_index[zidx(AGE20_39)][5] = 0;
+
+    sim::reset_day();
+    sim::incr_day();
+    sim::ds.day = sim::get_day();
+    auto recovered_person = pop.agent(1);
+    recovered_person.make_sick(Variant{1}, series, MILD, 5);
+    progression(recovered_person, series, progressionset, infectparams, false, vaxset);
+    CHECK(recovered_person.status() == RECOVERED);
+    CHECK(recovered_person.cond() == UNINFECTED);
+
+    auto dead_person = pop.agent(2);
+    dead_person.make_sick(Variant{1}, series, SEVERE, 5);
+    progression(dead_person, series, progressionset, infectparams, false, vaxset);
+    CHECK(dead_person.status() == DEAD);
+    CHECK(dead_person.deadday() == 1);
+  }
+}
+
 void test_vaxeffect_uses_scalar_latest_vax() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
@@ -276,6 +335,7 @@ void run_disease_modeling_tests(const test_support::TestRunOptions& options) {
   test_make_well_updates_state_and_recovday_history();
   test_make_dead_sets_death_state();
   test_recoveffect_uses_scalar_recovday();
+  test_progression_uses_packed_breakday_outcomes();
   test_vaxeffect_uses_scalar_latest_vax();
   write_disease_modeling_artifact(options);
   if (options.write_artifacts) {

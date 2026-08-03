@@ -97,6 +97,7 @@ Treat `spread`, `progression`, `runsim`, vaccination, and population loops as ho
 - **Code management:** Don't delete code unless requested or clearly part of another requested change. Preserve unrelated dirty worktree changes.
 - **Communication:** Concise, lead with the result. For code changes report only: what changed, where, tests run, remaining risks.
 
+
 ## Code Navigation
 
 Serena MCP (clangd/LSP) provides semantic navigation for C++23. For functions, methods, classes, structs, enums, aliases, variables: prefer Serena go-to-definition / find-references / diagnostics first (resolves overloads correctly). Use ripgrep for non-symbol text: comments, string literals, build files, JSON, Markdown, config, logs.

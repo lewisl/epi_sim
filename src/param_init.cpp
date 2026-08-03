@@ -179,7 +179,7 @@ void ensure_case_dirs(const fs::path& case_dir) {
 //
 void create_scaffold(fs::path case_dir) {
   try {
-  
+
     if (fs::exists(case_dir)) {
       if (!fs::is_directory(case_dir)) {
         throw std::runtime_error(fmt::format("Case directory path {} exists but is not a directory.", case_dir.string()));
@@ -229,7 +229,7 @@ void set_project_dir(std::string val) {
     if (!config_path) {
       throw std::runtime_error(fmt::format("Could not resolve ~/.config."));
     }
-    if (!fs::exists(*config_path)) { fs::create_directory(*config_path); 
+    if (!fs::exists(*config_path)) { fs::create_directory(*config_path);
       } else if (!fs::is_directory(*config_path)) {
         throw std::runtime_error(fmt::format("~/.config is not a directory."));
       }
@@ -361,8 +361,8 @@ void show_cases() {
   fs::path project_dir = read_project_dir();
 
 
-  fs::directory_iterator Start{project_dir.string()};  
-  fs::directory_iterator End{};                
+  fs::directory_iterator Start{project_dir.string()};
+  fs::directory_iterator End{};
 
   std::ostringstream cases;
   cases << fmt::format("Cases in {}:", project_dir.string()) << '\n';

@@ -47,20 +47,22 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // seed the random number generator
   xo::seed(99999);  // have used 12345
 
-  // create vector set for series statistics.
   // Ring slot count: max(Ring::names.size(), 1). With no rings defined
   // Ring::names is empty -> 1 slot (index 0); with N rings defined the
   // size is N+1 (sentinel + names) -> N+1 slots, index 0 = RING_ALL.
   size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
+
+  // create vector set for series statistics.
   AllSeries series(model.ndays, pop, Variant::names.size(),
                    Vax::names.size(), n_ring_slots);
 
   // reset day counter to zero
   sim::reset_day();
   sim::debug = model.debug;
-  sim::history_timing.reset();
+
 
   // setup timers for performance metering
+  sim::history_timing.reset();
   Timing spread_timing;
   Timing progression_timing;
   Timing vax_timing;
@@ -70,20 +72,18 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
 
 
-
   // access density factor for current locale
   auto locale_pos = find(mp.geodata.fips.begin(), mp.geodata.fips.end(), model.locale);
   if (locale_pos == mp.geodata.fips.end()) {
     throw std::runtime_error("Invalid locale input: " + std::to_string(model.locale) + ". Must match a locale from geodata.");
   }
   auto locale_idx = locale_pos - mp.geodata.fips.begin();
-
   float density_factor = mp.geodata.density[locale_idx];
 
-  fmt::print("\n");
-
-
+  
+  //
   // day loop
+  //
   for (int d_i = 1; d_i <= model.ndays; ++d_i) {
     // start a new day
     sim::incr_day();
@@ -100,7 +100,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
         std::string chg;
         for (const auto& t : sc.change.terms)
           chg += fmt::format("{}{}={}", chg.empty() ? "" : ",", t.trait, t.val);
-        fmt::println("Seed day {} count: {} filter: [{}] change: [{}]", d_i, seeds.size(), filt, chg);
+        fmt::println("\nSeed day {} count: {} filter: [{}] change: [{}]", d_i, seeds.size(), filt, chg);
       }
 
     // run social distancing cases
@@ -115,21 +115,25 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
                pop,
                series);
       vax_timing.cum();
-    }
+      }
+
+    // run rt simulation if interval != 0  
     if (model.rt_sim_interval) {
     if (d_i % model.rt_sim_interval == 0) {
       rt_sim(pop, model);
     }}
 
+    //
     // Loop through all people and process infectious ones (no vector allocation needed)
+    //
     for (size_t p = 1; p <= pop.popn; ++p) {
 
       // get an agent at index p
       auto person = pop.agent(p);
       if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day) continue;
 
-      spread_timing.start();
       // spread kernel
+      spread_timing.start();
       auto spr_duration = person.duration();      
       auto spr_variant = person.variant();    
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
@@ -143,7 +147,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
       // progression kernel
       progression_timing.start();
-      progression(person, series, mp.progressionset, mp.infectparams, mp.trvec, model.dovax, mp.vaxset);
+      progression(person, series, mp.progressionset, mp.infectparams, model.dovax, mp.vaxset);
       progression_timing.cum();
 
     } // end persons loop
@@ -167,7 +171,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     // cleanup sim::ds
     // sim::ds.reset();
 
-  } // day loop
+  } // end day loop
 
   sim::history_timing.start();
   series.finalize_series();
@@ -203,10 +207,10 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     std::filesystem::create_directories(model.output_dir);
 
     serialize_selected_series(
-      {{"now_infectious", "total"},
-      {"new_infectious", "total"},
-      {"new_dead",       "total"},
-      {"now_dead",       "total"}},
+        {{"now_infectious", "total"}, // select with strings
+        {"new_infectious", "total"},
+        {"new_dead",       "total"},
+        {"now_dead",       "total"}},
       series, case_artifact_path(model, "series", output_timestamp, "csv"));
 
     pop_to_csv(pop, pop.all_idx, "all",
@@ -220,21 +224,29 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   if (model.headless) return series;  // headless runs skip browser plots
 
+
+  //
+  // create and output plots
+  //
   if (!model.dovax)
-    seriesplot({{"now_infectious", "total"},
-              {"now_unexposed", "total"},
-              {"now_recovered", "total"},
-              {"now_dead", "total"}},
-              series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
-              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
+    seriesplot(
+                //select using SeriesColSpec using initializer list with strings
+                {{"now_infectious", "total"},
+                {"now_unexposed", "total"},
+                {"now_recovered", "total"},
+                {"now_dead", "total"}},
+            series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+            case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
   else
-      seriesplot({{"now_infectious", "total"},
-              {"now_unexposed", "total"},
-              {"now_recovered", "total"},
-              {"now_dead", "total"},
-              {"now_vaccinated", "total"}},
-              series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
-              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
+    seriesplot(
+                //select using SeriesColSpec using initializer list with strings
+                {{"now_infectious", "total"},
+                {"now_unexposed", "total"},
+                {"now_recovered", "total"},
+                {"now_dead", "total"},
+                {"now_vaccinated", "total"}},
+            series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+            case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -268,6 +280,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
+  // output of the simulation captured in terminal app
   return series;
         
 } // end runsim function

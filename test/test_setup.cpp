@@ -46,7 +46,6 @@ void test_sendrisk_indexing() {
   CHECK(approx_equal(sendrisk[2], 0.65, 1e-6));
   CHECK(approx_equal(sendrisk[5], 0.85, 1e-6));
   CHECK(approx_equal(sendrisk[24], 0.0, 1e-6));
-  CHECK(model.mp.trvec.size() == 6);
 }
 
 void test_setup_sim_builds_expected_model_shape() {
@@ -206,8 +205,7 @@ void write_setup_artifacts(const test_support::TestRunOptions& options) {
   artifact << "  base sendrisk size: " << sendrisk.size() << "\n";
   artifact << "  base sendrisk[0,1,2,5,24]: " << sendrisk[0] << ", "
            << sendrisk[1] << ", " << sendrisk[2] << ", " << sendrisk[5]
-           << ", " << sendrisk[24] << "\n";
-  artifact << "  progression trvec size: " << model.mp.trvec.size() << "\n\n";
+           << ", " << sendrisk[24] << "\n\n";
   artifact << "setup_sim fixture:\n";
   artifact << "  ndays/locale: " << model.ndays << "/" << model.locale << "\n";
   artifact << "  first/last calday: " << absl::FormatCivilTime(model.caldays.front()) << " -> "
