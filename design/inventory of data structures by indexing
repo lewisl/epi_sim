@@ -1,0 +1,80 @@
+# Indexing Inventory
+
+_No `DayData` type exists in the current code. Its role is implemented by `AllSeries` and `SeriesGroup`._
+
+## 1-indexed storage
+
+| Structure | Valid indexes | Index 0 |
+|---|---:|---|
+| `PopData` per-person vectors: `status`, `agegrp`, `cond`, `duration`, `variant`, all history/day fields, `ring`, `sdcase`, `quar`, `vaxstatus`, and `vax` | `1..popn` | Reserved and never a person, even where its initialized value looks meaningful (for example `UNEXPOSED`). `popz == popn + 1`. |
+| `PopData::all_idx` values | Values are `1..popn` | The vector itself is ordinarily zero-indexed; it stores 1-based person IDs. |
+| `Variant::names`, `ModelParams::variant_names` | real variants: `1..N` | `"none"` sentinel; `Variant{1}` must be `"base"`. |
+| `ModelParams::infectparams` | real variants: `1..N` | Dummy `InfectParams`; direct lookup uses the raw `Variant` ID. |
+| `ProgressionSet::progression` | real variants: `1..N` | Dummy `Progression`; progression never uses variant zero. |
+| `InfectParams::recovery_immunity` | variant IDs: `1..N` | Allocated as zero/default immunity for variant `"none"`; it is directly indexed by raw `Variant` IDs. |
+| `Vax::names`, `VaxSet::names`, `VaxSet::params` | real vaccines: `1..N` | `"none"` plus a dummy `Vaxparam`; `VaxSet::at()` rejects zero. |
+| `Ring::names`, `RingTraits::ring_names`, `RingTraits::pct_of_population` | real rings: `1..N` | Empty-string/zero-value sentinel. |
+| `RingTraits::out_ring_prob[ring][agegrp]` | both dimensions: `1..N` / `1..5` | Outer ring zero and inner age-group zero are unused. |
+| `Model::ring_members`, `Model::ring_lengths` outer dimension | real rings: `1..N` | Reserved. Inner `ring_members[ring]` vectors are ordinary zero-indexed lists containing 1-based person IDs. |
+
+`AgentView` enforces this rule: it rejects person IDs below 1 or above `popn`. See [population.h](/Users/lewislevin/code/epi_sim/src/population.h:36) and [ring_traits.h](/Users/lewislevin/code/epi_sim/src/ring_traits.h:12).
+
+## Series: mixed indexing
+
+`AllSeries` has six named groups: `now_status`, `new_status`, `now_vax`, `new_vax`, `now_variant`, and `new_variant`.
+
+```text
+subjects[subject_id][ring_id][age_bucket][simulation_day]
+```
+
+| Dimension | Indexing |
+|---|---|
+| `subject_id` | Raw `Status`, `Vax`, or `Variant` ID. Slot 0 exists as the respective `"none"` sentinel and is normally not reported. Real values begin at 1. |
+| `ring_id` | `0` is valid: `RING_ALL`, the all-rings aggregate. Real rings are `1..N`. |
+| `age_bucket` | Fully zero-based. `0` is valid and means `total`; `1..5` are the concrete age buckets. |
+| `simulation_day` | 1-based. Every leaf vector has `day_cnt + 1` elements; day 0 is unused. |
+
+The public printing and CSV-writing paths iterate days `1..day_cnt`. The vaccinated-total helper retains the unused zero slot when it builds a summed vector. See [series.h](/Users/lewislevin/code/epi_sim/src/series.h:39) and [series.cpp](/Users/lewislevin/code/epi_sim/src/series.cpp:30).
+
+## Zero-based or compact parameter storage
+
+| Structure | Indexing and mapping |
+|---|---|
+| `Config::age_dist` / `Model::age_dist` | Ordinary 5-element, zero-based vector: positions map to the five concrete age groups in order. |
+| `PopData::agegrp_parts` | Ordinary zero-based 5-element vector of apportioned counts. |
+| `PopData` history arrays (`VariantHist`, `VaxHist`, `SickdayHist`, `RecovdayHist`, `TestdayHist`, `VaxdayHist`) | Ordinary zero-based fixed arrays. `count` is a length, not an index; the most recent non-full entry is at `count - 1`. |
+| `InfectParams::sendrisk` | Zero-based by disease duration, including index 0. The simulation directly uses `sendrisk[duration]`. |
+| `InfectParams::recvrisk` | Dense, zero-based 5-element age table: use `zidx(agegrp)` (`agegrp - 1`). |
+| `ProgressionFactors::riskadjust` | Dense zero-based six-element table indexed by `Progressionmap`: recover, nil, mild, sick, severe, dead. |
+| `ProgressionTree::entries` | Ordinary zero-based packed-entry vector. |
+| Packed progression condition/outcome arrays | Conditions are projected with `zidx(condition)` (`nil..severe` → `0..3`); outcomes use zero-based `Progressionmap` directly (`0..5`). |
+| `Vaxparam::infectfactor` | Compact zero-based vector. Position `variant_id - 1`; it intentionally omits `"none"`. |
+| `Vaxparam::effectiveness` outer vector | Compact zero-based vector. Position `vaxstatus - 1`: first, full, booster. It omits `Vaxstatus::none`. |
+| `Vaxparam::effectiveness` inner vector | Compact zero-based vector. Position `variant_id - 1`; it omits `"none"`. |
+| `VaxSched::vaxesincluded`, `PerVaxSpec::alternate`, `filtervec`, `pattern` | Ordinary zero-based lists. Stored `Vax`/`Agegrp` values may themselves be 1-based IDs. |
+| `VaxSchedSet::schedules` | Ordinary zero-based list. |
+| `SocialParams::contactfactors` | Zero-based `4 × 5`: condition row `zidx(nil..severe)`, age column `zidx(agegrp)`. |
+| `SocialParams::touchfactors` | Zero-based `6 × 5`: `touch_map()` produces rows 0–5; age column is `zidx(agegrp)`. |
+| `SocialDistancing::contact_delta`, `touch_delta`, `include_ages`, and `sd_cases` | Ordinary zero-based vectors. `SDCase` IDs are assigned as vector position + 1, so runtime access uses `sd_cases[zidx(sdcase)]`. |
+| `GeoData` columns | Ordinary zero-based, row-aligned vectors; this is CSV input rather than JSON. |
+| `Model::caldays`, `Model::indoor_seq` | Ordinary zero-based vectors. Simulation day `d` uses `zidx(d)`. |
+
+`ProgressionTree::entry_index` is the main mixed table: `[zidx(agegrp)][duration]`. Its age dimension is zero-based, but duration/day 0 is deliberately unused; valid progression days are `1..DURATIONLIM`. See [parameters.h](/Users/lewislevin/code/epi_sim/src/parameters.h:132) and [parameters.cpp](/Users/lewislevin/code/epi_sim/src/parameters.cpp:215).
+
+## Identifier-zero semantics
+
+| Identifier | Value 0 |
+|---|---|
+| `Agegrp` | `"unknown"` sentinel; not a real age-table index. |
+| `Status` | `"none"` sentinel; real statuses begin at 1. |
+| `Condition` | `"uninfected"` is a valid state, but parameter tables exclude it and use `zidx(nil..severe)`. |
+| `Variant` | `"none"` sentinel; generally invalid during simulation. |
+| `Vax` | `"none"` sentinel. |
+| `Ring` | Unassigned/empty sentinel. |
+| `SDCase` | `"none"` sentinel. |
+| `Vaxstatus` | Valid `"none"` state, but vaccine-effectiveness tables omit it. |
+| `Progressionmap` | Valid zero-based index; no sentinel. |
+
+`idx(x)` preserves an ID, while `zidx(x)` converts a real one-based ID to its compact zero-based table position. See [helpers.h](/Users/lewislevin/code/epi_sim/src/helpers.h:43).
+
+The JSON loaders establish the sentinel-aligned variant, vaccine, and ring tables; the runtime paths verify the compact vaccine-factor mapping and use direct numeric lookups. See [parameters.cpp](/Users/lewislevin/code/epi_sim/src/parameters.cpp:84), [parameters.cpp](/Users/lewislevin/code/epi_sim/src/parameters.cpp:375), and [parameters.cpp](/Users/lewislevin/code/epi_sim/src/parameters.cpp:571).

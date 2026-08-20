@@ -5,7 +5,7 @@
 struct AllSeries;
 
 // helpers
-static const VaxParams& vax_params(const VaxSet& vaxset, Vax vax);
+static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax);
 
 static size_t spec_index(const vector<PerVaxSpec>& specs, Vax vax);
 

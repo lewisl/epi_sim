@@ -1,148 +1,57 @@
 # Session Notes
 
-## Current State: Retained Normal-Run Results
+## Current State
 
-Runtime trait-name maintenance is complete for the normal simulation path.
-Runtime wrappers still store compact numeric IDs in `PopData`; their
-human-readable names come from model-owned sources of truth:
+Spread optimization recommendation 4 is complete.
 
-- `ModelParams::variant_names`
-- `VaxSet::names`
-- `RingTraits::ring_names`
-- `Model::sd_cases[*].name` for `SDCase`
+- `vaxeffect()` uses direct numeric lookup for vaccine infect factors and
+  effectiveness rather than string searches.
+- `VaxParams::infectfactor` and each effectiveness row are dense tables of
+  real variants/statuses: they omit the index-0 `none` sentinel. Convert the
+  compact one-based `Variant` and `Vaxstatus` IDs with `zidx()` before indexing.
+- The ordered lookup relies on the loader's canonical iteration order:
+  `Variant::names` for each factor row, and `first`, `full`, `booster` for
+  effectiveness rows.
 
-`install_runtime_trait_names(const Model&)` reconstructs the active static
-registries. `runsim(Model&)` calls it before sizing or using `AllSeries`, so a
-retained model is interpreted using its own variant, vaccine, ring, and social
-distancing names.
+`input_verify()` now enforces the cross-file invariant when vaccination is
+enabled: every vaccine's `infectfactor` and all three effectiveness rows must
+have exactly the variants declared in `variants.json`; unknown variants or shot
+statuses are reported as errors. It reports every error to stderr, writes
+`input-error-log.txt`, and throws before parameter loading or simulation.
 
-Sentinel conventions are explicit and index-aligned:
+The parameters suite includes an end-to-end bad-case test. It builds a
+temporary otherwise-valid case, removes Pfizer's `full`/`alpha` factor, then
+verifies that `input_verify()` reports, logs, and rejects it.
 
-- Variant and Vax: index 0 is `"none"`; Variant index 1 is required to be
-  `"base"`.
-- Ring: index 0 is the empty-string sentinel; real rings begin at index 1.
-- SDCase: index 0 is `"none"`; remaining names follow `model.sd_cases`.
+Latest validation:
 
-`setup_model_params()` remains aggregate initialization. In particular,
-`GeoData` must continue to be moved into `ModelParams`; omitting that member
-leaves `mp.geodata` empty and makes valid locales appear invalid.
+- `xmake run test`: 657 checks passed.
+- `xmake run test runsim`: 30 checks passed.
+- The direct lookup reduced one measured spread timing from about 0.087 to
+  0.084 seconds (about 3.5%) while preserving output for the measured case.
 
-`runsim(Model&)` now returns the completed `AllSeries` by value. The terminal
-TUI state is now `AppState`, with `active_model` retaining the completed
-normal-run `Model` and `result_series` retaining the matching completed
-`AllSeries`. `/run-case` and `/run-dir` reset the prior retained result before
-starting a new main run and replace it with the returned `AllSeries` when the
-run succeeds.
+## Serena MCP
 
-`/r0_sim` is detached from retained TUI state. It constructs a local model from
-case inputs, runs the academic R0 estimate, prints the scalar result, and does
-not mutate `AppState`.
-
-Progression parameters now load into a packed `ProgressionTree`. A fixed
-`entry_index[age][duration]` table maps directly to contiguous breakday matrices
-stored as `[current condition][six outcomes]`; non-breakdays contain
-`NO_PROGRESSION_ENTRY`. `progression()` performs no hash lookup or allocation
-and copies the selected six probabilities into a local `std::array` before
-person-specific immunity adjustment. The obsolete shared `ModelParams::trvec`
-scratch array is removed. Explicit trees must cover all five age groups, use
-breakdays in `1..DURATIONLIM`, and terminate every condition through recover or
-dead on day 25. Seed durations are rejected above `DURATIONLIM`.
-
-The terminal TUI source-organization split from
-`design/tui_terminal_split.md` is complete. User-visible commands, retained
-state, and the main loop live in `src/tui_commands.cpp`; FTXUI painting,
-prompt, menu, and event helpers live in `src/tui_app.cpp`. The public
-entrypoint remains `run_terminal_tui()` in `src/tui_commands.h`.
-
-## Completed-Run Architecture Decision
-
-`Model` remains the runnable configuration plus current population state.
-`AllSeries` is the completed-run result and should not become a `Model` member.
-
-`runsim(Model&)` returns `AllSeries` by value. The return is moved/copy-elided;
-the collected vector allocations are not deep-copied. `AppState` retains the
-completed normal-run `Model` and `AllSeries` together. Starting a new
-`/run-case` or `/run-dir` intentionally discards the prior retained normal-run
-result.
-
-The first reuse command should inspect, select, serialize, or plot the retained
-completed result. It must not rerun the completed `Model`: its `PopData` is
-already at the final simulation state, and replay/extension/reset semantics
-are not implemented.
-
-The retained model-owned name tables plus `install_runtime_trait_names()` are
-enough to reconstruct valid `SeriesColSpec` selections for a retained
-`AllSeries`; no separate stored series-column-name list is needed yet.
-
-## Validation
-
-- `xmake run test` passed after the runtime-name and aggregate-construction
-  repairs. Test-related plot files do not reliably load in a browser; that is
-  separate from the simulation/test result.
-- `xmake run test runsim` passed.
-- Parameter tests cover the Variant `"none"`/`"base"` indexing and the
-  model-owned `variant_names` vector.
-- `project_cases_help` now documents project and standalone case commands,
-  input/output locations, and the `parameters` help topic. `xmake build epi_sim`
-  and `xmake run epi_sim --help project` passed.
-- `socialparameters_help` now documents every `socialparams.json` key and its
-  template value. `xmake build epi_sim` and `xmake run epi_sim --help socialparameters`
-  passed.
-- `socialparams_help` now contains the same documented values from the
-  `case-1` social-parameters template. `xmake build epi_sim` passed.
-- `variants_help` now contains an underscored title, a description of
-  progression transitions, and the complete commented variants template.
-  `xmake build epi_sim` and `xmake run epi_sim --help variants` passed.
-- The TUI help map now exposes `socialparams`, wired to the existing
-  `socialparams_help` text. A subsequent `xmake build epi_sim` could not run
-  because its configured LLVM executable
-  `/opt/homebrew/Cellar/llvm/22.1.6/bin/clang++` no longer exists.
-- `xmake f --check` refreshed the stale per-target linker cache while retaining
-  the configured vcpkg path. Both compiler and linker now use Homebrew LLVM
-  22.1.8; `xmake build epi_sim` passed.
-- ThinLTO is enabled specifically for the `epi_sim` and `test` targets. A
-  global `build.optimization.lto` policy caused xmake to request an LTO-specific
-  rebuild of `toml++` plus CMake and Ninja; target-scoped policies avoid changing
-  third-party package requirements. A verbose `epi_sim` build confirmed
-  `-flto=thin` on compilation and linking, and `xmake run test` passed all 628
-  checks.
-- Removed the duplicate `socialparameters` help topic; `socialparams` is now
-  the sole topic for `socialparams.json` in the TUI and CLI help maps.
-- Human developer changed `runsim(Model&)` to return `AllSeries` and wired
-  `/run-case` and `/run-dir` to store the result in `AppState::result_series`.
-  `xmake build epi_sim` and `xmake build test` passed.
-- Human developer detached `/r0_sim` from retained `AppState`: it now uses a
-  local model from case inputs, prints the academic R0 estimate, and leaves the
-  retained normal-run model/result untouched.
-- Human developer ran `xmake run test`; all tests passed. For future test
-  coverage around `runsim`, tests can set `Model::headless = true` before
-  calling `runsim()` to skip plot/browser output.
-- Packed progression loading and direct progression lookup passed
-  `xmake run test parameters`, `xmake run test disease_modeling`,
-  `xmake run test setup`, the full `xmake run test` sweep (652 checks),
-  `xmake run test runsim` (30 checks), and `xmake build epi_sim`.
-- A quick comparison using the simulation's internal timers showed progression
-  approximately 20–25% faster and overall runtime approximately 10% faster;
-  spread remains the dominant bottleneck.
-- Maintainable spread-runtime opportunities and a staged measurement/validation
-  plan are recorded in `design/spread optimization.md` for future review. No
-  spread implementation changes were made during that review.
+- `.serena/project.yml` now uses Serena 1.5.3's `languages` field for C++ and
+  explicitly points it at Homebrew LLVM's clangd.
+- The project-targeted Codex MCP entry stores Serena state and clangd's index
+  cache under the ignored `.serena/` directory, with the optional dashboard
+  disabled. MCP initialization and a C++ symbol-overview call succeeded.
 
 ## Next Steps
 
-1. Add a TUI command that uses the retained completed run for series
-   introspection/output; restore its runtime trait names before selection.
-2. Extend `test runsim` with a case that enables vaccination and rings. The
-   current runsim fixture does not cover either path.
-3. Diagnose the browser plot-loading behavior separately from simulation
-   correctness.
+1. Extend `test runsim` with a case that enables vaccination and rings; its
+   current fixture covers neither path.
+2. Diagnose browser plot-loading separately from simulation correctness.
+3. Resume spread recommendation 7 and measure it independently, preserving
+   probabilities, RNG call/order, and serialized output.
 
 ## Working Constraints
 
 - Use xmake only and always name the target.
-- `xmake run test` intentionally excludes `runsim`; invoke
-  `xmake run test runsim` explicitly.
-- `Model::headless = true` lets tests call `runsim()` without writing normal
-  run outputs or opening browser plots.
+- `xmake run test` intentionally excludes `runsim`; run
+  `xmake run test runsim` explicitly when full coverage is needed.
+- `Model::headless = true` lets tests call `runsim()` without normal outputs or
+  browser activity.
 - Preserve compact numeric trait IDs in population data and direct indexed
   access in hot simulation paths.

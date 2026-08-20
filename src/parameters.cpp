@@ -113,7 +113,8 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
 
     auto recovery_imm_obj = variant.value()["immunity"]["recovery_immunity"];
     
-    // Build the recovery_immunity vector in the correct order
+    // Build the recovery_immunity vector in the correct order:  
+    //      invariant: variant_names must be in same order as infectparams
     vector<float> recovery_immunity(Variant::names.size(), 0.0f);  // default to 0
     for (size_t i = 0; i < Variant::names.size(); ++i) {
         const auto& vname = Variant::names[i];
@@ -383,7 +384,7 @@ VaxSet load_vax_data(string fpath) {
   Vax::names.emplace_back("none");
   vaxset.names.emplace_back("none");
   vaxset.params.clear();
-  vaxset.params.emplace_back(VaxParams{});
+  vaxset.params.emplace_back(Vaxparam{});
 
   // for each vax
   for (const auto &[vaxname, body] : vaxdata.items()) {  
@@ -391,7 +392,7 @@ VaxSet load_vax_data(string fpath) {
     vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
     (void)vax;
 
-    VaxParams vx {};  // details for each vaccine
+    Vaxparam vx {};  // details for one vaccine
     // load items for each vax into struct
     vx.reqdshots = body["reqdshots"];
     vx.delay2ndshot = body["delay2ndshot"];
@@ -401,6 +402,13 @@ VaxSet load_vax_data(string fpath) {
     vx.day1_effect = body["day1_effect"];
 
     // infectfactor vector
+    /*
+    infectfactor vector contains factors for 
+    Variants[1..] with no 0th position for "none".  
+    so to access it using zero based indexing,
+     where 0th index accesses the first variant's factor.
+     Used in disease_modeling.cpp functions.
+    */
     for (const auto &variantname : Variant::names) {
       if (body["infectfactor"].contains(variantname) )
         vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);

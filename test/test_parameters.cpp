@@ -612,9 +612,12 @@ void test_input_verify_accepts_template_inputs() {
   Errors e;
   bool dovax = false, do_rings = false, do_sd = false;
   int locale = 0;
+  const json variants = json::parse(variants_json);
+  const json vaccines = json::parse(vaccines_json);
   check_config(parse_config(), e, dovax, do_rings, do_sd, locale);
-  check_variants(json::parse(variants_json), e);
-  check_vaccines(json::parse(vaccines_json), e);
+  check_variants(variants, e);
+  check_vaccines(vaccines, e);
+  check_vaccine_variant_alignment(variants, vaccines, e);
   check_vax_sched(json::parse(vaxsched::loc38015_old_json), "loc38015_old", e);
   check_vax_sched(json::parse(vaxsched::loc38015_young_json), "loc38015_young", e);
   check_socialparams(json::parse(socialparams_json), e);
@@ -625,6 +628,42 @@ void test_input_verify_accepts_template_inputs() {
   CHECK(!e.any());
   CHECK(locale == 38015);
   CHECK(dovax == false);
+}
+
+void test_input_verify_reports_vaccine_variant_alignment_error() {
+  const fs::path case_dir = fs::temp_directory_path() /
+                            test_support::unique_name("epi_sim_bad_vax_variant_case_");
+  const fs::path input_dir = case_dir / "input";
+  fs::create_directories(case_dir);
+  fs::copy(test_support::template_params_dir(), input_dir,
+           fs::copy_options::recursive);
+
+  json config = parse_config();
+  config["dovax"] = true;
+  {
+    std::ofstream out(input_dir / "config.json");
+    out << config.dump(2) << '\n';
+  }
+
+  json vaccines = json::parse(vaccines_json);
+  vaccines["Pfizer"]["effectiveness"]["full"].erase("alpha");
+  {
+    std::ofstream out(input_dir / "vaccines.json");
+    out << vaccines.dump(2) << '\n';
+  }
+
+  const fs::path original_cwd = fs::current_path();
+  fs::current_path(case_dir);
+  expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
+  fs::current_path(original_cwd);
+
+  std::ifstream error_log(case_dir / "input-error-log.txt");
+  std::ostringstream report;
+  report << error_log.rdbuf();
+  CHECK(report.str().find("effectiveness('full'): missing factor for variant 'alpha'") !=
+        std::string::npos);
+
+  fs::remove_all(case_dir);
 }
 
 void test_check_config_rejects_missing_days() {
@@ -753,6 +792,19 @@ void test_check_vaccines_rejects_missing_int_key() {
   CHECK(has_error_containing(e, "missing required key 'halflife'"));
 }
 
+void test_check_vaccine_variant_alignment_rejects_missing_factors() {
+  Errors e;
+  json variants = json::parse(variants_json);
+  json vaccines = json::parse(vaccines_json);
+  vaccines["Pfizer"]["infectfactor"].erase("alpha");
+  vaccines["Pfizer"]["effectiveness"]["full"].erase("alpha");
+
+  input_verify_detail::check_vaccine_variant_alignment(variants, vaccines, e);
+
+  CHECK(has_error_containing(e, "infectfactor: missing factor for variant 'alpha'"));
+  CHECK(has_error_containing(e, "effectiveness('full'): missing factor for variant 'alpha'"));
+}
+
 void test_check_vax_sched_rejects_mix_bad_sum() {
   Errors e;
   json s = json::parse(vaxsched::loc38015_old_json);
@@ -842,6 +894,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_vax_sched_set_rejects_missing_directory();
   test_load_vax_sched_set_rejects_non_directory_path();
   test_input_verify_accepts_template_inputs();
+  test_input_verify_reports_vaccine_variant_alignment_error();
   test_check_config_rejects_missing_days();
   test_write_error_log_writes_complete_report();
   test_check_config_rejects_nonpositive_days();
@@ -854,6 +907,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_check_variants_rejects_wrong_progression_row_length();
   test_check_variants_rejects_progression_row_bad_sum();
   test_check_vaccines_rejects_missing_int_key();
+  test_check_vaccine_variant_alignment_rejects_missing_factors();
   test_check_vax_sched_rejects_mix_bad_sum();
   test_check_vax_sched_rejects_bad_dayrange_length();
   test_check_socialparams_rejects_missing_key();

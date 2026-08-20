@@ -43,6 +43,7 @@ void check_config(const json& cfg, Errors& e,
 
 void check_variants(const json& j, Errors& e);
 void check_vaccines(const json& j, Errors& e);
+void check_vaccine_variant_alignment(const json& variants, const json& vaccines, Errors& e);
 void check_vax_sched(const json& j, std::string_view label, Errors& e);
 void check_socialparams(const json& j, Errors& e);
 void check_seed(const json& j, Errors& e);

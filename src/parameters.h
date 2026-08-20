@@ -199,7 +199,7 @@ struct ProgressionSet {  // collection of all variants
   }
 };
 
-struct VaxParams {
+struct Vaxparam {
   int reqdshots{1};
   int delay2ndshot{0}; // how to encode 'nothing'?
   int delaybooster{0}; // ditto
@@ -246,10 +246,10 @@ struct VaxParams {
 
 
 struct VaxSet {
-  vector<VaxParams> params{};
+  vector<Vaxparam> params{};
   vector<std::string> names{"none"};
 
-  const VaxParams& at(Vax vax) const {
+  const Vaxparam& at(Vax vax) const {
     const size_t vax_idx = idx(vax);
     if (vax_idx == 0 || vax_idx >= params.size()) {
       throw std::runtime_error("Invalid vaccine lookup for VaxSet");

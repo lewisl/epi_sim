@@ -163,7 +163,7 @@ inline size_t require_locale_index(const GeoData& geodata, int locale) {
   return static_cast<size_t>(std::distance(geodata.fips.begin(), it));
 }
 
-inline const VaxParams& require_vax(const VaxSet& vaxset, string_view name) {
+inline const Vaxparam& require_vax(const VaxSet& vaxset, string_view name) {
   const auto it = std::find(Vax::names.begin(), Vax::names.end(), name);
   REQUIRE(it != Vax::names.end());
   return vaxset.at(Vax{static_cast<uint8_t>(std::distance(Vax::names.begin(), it))});

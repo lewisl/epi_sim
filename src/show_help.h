@@ -63,13 +63,15 @@ inline constexpr std::string_view parameters_help = R"TAG(
 Parameters Help
 
 The following parameter files are placed in the input directory of a case directory:
-- config.json      Essential parameters that drive the simulation, including:
+- config.json       Must use this name!
+                    Essential parameters that drive the simulation, including:
                       - length in days;
                       - the calendar date your epidemic begins;
                       - the age distribution of your population by 20 year cohorts;
                       - a brief description
                       - the file names for the other parameter files (best to 
                         just use the provided defaults);
+                      - see config help for more information.
 - geodata.csv       The population of several cities. Feel free to create one or more "fake" cities.
 - variants.json     Variants of a virus pathogen and infectiousness and recovery 
                     characteristics of each variant.
@@ -89,6 +91,7 @@ The following parameter files are placed in the input directory of a case direct
 
 inline constexpr std::string_view config_help = R"TAG(
 Config Help
+-------------
 
 The keys, default values, and meaning of each entry in config.json:
 
@@ -105,7 +108,8 @@ The keys, default values, and meaning of each entry in config.json:
   "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],  // fraction of population each age group:  0-19, 20-29, 
                                                     // 40-59, 60-79, 80 and over
   "case_desc": "young: no distancing; old: rigorous; Moderna 50pct", // optional description
-  // the following parameters are the names of the other input parameter files:
+  // the following parameters are the names of the other parameter files 
+  // in the input directory: (best to use these default names)
   "geodata":           "geodata.csv",
   "variants":          "variants.json",
   "social_params":     "socialparams.json",
@@ -114,11 +118,12 @@ The keys, default values, and meaning of each entry in config.json:
   "vax_sched_dir":     "vaccine_100k",
   "rings":             "rings.json",
   "social_dist":       "soc_dist.json",
-  "output":             "output"    // the output directory for the case
+  "output":             "output"          // the output directory for the case
 }
 )TAG";
 
-inline constexpr std::string_view seed_help = R"TAG(Seed Help
+inline constexpr std::string_view seed_help = R"TAG(
+Seed Help
 _________
 
 seed.json controls scheduled changes to individual people, usually to introduce

@@ -210,8 +210,7 @@ bool is_backspace_event(const Event& event) {
          event.input() == "\b";
 }
 
-bool handle_menu_event(ScreenInteractive& screen, MenuState& state,
-                       Event event) {
+bool handle_menu_event(ScreenInteractive& screen, MenuState& state, Event event) {
   if (is_cancel_event(event)) {
     cancel_menu(screen, state);
     return true;

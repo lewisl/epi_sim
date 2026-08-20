@@ -286,6 +286,56 @@ void check_vaccines(const json& j, Errors& e) {
   }
 }
 
+void check_vaccine_variant_alignment(const json& variants, const json& vaccines, Errors& e) {
+  if (!variants.is_object() || !vaccines.is_object()) return;
+
+  constexpr std::array<std::string_view, 3> shot_statuses = {
+      "first", "full", "booster"};
+
+  auto check_variant_factors = [&](const json& factors, std::string_view factor_ctx) {
+    if (!factors.is_object()) return;
+
+    for (const auto& [variant, unused] : variants.items()) {
+      if (!factors.contains(variant)) {
+        e.add(fmt::format("{}: missing factor for variant '{}' declared in variants.json.",
+                          factor_ctx, variant));
+      }
+    }
+    for (const auto& [variant, unused] : factors.items()) {
+      if (!variants.contains(variant)) {
+        e.add(fmt::format("{}: unknown variant '{}'; it is not declared in variants.json.",
+                          factor_ctx, variant));
+      }
+    }
+  };
+
+  for (const auto& [vaccine, body] : vaccines.items()) {
+    if (!body.is_object()) continue;
+    const std::string vaccine_ctx = fmt::format("vaccines.json vaccine '{}'", vaccine);
+
+    if (body.contains("infectfactor")) {
+      check_variant_factors(body["infectfactor"], vaccine_ctx + " infectfactor");
+    }
+
+    if (!body.contains("effectiveness") || !body["effectiveness"].is_object()) continue;
+    const auto& effectiveness = body["effectiveness"];
+    for (const auto shot : shot_statuses) {
+      if (!effectiveness.contains(shot)) {
+        e.add(fmt::format("{} effectiveness: missing required shot status '{}'.",
+                          vaccine_ctx, shot));
+        continue;
+      }
+      check_variant_factors(effectiveness[shot],
+                            fmt::format("{} effectiveness('{}')", vaccine_ctx, shot));
+    }
+    for (const auto& [shot, unused] : effectiveness.items()) {
+      if (std::find(shot_statuses.begin(), shot_statuses.end(), shot) == shot_statuses.end()) {
+        e.add(fmt::format("{} effectiveness: unknown shot status '{}'.", vaccine_ctx, shot));
+      }
+    }
+  }
+}
+
 
 //
 // check specific vax_sched schedules
@@ -534,15 +584,16 @@ void input_verify(const fs::path& input_dir) {
       };
 
       auto verify_json_file = [&](const char* key, std::string_view label,
-                                  void (*checker)(const json&, Errors&)) {
+                                  void (*checker)(const json&, Errors&)) -> std::optional<json> {
         const auto p = resolve(key);
-        if (!p) return;
+        if (!p) return std::nullopt;
         if (!fs::exists(*p)) {
           err.add(fmt::format("{}: file '{}' does not exist.", label, p->string()));
-          return;
+          return std::nullopt;
         }
         const auto j = try_load_json(*p, label, err);
         if (j) checker(*j, err);
+        return j;
       };
 
   //
@@ -550,7 +601,7 @@ void input_verify(const fs::path& input_dir) {
   //
 
       verify_json_file("seed", "seed.json", check_seed);
-      verify_json_file("variants", "variants.json", check_variants);
+      const auto variants = verify_json_file("variants", "variants.json", check_variants);
       verify_json_file("social_params", "socialparams.json", check_socialparams);
 
       if (const auto geo = resolve("geodata")) {
@@ -561,7 +612,9 @@ void input_verify(const fs::path& input_dir) {
       }
 
       if (dovax) {
-        verify_json_file("vaccines", "vaccines.json", check_vaccines);
+        const auto vaccines = verify_json_file("vaccines", "vaccines.json", check_vaccines);
+        if (variants && vaccines)
+          check_vaccine_variant_alignment(*variants, *vaccines, err);
         if (const auto dir = resolve("vax_sched_dir")) {
           if (!fs::exists(*dir))
             err.add(fmt::format("vax_sched_dir: '{}' does not exist.", dir->string()));

@@ -14,13 +14,13 @@ AllSeries make_series(const PopData& pop, size_t day_cnt) {
 }
 
 VaxSet make_pfizer_set(int reqdshots, int delay2ndshot, int delaybooster) {
-  VaxParams pfizer;
+  Vaxparam pfizer;
   pfizer.reqdshots = reqdshots;
   pfizer.delay2ndshot = delay2ndshot;
   pfizer.delaybooster = delaybooster;
 
   VaxSet vaxset;
-  vaxset.params.push_back(VaxParams{});
+  vaxset.params.push_back(Vaxparam{});
   vaxset.params.push_back(pfizer);
   return vaxset;
 }
@@ -183,9 +183,9 @@ void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
   AllSeries series = make_series(pop, 20);
 
   VaxSet vaxset;
-  vaxset.params.push_back(VaxParams{});  // index 0: unused placeholder
-  vaxset.params.push_back(VaxParams{});  // index 1: pfizer, single-dose
-  vaxset.params.push_back(VaxParams{});  // index 2: moderna, single-dose
+  vaxset.params.push_back(Vaxparam{});  // index 0: unused placeholder
+  vaxset.params.push_back(Vaxparam{});  // index 1: pfizer, single-dose
+  vaxset.params.push_back(Vaxparam{});  // index 2: moderna, single-dose
 
   PerVaxSpec pfizer_spec;
   pfizer_spec.vax = Vax{1};

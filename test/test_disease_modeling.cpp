@@ -91,7 +91,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
     infectparams[1].recovery_immunity = {0.0f, 0.5f};
     infectparams[1].immunehalflife = 120;
 
-    VaxParams pfizer;
+    Vaxparam pfizer;
     pfizer.halflife = 180;
     pfizer.full_effect_days = 14;
     pfizer.day1_effect = 0.65f;
@@ -102,7 +102,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
         {"booster", {{"base", 0.95f}}},
     };
     VaxSet vaxset;
-    vaxset.params.push_back(VaxParams{});
+    vaxset.params.push_back(Vaxparam{});
     vaxset.params.push_back(pfizer);
     pop.vaxstatus[1] = Vaxstat::full;
     pop.vax[1] = Vax{1};
@@ -304,7 +304,7 @@ void test_vaxeffect_uses_scalar_latest_vax() {
   pop.vax_hist[1].count = 0;
   pop.vaxday_hist[1].count = 0;
 
-  VaxParams pfizer;
+  Vaxparam pfizer;
   pfizer.halflife = 180;
   pfizer.full_effect_days = 14;
   pfizer.day1_effect = 0.65f;
@@ -316,7 +316,7 @@ void test_vaxeffect_uses_scalar_latest_vax() {
   };
 
   VaxSet vaxset;
-  vaxset.params.push_back(VaxParams{});
+  vaxset.params.push_back(Vaxparam{});
   vaxset.params.push_back(pfizer);
 
   const float protected_factor = vaxeffect(20, pop.agent(1), vaxset, 1);

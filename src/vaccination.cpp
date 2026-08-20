@@ -13,7 +13,7 @@
 // internal helpers
 // ---------------------------------------------------------------
 
-static const VaxParams& vax_params(const VaxSet& vaxset, Vax vax) {
+static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax) {
     return vaxset.at(vax);
 }
 
