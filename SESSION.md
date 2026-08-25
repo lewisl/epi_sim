@@ -2,56 +2,101 @@
 
 ## Current State
 
-Spread optimization recommendation 4 is complete.
+The `AllSeries` column-table refactor is complete.
 
-- `vaxeffect()` uses direct numeric lookup for vaccine infect factors and
-  effectiveness rather than string searches.
-- `VaxParams::infectfactor` and each effectiveness row are dense tables of
-  real variants/statuses: they omit the index-0 `none` sentinel. Convert the
-  compact one-based `Variant` and `Vaxstatus` IDs with `zidx()` before indexing.
-- The ordered lookup relies on the loader's canonical iteration order:
-  `Variant::names` for each factor row, and `first`, `full`, `booster` for
-  effectiveness rows.
+- `SeriesGroup` and its six named `AllSeries` members were removed.
+- `AllSeries` owns private `std::vector<std::vector<std::int32_t>>` storage.
+- Six `SeriesBlock` descriptors represent status, vaccine, and variant in
+  `now` and `new` phases.
+- Physical column order is `block -> subject -> ring -> age bucket`, with age
+  bucket fastest:
 
-`input_verify()` now enforces the cross-file invariant when vaccination is
-enabled: every vaccine's `infectfactor` and all three effectiveness rows must
-have exactly the variants declared in `variants.json`; unknown variants or shot
-statuses are reported as errors. It reports every error to stderr, writes
-`input-error-log.txt`, and throws before parameter loading or simulation.
+  ```text
+  base + subject * (ring_count * bucket_count)
+       + ring * bucket_count
+       + bucket
+  ```
 
-The parameters suite includes an end-to-end bad-case test. It builds a
-temporary otherwise-valid case, removes Pfizer's `full`/`alpha` factor, then
-verifies that `input_verify()` reports, logs, and rejects it.
+- Day vectors remain 1-based and have `day_cnt + 1` cells.
+- `now_*` descriptors are stock blocks and are carried forward in full;
+  `new_*` descriptors are zero-initialized flow blocks.
+- `update()` preserves the four-write ring/age aggregation rule and the
+  `RING_ALL` double-count guard.
+- Day-1 `UNEXPOSED` seeding remains aggregate-ring only.
+- Vaccinated totals remain read-time sums of non-sentinel vaccine brands.
+- `finalize_series()` remains empty, and the variant invariant is preserved.
 
-Latest validation:
+String `SeriesColSpec` values remain output selectors rather than a collection
+schema. The resolver maps status, vaccine, and variant names to numeric outer
+columns. Numeric ring aliases now intentionally produce canonical registered
+ring names in output labels.
 
-- `xmake run test`: 657 checks passed.
-- `xmake run test runsim`: 30 checks passed.
-- The direct lookup reduced one measured spread timing from about 0.087 to
-  0.084 seconds (about 3.5%) while preserving output for the measured case.
+Disease transitions, vaccination, tests, and the R0-simulation read use the
+typed block API. Printing, serialization, and plotting continue to share
+`ResolvedSeriesSelection`.
 
-## Serena MCP
+## Deterministic Equivalence
 
-- `.serena/project.yml` now uses Serena 1.5.3's `languages` field for C++ and
-  explicitly points it at Homebrew LLVM's clangd.
-- The project-targeted Codex MCP entry stores Serena state and clangd's index
-  cache under the ignored `.serena/` directory, with the optional dashboard
-  disabled. MCP initialization and a C++ symbol-overview call succeeded.
+The `runsim` fixture now enables vaccination and two real rings, retains its
+returned `AllSeries`, and serializes all canonical selections over all six age
+buckets for the aggregate ring and both real rings.
 
-## Next Steps
+An initial old/new comparison was invalid because `runsim()` seeded the RNG
+only after `build_model()` had already shuffled population ages and ring
+assignments. The fixture now calls `xo::seed(424242)` before model construction;
+`runsim()` continues to use its existing simulation seed.
 
-1. Extend `test runsim` with a case that enables vaccination and rings; its
-   current fixture covers neither path.
-2. Diagnose browser plot-loading separately from simulation correctness.
-3. Resume spread recommendation 7 and measure it independently, preserving
-   probabilities, RNG call/order, and serialized output.
+The valid legacy baseline was built from an isolated `git archive` of the
+pre-refactor revision, using the corrected deterministic fixture. It did not
+modify the working tree.
+
+- Legacy file: 181 lines, 236,662 bytes.
+- Refactored file: 181 lines, 236,662 bytes.
+- SHA-256 for both:
+  `100d830a2fd0aa777f3fa0fff15f2b006390990c9bed4e8e77ce7f6678df2ca0`
+- `cmp` result: byte-identical (exit 0).
+- Isolated copies for this session:
+  `/private/tmp/epi_sim_history_refactor.FKgUZL/deterministic_before.csv` and
+  `/private/tmp/epi_sim_history_refactor.FKgUZL/deterministic_after.csv`.
+
+Reported history timing for the deterministic pair:
+
+- Legacy: `0.0043340070000005395` seconds.
+- Refactored: `0.004089508000002008` seconds.
+- Single-run change: about `-5.64%`.
+
+Timing is informational, not a pass/fail gate.
+
+## Validation
+
+- `xmake run test series`: 104 checks passed.
+- `xmake run test disease_modeling`: 44 checks passed.
+- `xmake run test vaccination`: 97 checks passed.
+- `xmake run test plot`: 25 checks passed.
+- `xmake build epi_sim`: passed.
+- `xmake run test`: 706 checks passed.
+- `xmake run test runsim --artifacts`: 34 checks passed.
+- Deterministic comprehensive CSV: byte-identical to the legacy baseline.
+
+## Follow-ups
+
+1. Continue the outcome-inventory and terminology discussion recorded in
+   `design/series_refinement.md`. Do not change the selection API or collection
+   layout until the desired collected and derived series are clear.
+2. Examine plots produced from the new dense table before deciding whether more
+   trait combinations are useful.
+3. Decide whether vaccination-status or condition history should be collected
+   and which transition events define their `now` and `new` series.
+4. Consider a collection schema or ring/age pruning only after output
+   requirements are understood.
+5. Decide separately whether day-1 per-ring `UNEXPOSED` stocks should be seeded;
+   this refactor preserves the prior aggregate-only behavior.
+6. Resume spread recommendation 7 independently, preserving probabilities,
+   RNG call/order, and serialized output.
 
 ## Working Constraints
 
 - Use xmake only and always name the target.
-- `xmake run test` intentionally excludes `runsim`; run
-  `xmake run test runsim` explicitly when full coverage is needed.
-- `Model::headless = true` lets tests call `runsim()` without normal outputs or
-  browser activity.
-- Preserve compact numeric trait IDs in population data and direct indexed
-  access in hot simulation paths.
+- `xmake run test` intentionally excludes `runsim`; run it explicitly.
+- Preserve compact numeric trait IDs and direct indexed access in hot paths.
+- Preserve unrelated worktree changes.

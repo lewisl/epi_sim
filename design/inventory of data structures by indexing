@@ -1,6 +1,7 @@
 # Indexing Inventory
 
-_No `DayData` type exists in the current code. Its role is implemented by `AllSeries` and `SeriesGroup`._
+_No `DayData` type exists in the current code. Its role is implemented by the
+column table in `AllSeries`._
 
 ## 1-indexed storage
 
@@ -21,20 +22,34 @@ _No `DayData` type exists in the current code. Its role is implemented by `AllSe
 
 ## Series: mixed indexing
 
-`AllSeries` has six named groups: `now_status`, `new_status`, `now_vax`, `new_vax`, `now_variant`, and `new_variant`.
+`AllSeries` owns a private outer vector of columns. Six `SeriesBlock` values
+identify contiguous ranges for `now_status`, `new_status`, `now_vax`,
+`new_vax`, `now_variant`, and `new_variant`. Each range has a descriptor with
+its base column and strides.
 
 ```text
-subjects[subject_id][ring_id][age_bucket][simulation_day]
+cols[column_index(block, subject_id, age_bucket, ring_id)][simulation_day]
+
+column_index = block_base
+             + subject_id * (ring_count * bucket_count)
+             + ring_id * bucket_count
+             + age_bucket
 ```
 
 | Dimension | Indexing |
 |---|---|
+| `block` | Zero-based `SeriesBlock` identifier. Block order is status now/new, vaccine now/new, then variant now/new. |
 | `subject_id` | Raw `Status`, `Vax`, or `Variant` ID. Slot 0 exists as the respective `"none"` sentinel and is normally not reported. Real values begin at 1. |
 | `ring_id` | `0` is valid: `RING_ALL`, the all-rings aggregate. Real rings are `1..N`. |
 | `age_bucket` | Fully zero-based. `0` is valid and means `total`; `1..5` are the concrete age buckets. |
 | `simulation_day` | 1-based. Every leaf vector has `day_cnt + 1` elements; day 0 is unused. |
 
-The public printing and CSV-writing paths iterate days `1..day_cnt`. The vaccinated-total helper retains the unused zero slot when it builds a summed vector. See [series.h](/Users/lewislevin/code/epi_sim/src/series.h:39) and [series.cpp](/Users/lewislevin/code/epi_sim/src/series.cpp:30).
+The physical order is `block -> subject -> ring -> age bucket`, with age
+bucket fastest. The public printing and CSV-writing paths iterate days
+`1..day_cnt`. The vaccinated-total materializer retains the unused day-zero
+slot when it sums non-sentinel vaccine-brand columns. See
+[series.h](/Users/lewislevin/code/epi_sim/src/series.h) and
+[series.cpp](/Users/lewislevin/code/epi_sim/src/series.cpp).
 
 ## Zero-based or compact parameter storage
 

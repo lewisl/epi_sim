@@ -83,8 +83,8 @@ void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
 
   CHECK(vaccinated_count(pop) == 1);
   CHECK(schedset.schedules[0].second.vaxesincluded[0].doses == 0);
-  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
-  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
+  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
 }
 
 void test_vaccinate_uses_scalar_recovday_eligibility() {
@@ -113,7 +113,7 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   CHECK(pop.vax_hist[1].count == 1);
   CHECK(pop.vax_hist[2].count == 1);
   CHECK(pop.vax_hist[3].count == 0);
-  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 2);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[20] == 2);
 }
 
 void test_vaccinate_second_shot_after_delay() {
@@ -141,7 +141,7 @@ void test_vaccinate_second_shot_after_delay() {
   CHECK(pop.vax_hist[1].count == 2);
   CHECK(pop.vax_hist[1].latest() == Vax{1});
   CHECK(pop.vaxday_hist[1].latest() == 10);
-  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == 0);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 0);
 }
 
 void test_vaccinate_booster_after_delay() {
@@ -168,7 +168,7 @@ void test_vaccinate_booster_after_delay() {
   CHECK(pop.vaxday[1] == 20);
   CHECK(pop.vax_hist[1].count == 2);
   CHECK(pop.vaxday_hist[1].latest() == 20);
-  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
 }
 
 void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
@@ -237,10 +237,14 @@ void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
   CHECK(result_specs[0].doses == popn - pfizer_count);
   CHECK(result_specs[1].doses == popn - moderna_count);
 
-  CHECK(series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == pfizer_count);
-  CHECK(series.new_vax.at(uint8_t(Vax{2}), AgeBucket::total)[10] == moderna_count);
-  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] == pfizer_count);
-  CHECK(series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[10] == moderna_count);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] ==
+        pfizer_count);
+  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{2}), AgeBucket::total)[10] ==
+        moderna_count);
+  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[10] ==
+        pfizer_count);
+  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{2}), AgeBucket::total)[10] ==
+        moderna_count);
 }
 
 void test_vax_history_overflow_retains_latest_days() {
@@ -287,8 +291,10 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     artifact << "  vaccinated_count: " << vaccinated_count(pop) << "\n";
     artifact << "  remaining doses: " << schedset.schedules[0].second.vaxesincluded[0].doses << "\n";
     artifact << "  new_vax/now_vax day10: "
-             << series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] << "/"
-             << series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[10] << "\n\n";
+             << series.at(SeriesBlock::new_vax, uint8_t(Vax{1}),
+                          AgeBucket::total)[10] << "/"
+             << series.at(SeriesBlock::now_vax, uint8_t(Vax{1}),
+                          AgeBucket::total)[10] << "\n\n";
   }
 
   {
@@ -307,7 +313,8 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     artifact << "  statuses: " << pop.vaxstatus[1].show() << ", "
              << pop.vaxstatus[2].show() << ", " << pop.vaxstatus[3].show() << "\n";
     artifact << "  new_vax day20: "
-             << series.new_vax.at(uint8_t(Vax{1}), AgeBucket::total)[20] << "\n\n";
+             << series.at(SeriesBlock::new_vax, uint8_t(Vax{1}),
+                          AgeBucket::total)[20] << "\n\n";
   }
 
   {

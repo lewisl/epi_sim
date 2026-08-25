@@ -1,5 +1,12 @@
 # HistorySeries
 
+> **Superseded legacy description.** This document describes an earlier
+> `HistorySeries` implementation that no longer exists. Current history storage
+> uses the flat `AllSeries` column table documented in
+> [series_hierarchy.md](series_hierarchy.md). Keep this note only as historical
+> context; do not use its types, dimensions, or finalization behavior when
+> changing current code.
+
 `HistorySeries` stores the simulation's day-by-day aggregate counts for a fixed set of epidemiological series, split by age bucket.
 
 The physical layout is:

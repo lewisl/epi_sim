@@ -354,7 +354,8 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
 
     } // end persons loop
 
-    rt_infected += rtseries.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[d];
+    rt_infected += rtseries.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
+                               AgeBucket::total)[d];
 
   }   // end day loop
 

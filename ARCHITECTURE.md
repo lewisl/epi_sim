@@ -41,12 +41,12 @@ epi_sim is a C++23 epidemiological simulation framework for modeling disease spr
 │  │                   └─────────────┘                                      │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                    │   │
 │  │  │   Config    │  │  AllSeries  │  │  Ring Data  │                    │   │
-│  │  │ - ndays     │  │ - now_status│  │ - members   │                    │   │
-│  │  │ - locale    │  │ - new_status│  │ - lengths   │                    │   │
-│  │  │ - dovax     │  │ - now_vax   │  │             │                    │   │
-│  │  │ - debug     │  │ - new_vax   │  │             │                    │   │
-│  │  └─────────────┘  │ - now_var   │  └─────────────┘                    │   │
-│  │                   │ - new_var   │                                     │   │
+│  │  │ - ndays     │  │ - col map   │  │ - members   │                    │   │
+│  │  │ - locale    │  │ - 6 blocks  │  │ - lengths   │                    │   │
+│  │  │ - dovax     │  │ - cols×days │  │             │                    │   │
+│  │  │ - debug     │  │ - age/ring  │  │             │                    │   │
+│  │  └─────────────┘  │   views     │  └─────────────┘                    │   │
+│  │                   │             │                                     │   │
 │  │                   └─────────────┘                                     │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -85,7 +85,7 @@ epi_sim is a C++23 epidemiological simulation framework for modeling disease spr
 │                                   ▼                                         │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │                    finalize_series()                                 │  │
-│  │                    (compute cumulative stats)                        │  │
+│  │                    (currently no-op)                                 │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -139,17 +139,20 @@ if (person.status() == INFECTIOUS) { ... }
 
 ### AllSeries (Time-Series Statistics)
 - **Purpose**: Accumulates daily statistics across multiple dimensions
-- **Structure**:
+- **Storage**: One private `std::vector<std::vector<std::int32_t>>`, where each
+  outer element is a history column and each inner vector contains days
+  `0..day_cnt` (day 0 unused)
+- **Logical blocks**:
   ```
-  AllSeries
-  ├── now_status (current state by status, age, ring, day)
-  ├── new_status (new events by status, age, ring, day)
-  ├── now_vax (current vaccination state)
-  ├── new_vax (new vaccinations)
-  ├── now_variant (current infections by variant)
-  └── new_variant (new infections by variant)
+  now_status, new_status
+  now_vax, new_vax
+  now_variant, new_variant
   ```
-- **Indexing**: 1-based for days, supports age buckets and ring aggregation
+- **Column order**: block → subject → ring → age bucket, with age bucket fastest
+- **Indexing**: Subject IDs use their raw trait values; ring 0 is `RING_ALL`;
+  age bucket 0 is `total`; days are 1-based
+- **Selection**: String specifications are resolved after the run to numeric
+  outer-column indices; they do not control collection
 
 ## Key Components
 
@@ -190,9 +193,12 @@ if (person.status() == INFECTIOUS) { ... }
 - Decay functions: linear, exponential, sigmoidal
 
 ### series.cpp/h - Statistics Collection
-- `AllSeries` - Multi-dimensional time-series container
-- `update()` - Record events with ring aggregation
-- `finalize_series()` - Compute cumulative statistics
+- `SeriesColumnMap` - Block bases, subject/ring strides, and stock/flow metadata
+- `AllSeries` - Dense column table with typed numeric access
+- `update()` - Record one event in its ring/age cell and both aggregates
+- `init_history_series()` - Carry stock-block columns into the next day
+- `finalize_series()` - Intentionally empty; no post-run rollup is required
+- `resolve_selected_series()` - Convert output selectors to canonical columns
 - Serialization and plotting support
 
 ### plot.cpp/h - Visualization
@@ -225,7 +231,7 @@ runsim(Model)
     │       └── progression() → state changes → AllSeries
     │
     ▼
-finalize_series() → cumulative statistics
+finalize_series() → no-op (aggregates already maintained or resolved on read)
     │
     ▼
 Output: CSV files, HTML plots, summary statistics
@@ -246,7 +252,8 @@ Output: CSV files, HTML plots, summary statistics
 - Pass by value (cheap - contains reference + index)
 
 ### Series Aggregation
-- Multi-dimensional statistics (status × age × ring × day)
+- Six parallel status/vaccine/variant blocks; these traits are not a Cartesian product
+- Dense subject × ring × age-bucket columns within each block, followed by day values
 - Ring-specific + aggregate (RING_ALL) tracking
 - Efficient update with mirror-writes for aggregates
 - Supports flexible querying and visualization

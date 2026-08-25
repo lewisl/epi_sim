@@ -3,6 +3,7 @@
 #include "../src/cases.h"
 #include "../src/param_init.h"
 #include "../src/parameters.h"
+#include "../src/random.h"
 #include "../src/setup.h"
 #include "../src/sim.h"
 
@@ -47,6 +48,20 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
       test_support::home_dir() / test_support::unique_name("epi_sim_test_runsim_case_");
   setup_dir(case_dir.string());
 
+  const fs::path config_path = case_dir / "input" / "config.json";
+  json config = load_json_params(config_path.string());
+  config["dovax"] = true;
+  config["do_rings"] = true;
+  {
+    std::ofstream out(config_path);
+    REQUIRE(out.good());
+    out << config.dump(2);
+  }
+
+  // Model construction shuffles realized age groups and ring assignments.
+  // Seed before build_model as well as relying on runsim's own fixed seed so
+  // this fixture is reproducible across separate old/new binaries.
+  xo::seed(424242);
   Model model = build_model(case_dir);
   // Exercises sanitize_filename_component's path-safety stripping (src/helpers.cpp) --
   // the only test in the suite that checks it.
@@ -55,10 +70,14 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(model.seedcases.size() == 2);
   CHECK(model.sd_cases.empty());
   CHECK(model.ndays == 180);
+  CHECK(model.dovax);
+  CHECK(model.do_rings);
+  CHECK(Vax::names.size() > 1);
+  CHECK(Ring::names.size() > 1);
 
   const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from the scaffolded seed.json
 
-  runsim(model);
+  AllSeries series = runsim(model);
 
   const RunsimResult r = tally(model.pop);
 
@@ -87,6 +106,18 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(plot_count == 4);
 
   if (options.write_artifacts) {
+    SeriesColSpec comprehensive("all");
+    const auto aggregate_selections = comprehensive.selections;
+    for (size_t ring = 1; ring < Ring::names.size(); ++ring) {
+      for (auto selection : aggregate_selections) {
+        selection.ring = Ring::names[ring];
+        comprehensive.selections.push_back(std::move(selection));
+      }
+    }
+    serialize_selected_series(
+        std::move(comprehensive), series,
+        test_support::artifact_group_dir(options, GROUP) / "history_full.csv");
+
     std::ostringstream artifact;
     artifact << "Runsim end-to-end summary\n";
     artifact << "=========================\n\n";

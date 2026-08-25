@@ -3,6 +3,7 @@
 #include "lib_includes.h"
 #include "parameters.h"
 #include "population.h"
+#include <cstdint>
 #include <initializer_list>
 
 
@@ -41,62 +42,127 @@ inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
     return std::nullopt;
 }
 
+AgeBucket bucket_from_age(Agegrp agegrp);
 
-/*
-SeriesGroup: one group of series data, indexed first by subject (trait uint8_t value),
-then by ring id (0 = RING_ALL aggregate), then by age bucket, then by simulation day
-(1-based; slot 0 unused).
-
-Usage:
-  SeriesGroup sg(n_subjects, n_rings, day_cnt);
-  sg.update(INFECTIOUS, ring, agegrp, today, 1);  // writes per-ring + RING_ALL aggregate
-  int v = sg.at(INFECTIOUS, AgeBucket::total)[day];           // defaults to RING_ALL
-  int v = sg.at(INFECTIOUS, AgeBucket::total, ring_id)[day];  // specific ring
-*/
-struct SeriesGroup {
-    using BucketArray = std::array<std::vector<int>, size_t(AgeBucket::COUNT)>;  // one ring's age buckets
-    using RingArray   = std::vector<BucketArray>;  // indexed by ring id (0 = RING_ALL)
-
-    std::vector<RingArray> subjects;  // indexed by trait's uint8_t value
-    size_t day_cnt{};
-    size_t n_rings{};
-
-    SeriesGroup() = default;
-    SeriesGroup(size_t n_subjects, size_t n_rings, size_t day_cnt);
-
-    // Writes four cells per call: (ring, bucket), (ring, total),
-    // (RING_ALL, bucket), (RING_ALL, total). The RING_ALL mirror-writes
-    // accumulate the all-rings aggregate inline; the inner guard avoids
-    // double-counting when ring == RING_ALL (no-rings case).
-    void update(uint8_t subject_idx, uint8_t ring, Agegrp agegrp, size_t day, int change);
-
-    auto& at(uint8_t subject_idx, AgeBucket bucket, uint8_t ring = RING_ALL) {
-        return subjects[subject_idx][ring][size_t(bucket)];
-    }
-    auto const& at(uint8_t subject_idx, AgeBucket bucket, uint8_t ring = RING_ALL) const {
-        return subjects[subject_idx][ring][size_t(bucket)];
-    }
+enum class SeriesBlock : uint8_t {
+    now_status,
+    new_status,
+    now_vax,
+    new_vax,
+    now_variant,
+    new_variant,
+    COUNT
 };
+
+inline constexpr auto all_series_blocks = std::array{
+    SeriesBlock::now_status, SeriesBlock::new_status,
+    SeriesBlock::now_vax, SeriesBlock::new_vax,
+    SeriesBlock::now_variant, SeriesBlock::new_variant};
+
+static_assert(all_series_blocks.size() == size_t(SeriesBlock::COUNT));
+
+using SeriesValue = std::int32_t;
+using SeriesColumn = std::vector<SeriesValue>;
+using SeriesColumnIndex = size_t;
+
+struct SeriesBlockDescriptor {
+    SeriesColumnIndex base_col{};
+    size_t subject_count{};
+    size_t subject_stride{};
+    size_t ring_stride{};
+    size_t column_count{};
+    bool is_stock{};
+};
+
+class SeriesColumnMap {
+public:
+    SeriesColumnMap(size_t n_status, size_t n_vax, size_t n_variants,
+                    size_t n_rings);
+
+    [[clang::always_inline]] SeriesColumnIndex column_index(
+        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+        uint8_t ring = RING_ALL) const {
+        const auto& desc = descriptors_[size_t(block)];
+        return desc.base_col
+             + size_t(subject_idx) * desc.subject_stride
+             + size_t(ring) * desc.ring_stride
+             + size_t(bucket);
+    }
+
+    [[clang::always_inline]] const SeriesBlockDescriptor& descriptor(
+        SeriesBlock block) const {
+        return descriptors_[size_t(block)];
+    }
+
+    size_t n_rings() const { return n_rings_; }
+    size_t total_columns() const { return total_columns_; }
+
+private:
+    std::array<SeriesBlockDescriptor, size_t(SeriesBlock::COUNT)> descriptors_{};
+    size_t n_rings_{};
+    size_t total_columns_{};
+};
+
 
 /*
 AllSeries: top-level container for all time-series data in the simulation.
 
 Nesting:
   AllSeries (one instance, passed by reference everywhere)
-    6 SeriesGroup members (compile-time named fields)
-      vector of RingArray (indexed by trait uint8_t: Status, Vax, or Variant)
-        vector of BucketArray (indexed by ring id; 0 = RING_ALL aggregate)
-          array of 6 vector<int> (indexed by AgeBucket enum)
-            vector<int> (indexed by simulation day, 1-based; slot 0 unused)
+    vector of columns (indexed through SeriesColumnMap)
+      vector<int32_t> (indexed by simulation day, 1-based; slot 0 unused)
 */
 struct AllSeries {
-    SeriesGroup now_status, new_status;
-    SeriesGroup now_vax,    new_vax;
-    SeriesGroup now_variant, new_variant;
     size_t day_cnt;
 
     AllSeries(size_t day_cnt, const PopData& pop,
               size_t n_variants, size_t n_vax, size_t n_rings);
+
+    [[clang::always_inline]] SeriesColumnIndex column_index(
+        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+        uint8_t ring = RING_ALL) const {
+        return column_map_.column_index(block, subject_idx, bucket, ring);
+    }
+
+    [[clang::always_inline]] SeriesColumn& column(SeriesColumnIndex col) {
+        return cols_[col];
+    }
+    [[clang::always_inline]] const SeriesColumn& column(SeriesColumnIndex col) const {
+        return cols_[col];
+    }
+
+    [[clang::always_inline]] SeriesColumn& at(
+        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+        uint8_t ring = RING_ALL) {
+        return cols_[column_index(block, subject_idx, bucket, ring)];
+    }
+    [[clang::always_inline]] const SeriesColumn& at(
+        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+        uint8_t ring = RING_ALL) const {
+        return cols_[column_index(block, subject_idx, bucket, ring)];
+    }
+
+    [[clang::always_inline]] void update(
+        SeriesBlock block, uint8_t subject_idx, uint8_t ring, Agegrp agegrp,
+        size_t day, SeriesValue change) {
+        const auto& desc = column_map_.descriptor(block);
+        const size_t bucket = size_t(bucket_from_age(agegrp));
+        const size_t subject_base = desc.base_col + size_t(subject_idx) * desc.subject_stride;
+        const size_t ring_base = subject_base + size_t(ring) * desc.ring_stride;
+
+        cols_[ring_base + bucket][day] += change;
+        cols_[ring_base + size_t(AgeBucket::total)][day] += change;
+        if (ring != RING_ALL) {
+            cols_[subject_base + bucket][day] += change;
+            cols_[subject_base + size_t(AgeBucket::total)][day] += change;
+        }
+    }
+
+    const SeriesBlockDescriptor& block_descriptor(SeriesBlock block) const {
+        return column_map_.descriptor(block);
+    }
+    size_t n_rings() const { return column_map_.n_rings(); }
+    size_t column_count() const { return column_map_.total_columns(); }
 
     void init_history_series(size_t day);
     void finalize_series();
@@ -104,19 +170,11 @@ struct AllSeries {
     // Checks that sum(now_variant[v][total][day]) == now_status[INFECTIOUS][total][day]
     // for every simulated day. Throws on the first mismatch; prints OK if all pass.
     void validate_variant_invariant() const;
+
+private:
+    SeriesColumnMap column_map_;
+    std::vector<SeriesColumn> cols_;
 };
-
-
-AgeBucket bucket_from_age(Agegrp agegrp);
-
-// Resolves a (name, bucket, ring) triple to a day-indexed vector<int>.
-// For vax series, sums across all non-none brands (index > 0).
-// Ring defaults to RING_ALL (the all-rings aggregate). The name should
-// be the base name only (no "@ring:..." suffix); see parse_ring_suffix.
-// Returns nullopt if name is not recognized.
-std::optional<vector<int>> resolve_series(const AllSeries& series,
-                                          std::string_view name, AgeBucket bucket,
-                                          uint8_t ring = RING_ALL);
 
 // Maps a ring token (as it appears in SeriesSelection::ring) to a ring id.
 // "" → RING_ALL (all-rings aggregate). A decimal token is taken as a literal
@@ -172,7 +230,7 @@ private:
 
 struct ResolvedSeriesCol {
     std::string label;
-    std::vector<int> data;
+    SeriesColumn data;
 };
 
 struct ResolvedSeriesSelection {

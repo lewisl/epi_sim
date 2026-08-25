@@ -40,8 +40,10 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
     artifact << "  variant/sickday: " << person.variant().show() << "/"
              << person.sickday() << "\n";
     artifact << "  series new_infectious/new_variant(base): "
-             << series.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] << "/"
-             << series.new_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] << "\n\n";
+             << series.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
+                          AgeBucket::total)[1] << "/"
+             << series.at(SeriesBlock::new_variant, uint8_t(Variant{1}),
+                          AgeBucket::total)[1] << "\n\n";
   }
 
   {
@@ -78,8 +80,10 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
     artifact << "  status/deadday: " << person.status().show() << "/"
              << person.deadday() << "\n";
     artifact << "  now_dead/now_base_variant: "
-             << series.now_status.at(uint8_t(DEAD), AgeBucket::total)[1] << "/"
-             << series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] << "\n\n";
+             << series.at(SeriesBlock::now_status, uint8_t(DEAD),
+                          AgeBucket::total)[1] << "/"
+             << series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
+                          AgeBucket::total)[1] << "\n\n";
   }
 
   {
@@ -144,11 +148,16 @@ void test_make_sick_updates_state_and_series() {
   CHECK(person.sickday_hist().count == 1);
   CHECK(person.sickday_hist().latest() == 1);
 
-  CHECK(series.new_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] == 4);
-  CHECK(series.new_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] == 1);
-  CHECK(series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+                  AgeBucket::total)[1] == 4);
+  CHECK(series.at(SeriesBlock::new_variant, uint8_t(Variant{1}),
+                  AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
+                  AgeBucket::total)[1] == 1);
 }
 
 void test_make_well_updates_state_and_recovday_history() {
@@ -207,10 +216,14 @@ void test_make_dead_sets_death_state() {
   CHECK(person.deadday() == 1);
   CHECK(person.variant() == Variant{1});
 
-  CHECK(series.new_status.at(uint8_t(DEAD), AgeBucket::total)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(DEAD), AgeBucket::total)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 0);
-  CHECK(series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] == 0);
+  CHECK(series.at(SeriesBlock::new_status, uint8_t(DEAD),
+                  AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(DEAD),
+                  AgeBucket::total)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total)[1] == 0);
+  CHECK(series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
+                  AgeBucket::total)[1] == 0);
 }
 
 void test_recoveffect_uses_scalar_recovday() {

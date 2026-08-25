@@ -57,16 +57,16 @@ void AgentView::make_sick(Variant var,  AllSeries & series, Condition condition,
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
-  series.new_status.update(INFECTIOUS, r, this_age, today, 1);
-  series.now_status.update(INFECTIOUS, r, this_age, today, 1);
-  series.now_variant.update(var, r, this_age, today, 1);
-  series.new_variant.update(var, r, this_age, today, 1);
+  series.update(SeriesBlock::new_status, INFECTIOUS, r, this_age, today, 1);
+  series.update(SeriesBlock::now_status, INFECTIOUS, r, this_age, today, 1);
+  series.update(SeriesBlock::now_variant, var, r, this_age, today, 1);
+  series.update(SeriesBlock::new_variant, var, r, this_age, today, 1);
 
   if (status() == RECOVERED) {
-    series.now_status.update(RECOVERED, r, this_age, today, -1);
+    series.update(SeriesBlock::now_status, RECOVERED, r, this_age, today, -1);
   } else {
     if (status() == UNEXPOSED) {
-      series.now_status.update(UNEXPOSED, r, this_age, today, -1);
+      series.update(SeriesBlock::now_status, UNEXPOSED, r, this_age, today, -1);
     }
   }
   sim::history_timing.cum();
@@ -104,10 +104,10 @@ void AgentView::make_well(AllSeries & series) {    // the object is person--the 
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
-  series.now_status.update(RECOVERED,  r, this_age, today,  1);
-  series.new_status.update(RECOVERED,  r, this_age, today,  1);
-  series.now_status.update(INFECTIOUS, r, this_age, today, -1);
-  series.now_variant.update(variant(), r, this_age, today, -1);
+  series.update(SeriesBlock::now_status, RECOVERED,  r, this_age, today,  1);
+  series.update(SeriesBlock::new_status, RECOVERED,  r, this_age, today,  1);
+  series.update(SeriesBlock::now_status, INFECTIOUS, r, this_age, today, -1);
+  series.update(SeriesBlock::now_variant, variant(), r, this_age, today, -1);
   sim::history_timing.cum();
 
   cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
@@ -133,10 +133,10 @@ void AgentView::make_dead(AllSeries & series) {
     auto this_age = agegrp();
     auto r = ring().v;
     sim::history_timing.start();
-    series.now_status.update(DEAD,       r, this_age, today,  1);
-    series.new_status.update(DEAD,       r, this_age, today,  1);
-    series.now_status.update(INFECTIOUS, r, this_age, today, -1);
-    series.now_variant.update(variant(), r, this_age, today, -1);
+    series.update(SeriesBlock::now_status, DEAD,       r, this_age, today,  1);
+    series.update(SeriesBlock::new_status, DEAD,       r, this_age, today,  1);
+    series.update(SeriesBlock::now_status, INFECTIOUS, r, this_age, today, -1);
+    series.update(SeriesBlock::now_variant, variant(), r, this_age, today, -1);
     sim::history_timing.cum();
 
   // update the person: update deadday and status for the person

@@ -25,29 +25,36 @@ AgeBucket bucket_from_age(Agegrp agegrp) {
 }
 
 // ---------------------------------------------------------------
-// SeriesGroup
+// SeriesColumnMap
 // ---------------------------------------------------------------
 
-SeriesGroup::SeriesGroup(size_t n_subjects, size_t n_rings, size_t day_cnt)
-    : subjects(n_subjects), day_cnt(day_cnt), n_rings(n_rings) {
-    for (auto& ring_arr : subjects) {
-        ring_arr.resize(n_rings);
-        for (auto& bucket_arr : ring_arr) {
-            for (auto& v : bucket_arr) v.assign(day_cnt + 1, 0);  // days are 1-indexed
-        }
-    }
-}
+SeriesColumnMap::SeriesColumnMap(size_t n_status, size_t n_vax,
+                                 size_t n_variants, size_t n_rings)
+    : n_rings_(n_rings) {
+    const size_t ring_stride = size_t(AgeBucket::COUNT);
+    const size_t subject_stride = n_rings * ring_stride;
+    SeriesColumnIndex next_col = 0;
 
-void SeriesGroup::update(uint8_t subject_idx, uint8_t ring, Agegrp agegrp,
-                         size_t day, int change) {
-    auto bucket = size_t(bucket_from_age(agegrp));
-    auto& subj  = subjects[subject_idx];
-    subj[ring][bucket][day]                       += change;
-    subj[ring][size_t(AgeBucket::total)][day]     += change;
-    if (ring != RING_ALL) {
-        subj[RING_ALL][bucket][day]                   += change;
-        subj[RING_ALL][size_t(AgeBucket::total)][day] += change;
-    }
+    auto add_block = [&](SeriesBlock block, size_t subject_count, bool is_stock) {
+        const size_t column_count = subject_count * subject_stride;
+        descriptors_[size_t(block)] = {
+            .base_col = next_col,
+            .subject_count = subject_count,
+            .subject_stride = subject_stride,
+            .ring_stride = ring_stride,
+            .column_count = column_count,
+            .is_stock = is_stock,
+        };
+        next_col += column_count;
+    };
+
+    add_block(SeriesBlock::now_status, n_status, true);
+    add_block(SeriesBlock::new_status, n_status, false);
+    add_block(SeriesBlock::now_vax, n_vax, true);
+    add_block(SeriesBlock::new_vax, n_vax, false);
+    add_block(SeriesBlock::now_variant, n_variants, true);
+    add_block(SeriesBlock::new_variant, n_variants, false);
+    total_columns_ = next_col;
 }
 
 // ---------------------------------------------------------------
@@ -56,39 +63,33 @@ void SeriesGroup::update(uint8_t subject_idx, uint8_t ring, Agegrp agegrp,
 
 AllSeries::AllSeries(size_t day_cnt, const PopData& pop,
                      size_t n_variants, size_t n_vax, size_t n_rings)
-    : now_status(Status::names.size(), n_rings, day_cnt),
-      new_status(Status::names.size(), n_rings, day_cnt),
-      now_vax(n_vax, n_rings, day_cnt),
-      new_vax(n_vax, n_rings, day_cnt),
-      now_variant(n_variants, n_rings, day_cnt),
-      new_variant(n_variants, n_rings, day_cnt),
-      day_cnt(day_cnt)
+    : day_cnt(day_cnt),
+      column_map_(Status::names.size(), n_vax, n_variants, n_rings),
+      cols_(column_map_.total_columns())
 {
+    for (auto& col : cols_) col.assign(day_cnt + 1, 0);  // days are 1-indexed
     if (day_cnt == 0) return;
     // Seed day-1 now_status for UNEXPOSED from PopData age bucket counts.
     // First-pass: seed only the RING_ALL aggregate. Per-ring day-1 UNEXPOSED
     // stocks are a follow-up (need ring membership threaded in).
-    now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] = static_cast<int>(pop.popn);
+    at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[1] =
+        static_cast<SeriesValue>(pop.popn);
     for (size_t i = 0; i < pop.agegrp_parts.size(); ++i) {
-        now_status.at(uint8_t(UNEXPOSED), static_cast<AgeBucket>(i + 1))[1] = pop.agegrp_parts[i];
+        at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+           static_cast<AgeBucket>(i + 1))[1] = pop.agegrp_parts[i];
     }
 }
 
 void AllSeries::init_history_series(size_t day) {
     if (day <= 1) return;
-    auto carry = [day](SeriesGroup& grp) {
-        for (size_t s = 0; s < grp.subjects.size(); ++s) {
-            for (uint8_t r = 0; r < grp.n_rings; ++r) {
-                for (auto bucket : all_age_buckets) {
-                    grp.at(static_cast<uint8_t>(s), bucket, r)[day] =
-                        grp.at(static_cast<uint8_t>(s), bucket, r)[day-1];
-                }
-            }
+    for (SeriesBlock block : all_series_blocks) {
+        const auto& desc = column_map_.descriptor(block);
+        if (!desc.is_stock) continue;
+        const auto end_col = desc.base_col + desc.column_count;
+        for (SeriesColumnIndex col = desc.base_col; col < end_col; ++col) {
+            cols_[col][day] = cols_[col][day - 1];
         }
-    };
-    carry(now_status);
-    carry(now_vax);
-    carry(now_variant);
+    }
 }
 
 void AllSeries::finalize_series() {
@@ -96,11 +97,15 @@ void AllSeries::finalize_series() {
 }
 
 void AllSeries::validate_variant_invariant() const {
+    const auto& variant_desc = block_descriptor(SeriesBlock::now_variant);
     for (size_t day = 1; day <= day_cnt; ++day) {
-        int variant_total = 0;
-        for (size_t v = 1; v < now_variant.subjects.size(); ++v)
-            variant_total += now_variant.at(static_cast<uint8_t>(v), AgeBucket::total)[day];
-        int infectious = now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[day];
+        SeriesValue variant_total = 0;
+        for (size_t v = 1; v < variant_desc.subject_count; ++v) {
+            variant_total += at(SeriesBlock::now_variant, static_cast<uint8_t>(v),
+                                AgeBucket::total)[day];
+        }
+        const SeriesValue infectious =
+            at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[day];
         if (variant_total != infectious)
             throw std::runtime_error(fmt::format(
                 "Variant invariant failed on day {}: sum(now_variant)={} != now_infectious={}",
@@ -163,7 +168,7 @@ std::vector<SeriesSelection> SeriesColSpec::build_for_buckets(
 }
 
 // ---------------------------------------------------------------
-// resolve_series: named series lookup for serialization/printing
+// Named selector resolution for serialization/printing
 // ---------------------------------------------------------------
 
 // "" → RING_ALL. A decimal token is taken as a literal ring id; otherwise
@@ -180,47 +185,119 @@ std::optional<uint8_t> ring_id_from_token(const std::string& tok) {
     return static_cast<uint8_t>(std::distance(Ring::names.begin(), it));
 }
 
-std::optional<vector<int>> resolve_series(const AllSeries& series,
-                                          std::string_view name, AgeBucket bucket,
-                                          uint8_t ring) {
-    for (size_t i = 1; i < Status::names.size(); ++i) {
-        if (name == "now_" + Status::names[i])
-            return series.now_status.at(static_cast<uint8_t>(i), bucket, ring);
-        if (name == "new_" + Status::names[i])
-            return series.new_status.at(static_cast<uint8_t>(i), bucket, ring);
-    }
-    if (name == "now_vaccinated" || name == "new_vaccinated") {
-        const SeriesGroup& grp = (name == "now_vaccinated") ? series.now_vax : series.new_vax;
-        vector<int> result(series.day_cnt + 1, 0);
-        for (size_t i = 1; i < grp.subjects.size(); ++i) {  // skip "none" at index 0
-            const auto& v = grp.at(static_cast<uint8_t>(i), bucket, ring);
-            for (size_t d = 0; d <= series.day_cnt; ++d) result[d] += v[d];
-        }
-        return result;
-    }
-    // Named lookup: "now_variant:delta", "new_variant:alpha", "now_vax:Pfizer", etc.
-    if (auto colon = name.find(':'); colon != std::string_view::npos) {
-        auto group        = name.substr(0, colon);
-        auto subject_name = std::string(name.substr(colon + 1));
+namespace {
 
-        if (group == "now_variant" || group == "new_variant") {
-            const SeriesGroup& grp = (group == "now_variant") ? series.now_variant : series.new_variant;
-            auto it = std::find(Variant::names.begin(), Variant::names.end(), subject_name);
-            if (it == Variant::names.end()) return std::nullopt;
-            auto idx = static_cast<uint8_t>(std::distance(Variant::names.begin(), it));
-            return grp.at(idx, bucket, ring);
+struct SeriesFamilyView {
+    std::string_view selector_prefix;
+    SeriesBlock now_block;
+    SeriesBlock new_block;
+    std::span<const std::string> subject_names;
+};
+
+struct ResolvedSeriesSource {
+    std::string canonical_name;
+    std::vector<SeriesColumnIndex> source_columns;
+};
+
+std::optional<ResolvedSeriesSource> resolve_series_source(
+    const AllSeries& series, std::string_view name, AgeBucket bucket,
+    uint8_t ring) {
+    bool is_now;
+    std::string_view phase;
+    std::string_view subject_selector;
+    if (name.starts_with("now_")) {
+        is_now = true;
+        phase = "now";
+        subject_selector = name.substr(4);
+    } else if (name.starts_with("new_")) {
+        is_now = false;
+        phase = "new";
+        subject_selector = name.substr(4);
+    } else {
+        return std::nullopt;
+    }
+
+    if (ring >= series.n_rings()) return std::nullopt;
+
+    if (subject_selector == "vaccinated") {
+        const SeriesBlock block = is_now ? SeriesBlock::now_vax : SeriesBlock::new_vax;
+        const auto& desc = series.block_descriptor(block);
+        ResolvedSeriesSource source{fmt::format("{}_vaccinated", phase), {}};
+        source.source_columns.reserve(desc.subject_count > 0 ? desc.subject_count - 1 : 0);
+        for (size_t subject = 1; subject < desc.subject_count; ++subject) {
+            source.source_columns.push_back(series.column_index(
+                block, static_cast<uint8_t>(subject), bucket, ring));
         }
-        if (group == "now_vax" || group == "new_vax") {
-            const SeriesGroup& grp = (group == "now_vax") ? series.now_vax : series.new_vax;
-            auto it = std::find(Vax::names.begin(), Vax::names.end(), subject_name);
-            if (it == Vax::names.end()) return std::nullopt;
-            auto idx = static_cast<uint8_t>(std::distance(Vax::names.begin(), it));
-            return grp.at(idx, bucket, ring);
-        }
+        return source;
+    }
+
+    const std::array families{
+        SeriesFamilyView{
+            "vax:", SeriesBlock::now_vax, SeriesBlock::new_vax,
+            std::span<const std::string>{Vax::names.data(), Vax::names.size()}},
+        SeriesFamilyView{
+            "variant:", SeriesBlock::now_variant, SeriesBlock::new_variant,
+            std::span<const std::string>{Variant::names.data(), Variant::names.size()}},
+        SeriesFamilyView{
+            "", SeriesBlock::now_status, SeriesBlock::new_status,
+            std::span<const std::string>{Status::names.data(), Status::names.size()}},
+    };
+
+    for (const auto& family : families) {
+        if (!subject_selector.starts_with(family.selector_prefix)) continue;
+        const auto subject_name = subject_selector.substr(family.selector_prefix.size());
+        const auto it = std::find(family.subject_names.begin(), family.subject_names.end(),
+                                  subject_name);
+        if (it == family.subject_names.end()) return std::nullopt;
+
+        const size_t subject = static_cast<size_t>(
+            std::distance(family.subject_names.begin(), it));
+        const SeriesBlock block = is_now ? family.now_block : family.new_block;
+        const auto& desc = series.block_descriptor(block);
+        if (subject == 0 || subject >= desc.subject_count) return std::nullopt;
+
+        return ResolvedSeriesSource{
+            fmt::format("{}_{}{}", phase, family.selector_prefix,
+                        family.subject_names[subject]),
+            {series.column_index(block, static_cast<uint8_t>(subject), bucket, ring)},
+        };
     }
 
     return std::nullopt;
 }
+
+std::string raw_selection_label(const SeriesSelection& selection) {
+    return selection.ring.empty()
+        ? fmt::format("{}:{}", selection.name, selection.bucket)
+        : fmt::format("{}:{}:{}", selection.name, selection.bucket, selection.ring);
+}
+
+std::string canonical_selection_label(const ResolvedSeriesSource& source,
+                                      AgeBucket bucket, uint8_t ring) {
+    if (ring == RING_ALL) {
+        return fmt::format("{}:{}", source.canonical_name, to_string(bucket));
+    }
+    return fmt::format("{}:{}:{}", source.canonical_name, to_string(bucket),
+                       Ring::names[ring]);
+}
+
+SeriesColumn materialize_series(const AllSeries& series,
+                                const ResolvedSeriesSource& source) {
+    if (source.source_columns.size() == 1) {
+        return series.column(source.source_columns.front());
+    }
+
+    SeriesColumn result(series.day_cnt + 1, 0);
+    for (const SeriesColumnIndex col : source.source_columns) {
+        const auto& values = series.column(col);
+        for (size_t day = 0; day <= series.day_cnt; ++day) {
+            result[day] += values[day];
+        }
+    }
+    return result;
+}
+
+} // namespace
 
 std::optional<RingNameParse> parse_ring_suffix(std::string_view name) {
     constexpr std::string_view tag = "@ring:";
@@ -258,19 +335,18 @@ ResolvedSeriesSelection resolve_selected_series(const SeriesColSpec& spec,
   for (const auto& sel : selections) {
     auto bucket = age_bucket_from_string(sel.bucket);
     auto ring   = ring_id_from_token(sel.ring);
-    auto label  = sel.ring.empty()
-                      ? fmt::format("{}:{}", sel.name, sel.bucket)
-                      : fmt::format("{}:{}:{}", sel.name, sel.bucket, sel.ring);
+    const auto raw_label = raw_selection_label(sel);
     if (!bucket || !ring) {
-      resolved.invalid_selections.push_back(label);
+      resolved.invalid_selections.push_back(raw_label);
       continue;
     }
-    auto data = resolve_series(series, sel.name, *bucket, *ring);
-    if (!data) {
-      resolved.invalid_selections.push_back(label);
+    auto source = resolve_series_source(series, sel.name, *bucket, *ring);
+    if (!source) {
+      resolved.invalid_selections.push_back(raw_label);
       continue;
     }
-    resolved.cols.push_back({label, std::move(*data)});
+    auto label = canonical_selection_label(*source, *bucket, *ring);
+    resolved.cols.push_back({std::move(label), materialize_series(series, *source)});
   }
 
   return resolved;
@@ -304,7 +380,8 @@ void print_total_status_series(const AllSeries & series, size_t days_per_block) 
     for (auto [label, s] : std::views::zip(labels, statuses)) {
       fmt::print("{:<12}", label);
       for (size_t day = block_start; day <= block_end; ++day) {
-        fmt::print("{:>8}", series.now_status.at(s, AgeBucket::total)[day]);
+        fmt::print("{:>8}",
+                   series.at(SeriesBlock::now_status, s, AgeBucket::total)[day]);
       }
       fmt::println("");
     }
@@ -398,7 +475,7 @@ void serialize_selected_series(SeriesColSpec spec, const AllSeries & series,
   fmt::println(out, "{}", fmt::join(headers, ","));
 
   // Write rows (1-indexed days)
-  vector<int> row;
+  vector<SeriesValue> row;
   row.reserve(cols.size());
   for (size_t i = 1; i <= series.day_cnt; ++i) {
     for (const auto& col : cols) {

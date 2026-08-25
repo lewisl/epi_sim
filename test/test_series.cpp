@@ -26,24 +26,93 @@ SeriesCsvOutput make_series_csv_output(string_view stem) {
           .cleanup_dir = temp_dir};
 }
 
+void test_column_map_uses_block_subject_ring_bucket_order() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Ring::names = {"", "ring_1", "ring_2"};
+  AllSeries series = make_series(3);
+
+  const auto& now_status = series.block_descriptor(SeriesBlock::now_status);
+  const auto& new_status = series.block_descriptor(SeriesBlock::new_status);
+  const auto& now_vax = series.block_descriptor(SeriesBlock::now_vax);
+
+  CHECK(now_status.base_col == 0);
+  CHECK(now_status.subject_count == Status::names.size());
+  CHECK(now_status.ring_stride == size_t(AgeBucket::COUNT));
+  CHECK(now_status.subject_stride == series.n_rings() * size_t(AgeBucket::COUNT));
+  CHECK(now_status.column_count == Status::names.size() * now_status.subject_stride);
+  CHECK(new_status.base_col == now_status.base_col + now_status.column_count);
+  CHECK(now_vax.base_col == new_status.base_col + new_status.column_count);
+
+  SeriesColumnIndex next_base = 0;
+  for (const SeriesBlock block : all_series_blocks) {
+    const auto& desc = series.block_descriptor(block);
+    CHECK(desc.base_col == next_base);
+    CHECK(desc.ring_stride == size_t(AgeBucket::COUNT));
+    CHECK(desc.subject_stride == series.n_rings() * desc.ring_stride);
+    CHECK(desc.column_count == desc.subject_count * desc.subject_stride);
+    next_base += desc.column_count;
+  }
+  CHECK(series.column_count() == next_base);
+  CHECK(series.block_descriptor(SeriesBlock::now_status).is_stock);
+  CHECK(!series.block_descriptor(SeriesBlock::new_status).is_stock);
+  CHECK(series.block_descriptor(SeriesBlock::now_vax).is_stock);
+  CHECK(!series.block_descriptor(SeriesBlock::new_vax).is_stock);
+  CHECK(series.block_descriptor(SeriesBlock::now_variant).is_stock);
+  CHECK(!series.block_descriptor(SeriesBlock::new_variant).is_stock);
+
+  const auto base = series.column_index(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                                        AgeBucket::total, RING_ALL);
+  CHECK(series.column_index(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                            AgeBucket::age0_19, RING_ALL) == base + 1);
+  CHECK(series.column_index(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                            AgeBucket::total, 1) == base + now_status.ring_stride);
+  CHECK(series.column_index(SeriesBlock::now_status, uint8_t(RECOVERED),
+                            AgeBucket::total, RING_ALL) == base + now_status.subject_stride);
+
+  series.column(base)[1] = 11;
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total)[1] == 11);
+}
+
+void test_day_one_seed_is_aggregate_only() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Ring::names = {"", "ring_1"};
+  AllSeries series = make_series(2);
+
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+                  AgeBucket::total, RING_ALL)[1] == 3);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+                  AgeBucket::age20_39, RING_ALL)[1] == 3);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+                  AgeBucket::total, 1)[1] == 0);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
+                  AgeBucket::age20_39, 1)[1] == 0);
+}
+
 void test_init_history_series_carries_forward_stock_series() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
   AllSeries series = make_series(3);
 
-  series.now_status.at(uint8_t(RECOVERED), AgeBucket::total)[1] = 1;
-  series.now_status.at(uint8_t(RECOVERED), AgeBucket::age20_39)[1] = 1;
-  series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[1] = 2;
-  series.now_vax.at(uint8_t(Vax{1}), AgeBucket::age20_39)[1] = 2;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::age20_39)[1] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(RECOVERED), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(RECOVERED), AgeBucket::age20_39)[1] = 1;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[1] = 2;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::age20_39)[1] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::age20_39)[1] = 1;
+  series.at(SeriesBlock::new_status, uint8_t(RECOVERED), AgeBucket::total)[1] = 1;
 
   series.init_history_series(2);
 
-  CHECK(series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] == 3);
-  CHECK(series.now_status.at(uint8_t(RECOVERED), AgeBucket::total)[2] == 1);
-  CHECK(series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] == 2);
-  CHECK(series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[2] == 3);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(RECOVERED), AgeBucket::total)[2] == 1);
+  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[2] == 2);
+  CHECK(series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] == 1);
+  CHECK(series.at(SeriesBlock::new_status, uint8_t(RECOVERED), AgeBucket::total)[2] == 0);
 }
 
 void test_resolve_series_supports_status_vaccinated_and_variant_views() {
@@ -51,24 +120,29 @@ void test_resolve_series_supports_status_vaccinated_and_variant_views() {
   test_support::VaxNamesGuard vax_guard;
   AllSeries series = make_series(3);
 
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
-  series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
-  series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
 
-  const auto unexposed = resolve_series(series, "now_unexposed", AgeBucket::total);
-  const auto vaccinated = resolve_series(series, "now_vaccinated", AgeBucket::total);
-  const auto delta = resolve_series(series, "now_variant:delta", AgeBucket::total);
+  const auto resolved = resolve_selected_series(
+      {{"now_unexposed", "total"},
+        {"now_vaccinated", "total"},
+        {"now_variant:delta", "total"},
+        {"now_variant:missing", "total"},
+        {"now_vax:none", "total"}},
+      series);
 
-  REQUIRE(unexposed.has_value());
-  REQUIRE(vaccinated.has_value());
-  REQUIRE(delta.has_value());
-  CHECK((*unexposed)[1] == 3 && (*unexposed)[2] == 1 && (*unexposed)[3] == 0);
-  CHECK((*vaccinated)[2] == 3);
-  CHECK((*delta)[2] == 2);
-  CHECK(!resolve_series(series, "now_variant:missing", AgeBucket::total).has_value());
+  REQUIRE(resolved.cols.size() == 3);
+  REQUIRE(resolved.invalid_selections.size() == 2);
+  CHECK(resolved.cols[0].data[1] == 3 && resolved.cols[0].data[2] == 1 &&
+        resolved.cols[0].data[3] == 0);
+  CHECK(resolved.cols[1].data[2] == 3);
+  CHECK(resolved.cols[2].data[2] == 2);
+  CHECK(resolved.invalid_selections[0] == "now_variant:missing:total");
+  CHECK(resolved.invalid_selections[1] == "now_vax:none:total");
 }
 
 void test_series_colspec_all_total_expands_current_runtime_names() {
@@ -94,12 +168,12 @@ void test_serialize_selected_series_writes_current_csv_layout() {
   test_support::VaxNamesGuard vax_guard;
   AllSeries series = make_series(3);
 
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
-  series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
-  series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
 
   const auto output = make_series_csv_output("series_unit");
 
@@ -124,14 +198,14 @@ void test_validate_variant_invariant_checks_current_layout() {
   test_support::VaxNamesGuard vax_guard;
   AllSeries series = make_series(2);
 
-  series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] = 2;
-  series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] = 1;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
-  series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[2] = 1;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[1] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{1}), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] = 1;
   series.validate_variant_invariant();
 
-  series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[2] = 2;
   bool threw = false;
   try {
     series.validate_variant_invariant();
@@ -150,13 +224,18 @@ void test_no_rings_identity() {
 
   // With no rings defined, n_ring_slots == 1 and the only slot is RING_ALL.
   // The inner double-count guard in update() ensures writes land exactly once.
-  series.now_status.update(uint8_t(INFECTIOUS), RING_ALL, AGE20_39, 1, 2);
-  series.now_status.update(uint8_t(INFECTIOUS), RING_ALL, AGE40_59, 1, 3);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), RING_ALL,
+                AGE20_39, 1, 2);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), RING_ALL,
+                AGE40_59, 1, 3);
 
-  CHECK(series.now_status.n_rings == 1);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age20_39)[1] == 2);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age40_59)[1] == 3);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] == 5);
+  CHECK(series.n_rings() == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age20_39)[1] == 2);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age40_59)[1] == 3);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total)[1] == 5);
 }
 
 void test_aggregate_equals_sum_of_rings() {
@@ -166,16 +245,22 @@ void test_aggregate_equals_sum_of_rings() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(3);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 4);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE40_59, 1, 7);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1, AGE20_39, 1, 4);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2, AGE40_59, 1, 7);
 
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age20_39, 1)[1] == 4);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age20_39, 2)[1] == 5);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age40_59, 2)[1] == 7);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age20_39, RING_ALL)[1] == 9);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age40_59, RING_ALL)[1] == 7);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total, RING_ALL)[1] == 16);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age20_39, 1)[1] == 4);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age20_39, 2)[1] == 5);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age40_59, 2)[1] == 7);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age20_39, RING_ALL)[1] == 9);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age40_59, RING_ALL)[1] == 7);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total, RING_ALL)[1] == 16);
 }
 
 void test_no_double_count_in_aggregate() {
@@ -185,16 +270,21 @@ void test_no_double_count_in_aggregate() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(2);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 1);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1, AGE20_39, 1, 1);
 
   // RING_ALL gets the mirror-write exactly once.
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::age20_39, RING_ALL)[1] == 1);
-  CHECK(series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total, RING_ALL)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::age20_39, RING_ALL)[1] == 1);
+  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                  AgeBucket::total, RING_ALL)[1] == 1);
 
   int per_ring_sum = 0;
-  for (uint8_t r = 1; r < series.now_status.n_rings; ++r)
-    per_ring_sum += series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total, r)[1];
-  CHECK(per_ring_sum == series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total, RING_ALL)[1]);
+  for (uint8_t r = 1; r < series.n_rings(); ++r) {
+    per_ring_sum += series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                              AgeBucket::total, r)[1];
+  }
+  CHECK(per_ring_sum == series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
+                                   AgeBucket::total, RING_ALL)[1]);
 }
 
 void test_resolve_series_with_ring_arg() {
@@ -204,19 +294,22 @@ void test_resolve_series_with_ring_arg() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(2);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 3);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1,
+                AGE20_39, 1, 3);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2,
+                AGE20_39, 1, 5);
 
-  const auto r1  = resolve_series(series, "now_infectious", AgeBucket::total, 1);
-  const auto r2  = resolve_series(series, "now_infectious", AgeBucket::total, 2);
-  const auto all = resolve_series(series, "now_infectious", AgeBucket::total);  // default RING_ALL
+  const auto resolved = resolve_selected_series(
+      {{"now_infectious", "total", "ring_1"},
+       {"now_infectious", "total", "ring_2"},
+       {"now_infectious", "total"}},
+      series);
 
-  REQUIRE(r1.has_value());
-  REQUIRE(r2.has_value());
-  REQUIRE(all.has_value());
-  CHECK((*r1)[1] == 3);
-  CHECK((*r2)[1] == 5);
-  CHECK((*all)[1] == 8);
+  REQUIRE(resolved.cols.size() == 3);
+  CHECK(resolved.invalid_selections.empty());
+  CHECK(resolved.cols[0].data[1] == 3);
+  CHECK(resolved.cols[1].data[1] == 5);
+  CHECK(resolved.cols[2].data[1] == 8);
 }
 
 void test_ring_qualified_selection_resolves_to_ring() {
@@ -226,8 +319,10 @@ void test_ring_qualified_selection_resolves_to_ring() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(2);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 3);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1,
+                AGE20_39, 1, 3);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2,
+                AGE20_39, 1, 5);
 
   // ring_id_from_token covers name, decimal, and empty paths.
   CHECK(ring_id_from_token("") == std::optional<uint8_t>{RING_ALL});
@@ -239,7 +334,7 @@ void test_ring_qualified_selection_resolves_to_ring() {
   const auto output = make_series_csv_output("series_ring");
 
   serialize_selected_series({{"now_infectious", "total", "ring_1"},
-                             {"now_infectious", "total", "ring_2"}},
+                             {"now_infectious", "total", "2"}},
                             series, output.csv_path);
 
   CHECK(test_support::fs::exists(output.csv_path));
@@ -258,8 +353,10 @@ void test_bare_selection_resolves_to_aggregate() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(2);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 3);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1,
+                AGE20_39, 1, 3);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2,
+                AGE20_39, 1, 5);
 
   // Bare selection (no ring) goes to the RING_ALL aggregate slot; header has no ring suffix.
   const auto output = make_series_csv_output("series_bare");
@@ -283,8 +380,10 @@ void test_mixed_valid_invalid_selection_drops_invalid_column() {
   Ring::names = {"", "ring_1", "ring_2"};
   AllSeries series = make_series(2);
 
-  series.now_status.update(uint8_t(INFECTIOUS), 1, AGE20_39, 1, 3);
-  series.now_status.update(uint8_t(INFECTIOUS), 2, AGE20_39, 1, 5);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 1,
+                AGE20_39, 1, 3);
+  series.update(SeriesBlock::now_status, uint8_t(INFECTIOUS), 2,
+                AGE20_39, 1, 5);
 
   // A spec mixing a resolvable selection with an unknown one: the invalid
   // column is dropped (with a warning) and the valid column is still written.
@@ -333,12 +432,12 @@ void write_series_artifacts(const test_support::TestRunOptions& options) {
   test_support::VaxNamesGuard vax_guard;
   AllSeries series = make_series(3);
 
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
-  series.now_status.at(uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
-  series.now_vax.at(uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
-  series.now_vax.at(uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[1] = 3;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED), AgeBucket::total)[3] = 0;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_vax, uint8_t(Vax{2}), AgeBucket::total)[2] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] = 2;
 
   const std::vector<SeriesSelection> selections = {{"now_unexposed", "total"},
                                                    {"now_vaccinated", "total"},
@@ -357,18 +456,18 @@ void write_series_artifacts(const test_support::TestRunOptions& options) {
 
   std::ostringstream csv;
   csv << "now_unexposed:total,now_vaccinated:total,now_variant:delta:total\n";
-  const auto unexposed = resolve_series(series, "now_unexposed", AgeBucket::total).value();
-  const auto vaccinated = resolve_series(series, "now_vaccinated", AgeBucket::total).value();
-  const auto delta = resolve_series(series, "now_variant:delta", AgeBucket::total).value();
-  for (size_t day = 1; day < unexposed.size(); ++day) {
-    csv << unexposed[day] << "," << vaccinated[day] << "," << delta[day] << "\n";
+  const auto resolved = resolve_selected_series(SeriesColSpec(selections), series);
+  REQUIRE(resolved.cols.size() == 3);
+  for (size_t day = 1; day <= series.day_cnt; ++day) {
+    csv << resolved.cols[0].data[day] << "," << resolved.cols[1].data[day]
+        << "," << resolved.cols[2].data[day] << "\n";
   }
 
-  series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[1] = 2;
-  series.now_variant.at(uint8_t(Variant{1}), AgeBucket::total)[1] = 1;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
-  series.now_status.at(uint8_t(INFECTIOUS), AgeBucket::total)[2] = 1;
-  series.now_variant.at(uint8_t(Variant{2}), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[1] = 2;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{1}), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[1] = 1;
+  series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS), AgeBucket::total)[2] = 1;
+  series.at(SeriesBlock::now_variant, uint8_t(Variant{2}), AgeBucket::total)[2] = 1;
   series.validate_variant_invariant();
   summary << "variant invariant sample: OK for 3-day fixture\n";
 
@@ -380,6 +479,8 @@ void write_series_artifacts(const test_support::TestRunOptions& options) {
 
 void run_series_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running series tests...");
+  test_column_map_uses_block_subject_ring_bucket_order();
+  test_day_one_seed_is_aggregate_only();
   test_init_history_series_carries_forward_stock_series();
   test_resolve_series_supports_status_vaccinated_and_variant_views();
   test_series_colspec_all_total_expands_current_runtime_names();
