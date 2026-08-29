@@ -1,13 +1,13 @@
 #pragma once
 
-#include "lib_includes.h"
-
 #include "traits.h"
 #include "ring_traits.h"
 #include "helpers.h"    // for shifter
 #include "disease_constants.h"
 #include <functional>
 #include "cases.h"
+#include "absl/container/flat_hash_map.h"
+
 
 // using json = nlohmann::json; // for not ordered mapping
 using json = nlohmann::ordered_json;

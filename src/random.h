@@ -1,7 +1,9 @@
 #ifndef XOSHIRO_H
 #define XOSHIRO_H
 
-#include "lib_includes.h"
+#include <cstdint>
+#include <random>
+#include <algorithm>
 
 
 namespace xo  // short for xoshiro

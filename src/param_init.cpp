@@ -20,6 +20,7 @@
 
 namespace fs = std::filesystem;
 
+namespace {
 void print_cli_block(std::string_view message, FILE* stream = stdout) {
   // fmt::println(stream, "---");
 
@@ -27,124 +28,6 @@ void print_cli_block(std::string_view message, FILE* stream = stdout) {
     fmt::println(stream, "  {}", line);
   }
 }
-
-//
-// build the simulation model
-//
-Model build_model(fs::path case_dir) {
-  fs::path config_path = config_path_for_case_dir(case_dir);
-  if (!fs::exists(config_path)) {
-    throw std::runtime_error(fmt::format("Path to config.json for case {} does not exist.\n", case_dir.string()));
-  }
-
-  fs::path input_dir = config_path.parent_path();
-  input_verify(input_dir);
-  json config_json = load_json_params(config_path.string());
-
-  bool dovax = config_json["dovax"];
-
-  Config config{
-      .days = config_json["days"],
-      .locale = config_json["locale"],
-      .calendar_start = config_json["calendar_start"],
-      .seed = resolve_config_path(input_dir, config_json, "seed").string(),
-      .social_dist = resolve_optional_config_path(input_dir, config_json, "social_dist"),
-      .dovax = dovax,
-      .do_social_distancing = config_json.value("do_social_distancing", false),
-      .do_rings = config_json.value("do_rings", false),
-      .debug = config_json.value("debug", false),
-      .rt_sim_interval = config_json["rt_sim_interval"],
-      .age_dist = config_json["age_dist"],
-      .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
-      .variants = resolve_config_path(input_dir, config_json, "variants").string(),
-      .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),
-      .vaccines = dovax ? resolve_config_path(input_dir, config_json, "vaccines").string()
-                        : std::string{},
-      .vax_sched_dir = dovax ? resolve_config_path(input_dir, config_json, "vax_sched_dir").string()
-                             : std::string{},
-      .rings = resolve_optional_config_path(input_dir, config_json, "rings"),
-      .output_dir = config_json.contains("output")
-          ? resolve_config_path(case_dir, config_json, "output").string()
-          : (case_dir / "output").string(),
-      .case_label = sanitize_filename_component(case_dir.lexically_normal().filename().string())
-    };
-
-  fmt::println("Setup simulation...");
-  Model model = setup_sim(config);
-  fmt::println("Setup complete.");
-  return model;    // this could act as a move or, better, NRVO
-}
-
-//
-// helper files for navigating project directories
-//
-std::optional<fs::path> resolve_home_path(const std::string& path_str) {
-  const char* home_c = std::getenv("HOME");
-  if (!home_c) {
-    throw std::runtime_error(fmt::format("HOME not set.\n"));
-
-  }
-  fs::path home{home_c};
-  fs::path p;
-  if (path_str == "~") return home;
-  if (path_str.starts_with("~/")) {
-    p = home / fs::path{path_str.substr(2)};
-  } else if (!path_str.empty() && path_str[0] == '~') {
-    print_cli_block("Only ~ and ~/ paths are supported.", stderr);
-    return std::nullopt;
-  } else {
-    p = fs::path{path_str};
-    if (p.is_relative()) p = home / p;
-  }
-
-  fs::path rel = fs::weakly_canonical(p).lexically_relative(fs::weakly_canonical(home));
-  if (rel.empty() || rel.begin()->string() == "..") {
-    throw std::runtime_error(fmt::format("Absolute path input does not start at user's home directory."));
-  }
-  return p;
-}
-
-fs::path resolve_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
-  fs::path path = config_json[key].get<string>();
-  if (path.is_absolute()) return path;
-  return config_dir / path;
-}
-
-std::string resolve_optional_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
-  if (!config_json.contains(key) || config_json[key].is_null()) return "";
-  std::string path_str = config_json[key].get<string>();
-  if (path_str.empty()) return "";
-  return resolve_config_path(config_dir, config_json, key).string();
-}
-
-fs::path read_project_dir() {
-  const auto& config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
-  if (!config_file_path.has_value() || !fs::exists(*config_file_path)) {
-    throw std::runtime_error(fmt::format("project-dir.toml doesn't exist.\n"
-        "Create it with epi_sim --set-project-dir <valid path for project dir>."));
-  }
-  if (!fs::is_regular_file(*config_file_path)) {
-    throw std::runtime_error(fmt::format("project-dir.toml is not a regular file."));
-  }
-
-  auto cfg = toml::parse_file(config_file_path->string());
-  std::string project_dir_str = cfg["project-dir"].value_or(std::string{});
-  if (project_dir_str.empty()) {
-    throw std::runtime_error(fmt::format("project-dir.toml does not contain a project-dir value."));
-  }
-  const auto & home_path = resolve_home_path(project_dir_str);
-  if (!home_path.has_value()) {
-    throw std::runtime_error(fmt::format("Project directory path is invalid."));
-  }
-  if (!fs::exists(*home_path)) {
-    throw std::runtime_error(fmt::format("Configured project directory {} does not exist", home_path->string()));
-  }
-  if (!fs::is_directory(*home_path)) {
-    throw std::runtime_error(fmt::format("Configured project directory {} is not a directory.", home_path->string()));
-  }
-  return *home_path;
-}
-
 
 void write_file(const std::string& content, std::string filename, std::string extension,
   fs::path path_name) {
@@ -157,16 +40,6 @@ void write_file(const std::string& content, std::string filename, std::string ex
     }
 
     out << content;
-}
-
-fs::path config_path_for_case_dir(const fs::path& case_dir) {
-  return case_dir / "input" / "config.json";
-}
-
-fs::path resolve_explicit_case_dir(std::string path_arg) {
-  auto const & p = resolve_home_path(path_arg);
-  if (p.has_value()) return *p;
-  throw std::runtime_error(fmt::format("Invalid case directory path: {}.", path_arg));
 }
 
 void ensure_case_dirs(const fs::path& case_dir) {
@@ -218,6 +91,112 @@ void create_scaffold(fs::path case_dir) {
         throw std::runtime_error(fmt::format("error creating scaffold: {}", e.what()));
     }
 }
+
+
+//
+// helper files for navigating project directories
+//
+std::optional<fs::path> resolve_home_path(const std::string& path_str) {
+  const char* home_c = std::getenv("HOME");
+  if (!home_c) {
+    throw std::runtime_error(fmt::format("HOME not set.\n"));
+
+  }
+  fs::path home{home_c};
+  fs::path p;
+  if (path_str == "~") return home;
+  if (path_str.starts_with("~/")) {
+    p = home / fs::path{path_str.substr(2)};
+  } else if (!path_str.empty() && path_str[0] == '~') {
+    print_cli_block("Only ~ and ~/ paths are supported.", stderr);
+    return std::nullopt;
+  } else {
+    p = fs::path{path_str};
+    if (p.is_relative()) p = home / p;
+  }
+
+  fs::path rel = fs::weakly_canonical(p).lexically_relative(fs::weakly_canonical(home));
+  if (rel.empty() || rel.begin()->string() == "..") {
+    throw std::runtime_error(fmt::format("Absolute path input does not start at user's home directory."));
+  }
+  return p;
+}
+
+fs::path resolve_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
+  fs::path path = config_json[key].get<string>();
+  if (path.is_absolute()) return path;
+  return config_dir / path;
+}
+
+std::string resolve_optional_config_path(const fs::path& config_dir, const json& config_json, const char* key) {
+  if (!config_json.contains(key) || config_json[key].is_null()) return "";
+  std::string path_str = config_json[key].get<string>();
+  if (path_str.empty()) return "";
+  return resolve_config_path(config_dir, config_json, key).string();
+}
+
+fs::path config_path_for_case_dir(const fs::path& case_dir) {
+  return case_dir / "input" / "config.json";
+}
+
+fs::path resolve_explicit_case_dir(std::string path_arg) {
+  auto const & p = resolve_home_path(path_arg);
+  if (p.has_value()) return *p;
+  throw std::runtime_error(fmt::format("Invalid case directory path: {}.", path_arg));
+}
+}   // end anonymous namespace
+
+//
+// build the simulation model
+//
+Model build_model(fs::path case_dir) {
+  fs::path config_path = config_path_for_case_dir(case_dir);
+  if (!fs::exists(config_path)) {
+    throw std::runtime_error(fmt::format("Path to config.json for case {} does not exist.\n", case_dir.string()));
+  }
+
+  fs::path input_dir = config_path.parent_path();
+  input_verify(input_dir);
+  json config_json = load_json_params(config_path.string());
+
+  bool dovax = config_json["dovax"];
+
+  Config config{
+      .days = config_json["days"],
+      .locale = config_json["locale"],
+      .calendar_start = config_json["calendar_start"],
+      .seed = resolve_config_path(input_dir, config_json, "seed").string(),
+      .social_dist = resolve_optional_config_path(input_dir, config_json, "social_dist"),
+      .dovax = dovax,
+      .do_social_distancing = config_json.value("do_social_distancing", false),
+      .do_rings = config_json.value("do_rings", false),
+      .debug = config_json.value("debug", false),
+      .rt_sim_interval = config_json["rt_sim_interval"],
+      .age_dist = config_json["age_dist"],
+      .geodata = resolve_config_path(input_dir, config_json, "geodata").string(),
+      .variants = resolve_config_path(input_dir, config_json, "variants").string(),
+      .social_params = resolve_config_path(input_dir, config_json, "social_params").string(),
+      .vaccines = dovax ? resolve_config_path(input_dir, config_json, "vaccines").string()
+                        : std::string{},
+      .vax_sched_dir = dovax ? resolve_config_path(input_dir, config_json, "vax_sched_dir").string()
+                             : std::string{},
+      .rings = resolve_optional_config_path(input_dir, config_json, "rings"),
+      .output_dir = config_json.contains("output")
+          ? resolve_config_path(case_dir, config_json, "output").string()
+          : (case_dir / "output").string(),
+      .case_label = sanitize_filename_component(case_dir.lexically_normal().filename().string())
+    };
+
+  fmt::println("Setup simulation...");
+  Model model = setup_sim(config);
+  fmt::println("Setup complete.");
+  return model;    // this could act as a move or, better, NRVO
+}
+
+
+
+
+
 
 
 //
@@ -292,6 +271,33 @@ void set_project_dir(std::string val) {
     show_project_dir();
 }
 
+fs::path read_project_dir() {
+  const auto& config_file_path = resolve_home_path(".config/epi_sim/project-dir.toml");
+  if (!config_file_path.has_value() || !fs::exists(*config_file_path)) {
+    throw std::runtime_error(fmt::format("project-dir.toml doesn't exist.\n"
+        "Create it with epi_sim --set-project-dir <valid path for project dir>."));
+  }
+  if (!fs::is_regular_file(*config_file_path)) {
+    throw std::runtime_error(fmt::format("project-dir.toml is not a regular file."));
+  }
+
+  auto cfg = toml::parse_file(config_file_path->string());
+  std::string project_dir_str = cfg["project-dir"].value_or(std::string{});
+  if (project_dir_str.empty()) {
+    throw std::runtime_error(fmt::format("project-dir.toml does not contain a project-dir value."));
+  }
+  const auto & home_path = resolve_home_path(project_dir_str);
+  if (!home_path.has_value()) {
+    throw std::runtime_error(fmt::format("Project directory path is invalid."));
+  }
+  if (!fs::exists(*home_path)) {
+    throw std::runtime_error(fmt::format("Configured project directory {} does not exist", home_path->string()));
+  }
+  if (!fs::is_directory(*home_path)) {
+    throw std::runtime_error(fmt::format("Configured project directory {} is not a directory.", home_path->string()));
+  }
+  return *home_path;
+}
 
 void show_project_dir() {
     // check for canonical location of config file

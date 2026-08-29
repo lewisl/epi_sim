@@ -1,6 +1,4 @@
 #pragma once
-#include "fmt/format.h"
-#include "lib_includes.h"
 #include "parameters.h"
 #include "population.h"
 #include <cstdint>
@@ -14,7 +12,7 @@ enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, a
 inline constexpr uint8_t RING_ALL = 0;
 
 struct SeriesSelection {
-    std::string name;        // this must be a string that matches 
+    std::string name;        // this must be a string that matches -> presumably a subject FINISH YOUR DANM COMMENTS!
     std::string bucket;      // this must be a string that matches an AgeBucket enum
     std::string ring = "";   // "" → RING_ALL (all-rings aggregate)
 
@@ -79,6 +77,7 @@ public:
     SeriesColumnMap(size_t n_status, size_t n_vax, size_t n_variants,
                     size_t n_rings);
 
+    // calculates the index of a series in AllSeries
     [[clang::always_inline]] SeriesColumnIndex column_index(
         SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
         uint8_t ring = RING_ALL) const {

@@ -2,7 +2,6 @@
 #include <cmath>
 
 #include <vector>
-#include <span>
 #include <algorithm>
 #include <cassert>
 
@@ -19,6 +18,7 @@
 #include "disease_modeling.h"
 #include "setup.h"
 #include "traits.h"
+#include "random.h"
 
 // forward declaration
 namespace {

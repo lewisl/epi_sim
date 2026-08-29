@@ -1,6 +1,7 @@
 #pragma once
 
-#include "lib_includes.h"
+#include <vector>
+#include <string>
 
 /*
 RingTraits: model-level per-ring characteristics.

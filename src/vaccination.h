@@ -1,4 +1,3 @@
-#include "lib_includes.h"
 #include "parameters.h"
 #include "population.h"
 

@@ -2,7 +2,6 @@
 #include "helpers.h"
 #include "series.h"
 #include <cctype>
-#include <chrono>
 #include <cstdlib>
 #include <ctime>
 
@@ -28,14 +27,6 @@ std::string html_template = R"TAG(<!doctype html>
 </html>
 )TAG";
 
-} // namespace
-
-// data has to be a JSON array of series (what Plotly stupidly calls traces)
-// layout supplies title and more...
-/* example:
-    const data = [{"mode":"lines","name":"quadratic","type":"scatter","x":[0.0,1.0,2.0,3.0,4.0],"y":[0.0,1.0,4.0,9.0,16.0]}]
-    const layout = {"title":"Plotly Browser Test"}
-*/
 
 std::filesystem::path write_file(const std::string& content, std::string filename,
   std::vector<string> path_steps) {
@@ -57,6 +48,13 @@ std::filesystem::path write_file(const std::string& content, std::string filenam
     return output_path / filename;
 }
 
+bool open_plot_in_browser(const std::filesystem::path& path) {
+    std::string cmd = "open \"" + path.string() + "\"";
+    return std::system(cmd.c_str()) == 0;
+}
+
+} // end anonymous namespace
+
 
 std::string render_plot_html(
     std::string template_html,
@@ -72,10 +70,7 @@ std::string render_plot_html(
     return template_html;
 }
 
-bool open_plot_in_browser(const std::filesystem::path& path) {
-    std::string cmd = "open \"" + path.string() + "\"";
-    return std::system(cmd.c_str()) == 0;
-}
+
 
 // same steps for every plot
 void produce_plot(std::string base_fname, std::string end_message, json data, json layout) {

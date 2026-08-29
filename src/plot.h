@@ -1,6 +1,5 @@
 #pragma once
 
-#include "lib_includes.h"
 #include "series.h"
 #include "sim.h"
 
@@ -12,7 +11,6 @@ std::string render_plot_html(
     const json& layout
 );
 
-bool open_plot_in_browser(const std::filesystem::path& path);
 
 void seriesplot(SeriesColSpec spec, const AllSeries& series,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,

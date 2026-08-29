@@ -3,7 +3,12 @@
 //
 
 
-#include "lib_includes.h"
+#include <vector>
+#include <fmt/base.h>
+#include <fmt/format.h> // only get what I use: about 12k in the executable!
+#include <fmt/ranges.h> // for printing containers like vector
+#include <fmt/ostream.h> // to use ostream file handles and << >> operators
+
 
 #include "helpers.h"
 

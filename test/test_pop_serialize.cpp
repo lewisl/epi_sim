@@ -1,4 +1,6 @@
 #include "test_support.h"
+#include "../src/pop_serialize.h"
+
 
 #include "../src/setup.h"
 #include "../src/sim.h"

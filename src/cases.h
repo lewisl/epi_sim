@@ -1,7 +1,8 @@
 #pragma once
 
-#include "lib_includes.h"
 #include "traits.h"
+#include <nlohmann/json.hpp> // amazing for parsing complex files (maybe not for high speed web services)
+using json = nlohmann::ordered_json;
 
 // forward declarations
 struct ModelParams;

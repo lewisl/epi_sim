@@ -3,6 +3,7 @@
 #include "cases.h"
 #include "series.h"
 #include "sim.h"
+#include "random.h"
 
 void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,

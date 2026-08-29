@@ -38,7 +38,7 @@ void test_column_map_uses_block_subject_ring_bucket_order() {
   const auto& now_vax = series.block_descriptor(SeriesBlock::now_vax);
 
   CHECK(now_status.base_col == 0);
-  CHECK(now_status.subject_count == Status::names.size());
+  CHECK(now_status.subject_count == Status::names.size());   // based on trait Status
   CHECK(now_status.ring_stride == size_t(AgeBucket::COUNT));
   CHECK(now_status.subject_stride == series.n_rings() * size_t(AgeBucket::COUNT));
   CHECK(now_status.column_count == Status::names.size() * now_status.subject_stride);

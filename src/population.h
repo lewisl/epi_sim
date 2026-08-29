@@ -4,7 +4,6 @@
 
 #include "helpers.h"
 #include "parameters.h"
-// #include "disease_constants.h"
 
 // forward declarations
 struct AllSeries;
