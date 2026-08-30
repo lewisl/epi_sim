@@ -4,6 +4,9 @@
 
 The `AllSeries` column-table refactor is complete.
 
+- `design/series_column_order.md` gives a transposed, row-oriented map of the
+  physical `cols_` order, including block offsets and the first two subject,
+  ring, and age-bucket instances.
 - `SeriesGroup` and its six named `AllSeries` members were removed.
 - `AllSeries` owns private `std::vector<std::vector<std::int32_t>>` storage.
 - Six `SeriesBlock` descriptors represent status, vaccine, and variant in

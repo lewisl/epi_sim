@@ -88,7 +88,10 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     // start a new day
     sim::incr_day();
     sim::ds.day = sim::get_day();
+
+    sim::history_timing.start();
     series.init_history_series(d_i);
+    sim::history_timing.cum();
 
     // run beginning of day seed cases
     for (auto& sc : seedcases)
@@ -173,10 +176,10 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   } // end day loop
 
-  sim::history_timing.start();
-  series.finalize_series();
+  // sim::history_timing.start();
+  // series.finalize_series();
   // debugging only: series.validate_variant_invariant();
-  sim::history_timing.cum();
+  // sim::history_timing.cum();
 
   //
   // at end of simulation

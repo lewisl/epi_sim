@@ -42,6 +42,7 @@ inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
 
 AgeBucket bucket_from_age(Agegrp agegrp);
 
+// becomes TraitGroup
 enum class SeriesBlock : uint8_t {
     now_status,
     new_status,
