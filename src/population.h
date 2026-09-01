@@ -6,7 +6,7 @@
 #include "parameters.h"
 
 // forward declarations
-struct AllSeries;
+struct Histories;
 class PopData;
 struct AgentView;
 
@@ -202,10 +202,10 @@ class PopData {
 
       //
       // methods defined in disease_modeling.cpp as AgentView::make_well,etc.
-      // change status of 1 person, keeping all traits consistent. the person is the object: person.make_well(series)
-      void make_sick(Variant var, AllSeries & series, Condition condition = NIL, uint8_t durationdays = 1);
-      void make_well(AllSeries & series);
-      void make_dead(AllSeries & series);
+      // change status of 1 person, keeping all traits consistent. the person is the object: person.make_well(histories)
+      void make_sick(Variant var, Histories& histories, Condition condition = NIL, uint8_t durationdays = 1);
+      void make_well(Histories& histories);
+      void make_dead(Histories& histories);
       
 	  };  // end of struct AgentView
 

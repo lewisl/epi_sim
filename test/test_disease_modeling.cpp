@@ -9,9 +9,15 @@ namespace {
 
 constexpr std::string_view GROUP = "disease_modeling";
 
-AllSeries make_series(const PopData& pop, size_t day_cnt) {
-  size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
-  return AllSeries(day_cnt, pop, Variant::names.size(), Vax::names.size(), n_ring_slots);
+Histories make_series(const PopData& pop, size_t day_cnt) {
+  const size_t variants = Variant::names.empty() ? 0 : Variant::names.size() - 1;
+  const size_t vaccines = Vax::names.empty() ? 0 : Vax::names.size() - 1;
+  return Histories(day_cnt, pop, variants, vaccines, 0);
+}
+
+HistoryValue total(const Histories& histories, Trait trait, Phase phase,
+                   uint8_t trait_value, size_t day) {
+  return histories.aggregate_value(trait, phase, trait_value, day);
 }
 
 void write_disease_modeling_artifact(const test_support::TestRunOptions& options) {
@@ -28,7 +34,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    AllSeries series = make_series(pop, 5);
+    Histories series = make_series(pop, 5);
     sim::reset_day();
     sim::incr_day();
     sim::ds.day = sim::get_day();
@@ -40,15 +46,15 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
     artifact << "  variant/sickday: " << person.variant().show() << "/"
              << person.sickday() << "\n";
     artifact << "  series new_infectious/new_variant(base): "
-             << series.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
-                          AgeBucket::total)[1] << "/"
-             << series.at(SeriesBlock::new_variant, uint8_t(Variant{1}),
-                          AgeBucket::total)[1] << "\n\n";
+             << total(series, Trait::status, Phase::new_,
+                      uint8_t(INFECTIOUS), 1) << "/"
+             << total(series, Trait::variant, Phase::new_,
+                      uint8_t(Variant{1}), 1) << "\n\n";
   }
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    AllSeries series = make_series(pop, 20);
+    Histories series = make_series(pop, 20);
     auto person = pop.agent(1);
     person.variant() = Variant{1};
     sim::reset_day();
@@ -69,7 +75,7 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    AllSeries series = make_series(pop, 5);
+    Histories series = make_series(pop, 5);
     sim::reset_day();
     sim::incr_day();
     sim::ds.day = sim::get_day();
@@ -80,10 +86,10 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
     artifact << "  status/deadday: " << person.status().show() << "/"
              << person.deadday() << "\n";
     artifact << "  now_dead/now_base_variant: "
-             << series.at(SeriesBlock::now_status, uint8_t(DEAD),
-                          AgeBucket::total)[1] << "/"
-             << series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
-                          AgeBucket::total)[1] << "\n\n";
+             << total(series, Trait::status, Phase::now,
+                      uint8_t(DEAD), 1) << "/"
+             << total(series, Trait::variant, Phase::now,
+                      uint8_t(Variant{1}), 1) << "\n\n";
   }
 
   {
@@ -122,14 +128,14 @@ void write_disease_modeling_artifact(const test_support::TestRunOptions& options
   test_support::write_artifact_text(options, GROUP, "disease_modeling_summary.txt", artifact.str());
 }
 
-void test_make_sick_updates_state_and_series() {
+void test_make_sick_updates_state_and_histories() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
   Variant::names = {"none", "base"};
   Vax::names = {"none"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  AllSeries series = make_series(pop, 5);
+  Histories series = make_series(pop, 5);
 
   sim::reset_day();
   sim::incr_day();
@@ -148,16 +154,16 @@ void test_make_sick_updates_state_and_series() {
   CHECK(person.sickday_hist().count == 1);
   CHECK(person.sickday_hist().latest() == 1);
 
-  CHECK(series.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
-                  AgeBucket::total)[1] == 1);
-  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
-                  AgeBucket::total)[1] == 1);
-  CHECK(series.at(SeriesBlock::now_status, uint8_t(UNEXPOSED),
-                  AgeBucket::total)[1] == 4);
-  CHECK(series.at(SeriesBlock::new_variant, uint8_t(Variant{1}),
-                  AgeBucket::total)[1] == 1);
-  CHECK(series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
-                  AgeBucket::total)[1] == 1);
+  CHECK(total(series, Trait::status, Phase::new_,
+              uint8_t(INFECTIOUS), 1) == 1);
+  CHECK(total(series, Trait::status, Phase::now,
+              uint8_t(INFECTIOUS), 1) == 1);
+  CHECK(total(series, Trait::status, Phase::now,
+              uint8_t(UNEXPOSED), 1) == 4);
+  CHECK(total(series, Trait::variant, Phase::new_,
+              uint8_t(Variant{1}), 1) == 1);
+  CHECK(total(series, Trait::variant, Phase::now,
+              uint8_t(Variant{1}), 1) == 1);
 }
 
 void test_make_well_updates_state_and_recovday_history() {
@@ -167,7 +173,7 @@ void test_make_well_updates_state_and_recovday_history() {
   Vax::names = {"none"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  AllSeries series = make_series(pop, 20);
+  Histories series = make_series(pop, 20);
   auto person = pop.agent(1);
   person.variant() = Variant{1};
 
@@ -202,7 +208,7 @@ void test_make_dead_sets_death_state() {
   Vax::names = {"none"};
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  AllSeries series = make_series(pop, 5);
+  Histories series = make_series(pop, 5);
 
   sim::reset_day();
   sim::incr_day();
@@ -216,14 +222,12 @@ void test_make_dead_sets_death_state() {
   CHECK(person.deadday() == 1);
   CHECK(person.variant() == Variant{1});
 
-  CHECK(series.at(SeriesBlock::new_status, uint8_t(DEAD),
-                  AgeBucket::total)[1] == 1);
-  CHECK(series.at(SeriesBlock::now_status, uint8_t(DEAD),
-                  AgeBucket::total)[1] == 1);
-  CHECK(series.at(SeriesBlock::now_status, uint8_t(INFECTIOUS),
-                  AgeBucket::total)[1] == 0);
-  CHECK(series.at(SeriesBlock::now_variant, uint8_t(Variant{1}),
-                  AgeBucket::total)[1] == 0);
+  CHECK(total(series, Trait::status, Phase::new_, uint8_t(DEAD), 1) == 1);
+  CHECK(total(series, Trait::status, Phase::now, uint8_t(DEAD), 1) == 1);
+  CHECK(total(series, Trait::status, Phase::now,
+              uint8_t(INFECTIOUS), 1) == 0);
+  CHECK(total(series, Trait::variant, Phase::now,
+              uint8_t(Variant{1}), 1) == 0);
 }
 
 void test_recoveffect_uses_scalar_recovday() {
@@ -257,7 +261,7 @@ void test_progression_uses_packed_breakday_outcomes() {
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    AllSeries series = make_series(pop, 5);
+    Histories series = make_series(pop, 5);
     ProgressionSet progressionset;
     progressionset.progression.resize(2);
 
@@ -276,7 +280,7 @@ void test_progression_uses_packed_breakday_outcomes() {
 
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-    AllSeries series = make_series(pop, 5);
+    Histories series = make_series(pop, 5);
     ProgressionSet progressionset;
     progressionset.progression.resize(2);
     auto& tree = progressionset.progression[1].tree;
@@ -344,7 +348,7 @@ void test_vaxeffect_uses_scalar_latest_vax() {
 
 void run_disease_modeling_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running disease_modeling tests...");
-  test_make_sick_updates_state_and_series();
+  test_make_sick_updates_state_and_histories();
   test_make_well_updates_state_and_recovday_history();
   test_make_dead_sets_death_state();
   test_recoveffect_uses_scalar_recovday();

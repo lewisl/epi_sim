@@ -5,7 +5,7 @@
 #include "sim.h"
 #include "random.h"
 
-void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
+void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& social,
               vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
               vector<size_t> &contacts, float density_factor,
               vector<float> &indoor_seq,
@@ -98,7 +98,7 @@ void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &so
         // sim::ds.num_touched++;  // daily summary stat
 
         if (isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
-          contact.make_sick(spr_variant, series); // contact is pop.agent(c) from above
+          contact.make_sick(spr_variant, histories); // contact is pop.agent(c) from above
         }
       }
   }

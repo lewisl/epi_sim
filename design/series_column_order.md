@@ -1,187 +1,119 @@
-# `AllSeries::cols_`: Flat Column Order
+# `Histories::history_vectors_`: Atomic Column Order
 
-Read this document from top to bottom. Every ordinary table row is one physical
-column in the outer `cols_` vector. An italic ellipsis row stands for the
-omitted physical columns described by that row.
+Every physical outer-vector entry is one atomic column. No entry represents a
+sentinel trait value, total age, or total ring.
 
-The section headings are only visual breaks in the one flat vector. They do not
-represent another container level.
+## General order
 
-For 4 status values + none, 3 vaccines + none, 6 variants + none, 2 rings plus total, 5 ages + total and now and new, there are 576 columns.  Of these 108 columns are unused. A small modification of the column building code could eliminate these columns.
+The six contiguous groups are:
 
-`none`, `total`, and `RING_ALL` are shown because they occupy real columns.
-After those stored entries, the list shows the first two real subjects. Ring 1
-is the second physical ring slot, after `RING_ALL`. If no real ring is
-configured, the ring 1 rows do not exist.
+| Group | Base | Width |
+|---|---:|---:|
+| `status/now` | `0` | `S` |
+| `status/new_` | `S` | `S` |
+| `vax/now` | `2S` | `V` |
+| `vax/new_` | `2S + V` | `V` |
+| `variant/now` | `2(S + V)` | `W` |
+| `variant/new_` | `2(S + V) + W` | `W` |
 
-## `now_status` starts at the first column
+where:
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `now_status` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `now_status` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `now_status` | `none` (stored sentinel) | `total` | ring 1 |
-| `now_status` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `now_status` | `unexposed` | `total` | `RING_ALL` |
-| `now_status` | `unexposed` | `age0_19` | `RING_ALL` |
-| *…* | `unexposed` | *remaining ages* | `RING_ALL` |
-| `now_status` | `unexposed` | `total` | ring 1 |
-| `now_status` | `unexposed` | `age0_19` | ring 1 |
-| *…* | `unexposed` | *remaining ages* | ring 1 |
-| *…* | `unexposed` | *all ages* | *remaining rings* |
-| `now_status` | `infectious` | `total` | `RING_ALL` |
-| `now_status` | `infectious` | `age0_19` | `RING_ALL` |
-| *…* | `infectious` | *remaining ages* | `RING_ALL` |
-| `now_status` | `infectious` | `total` | ring 1 |
-| `now_status` | `infectious` | `age0_19` | ring 1 |
-| *…* | `infectious` | *remaining ages* | ring 1 |
-| *…* | `infectious` | *all ages* | *remaining rings* |
-| *…* | *remaining statuses: `recovered`, then `dead`* | *same age order* | *same ring order* |
+```text
+S = 4 statuses      * ring_lane_count * 5 ages
+V = active vaccines * ring_lane_count * 5 ages
+W = real variants   * ring_lane_count * 5 ages
+```
 
-## `new_status` follows immediately
+Within every non-empty group, columns advance in this order:
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `new_status` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `new_status` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `new_status` | `none` (stored sentinel) | `total` | ring 1 |
-| `new_status` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `new_status` | `unexposed` | `total` | `RING_ALL` |
-| `new_status` | `unexposed` | `age0_19` | `RING_ALL` |
-| *…* | `unexposed` | *remaining ages* | `RING_ALL` |
-| `new_status` | `unexposed` | `total` | ring 1 |
-| `new_status` | `unexposed` | `age0_19` | ring 1 |
-| *…* | `unexposed` | *remaining ages* | ring 1 |
-| *…* | `unexposed` | *all ages* | *remaining rings* |
-| `new_status` | `infectious` | `total` | `RING_ALL` |
-| `new_status` | `infectious` | `age0_19` | `RING_ALL` |
-| *…* | `infectious` | *remaining ages* | `RING_ALL` |
-| `new_status` | `infectious` | `total` | ring 1 |
-| `new_status` | `infectious` | `age0_19` | ring 1 |
-| *…* | `infectious` | *remaining ages* | ring 1 |
-| *…* | `infectious` | *all ages* | *remaining rings* |
-| *…* | *remaining statuses: `recovered`, then `dead`* | *same age order* | *same ring order* |
+```text
+first real trait value
+  first ring lane
+    age0_19
+    age20_39
+    age40_59
+    age60_79
+    age80_up
+  second ring lane
+    the same five ages
+  ...
+second real trait value
+  the same ring and age order
+...
+```
 
-## `now_vax` follows immediately
+When rings are disabled, there is exactly one implicit whole-population lane;
+its raw ring value is 0. When rings are enabled, only raw ring values `1..N`
+are stored. In neither case is there an additional all-rings lane.
 
-Vaccine subjects use registration order. Vaccine ID 0 is `none`; the next
-two rows of subjects below mean vaccine IDs 1 and 2, when present.
+## Worked layout: two rings, two vaccines, two variants
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `now_vax` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `now_vax` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `now_vax` | `none` (stored sentinel) | `total` | ring 1 |
-| `now_vax` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `now_vax` | first registered vaccine | `total` | `RING_ALL` |
-| `now_vax` | first registered vaccine | `age0_19` | `RING_ALL` |
-| *…* | first registered vaccine | *remaining ages* | `RING_ALL` |
-| `now_vax` | first registered vaccine | `total` | ring 1 |
-| `now_vax` | first registered vaccine | `age0_19` | ring 1 |
-| *…* | first registered vaccine | *remaining ages* | ring 1 |
-| *…* | first registered vaccine | *all ages* | *remaining rings* |
-| `now_vax` | second registered vaccine | `total` | `RING_ALL` |
-| `now_vax` | second registered vaccine | `age0_19` | `RING_ALL` |
-| *…* | second registered vaccine | *remaining ages* | `RING_ALL` |
-| `now_vax` | second registered vaccine | `total` | ring 1 |
-| `now_vax` | second registered vaccine | `age0_19` | ring 1 |
-| *…* | second registered vaccine | *remaining ages* | ring 1 |
-| *…* | second registered vaccine | *all ages* | *remaining rings* |
-| *…* | *remaining registered vaccines* | *same age order* | *same ring order* |
+Here `R = 2`, so each trait value occupies ten columns:
 
-## `new_vax` follows immediately
+```text
+S = 4 * 2 * 5 = 40
+V = 2 * 2 * 5 = 20
+W = 2 * 2 * 5 = 20
+total columns = 2 * (S + V + W) = 160
+```
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `new_vax` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `new_vax` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `new_vax` | `none` (stored sentinel) | `total` | ring 1 |
-| `new_vax` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `new_vax` | first registered vaccine | `total` | `RING_ALL` |
-| `new_vax` | first registered vaccine | `age0_19` | `RING_ALL` |
-| *…* | first registered vaccine | *remaining ages* | `RING_ALL` |
-| `new_vax` | first registered vaccine | `total` | ring 1 |
-| `new_vax` | first registered vaccine | `age0_19` | ring 1 |
-| *…* | first registered vaccine | *remaining ages* | ring 1 |
-| *…* | first registered vaccine | *all ages* | *remaining rings* |
-| `new_vax` | second registered vaccine | `total` | `RING_ALL` |
-| `new_vax` | second registered vaccine | `age0_19` | `RING_ALL` |
-| *…* | second registered vaccine | *remaining ages* | `RING_ALL` |
-| `new_vax` | second registered vaccine | `total` | ring 1 |
-| `new_vax` | second registered vaccine | `age0_19` | ring 1 |
-| *…* | second registered vaccine | *remaining ages* | ring 1 |
-| *…* | second registered vaccine | *all ages* | *remaining rings* |
-| *…* | *remaining registered vaccines* | *same age order* | *same ring order* |
+The resulting ranges are:
 
-## `now_variant` follows immediately
+| Columns | Trait | Phase | Raw trait values |
+|---:|---|---|---|
+| `0..39` | status | now | `1..4` |
+| `40..79` | status | new | `1..4` |
+| `80..99` | vax | now | `1..2` |
+| `100..119` | vax | new | `1..2` |
+| `120..139` | variant | now | `1..2` |
+| `140..159` | variant | new | `1..2` |
 
-Variant ID 0 is `none`, variant ID 1 is `base`, and any later variants use
-registration order.
+Some boundary columns make the ordering concrete:
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `now_variant` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `now_variant` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `now_variant` | `none` (stored sentinel) | `total` | ring 1 |
-| `now_variant` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `now_variant` | `base` | `total` | `RING_ALL` |
-| `now_variant` | `base` | `age0_19` | `RING_ALL` |
-| *…* | `base` | *remaining ages* | `RING_ALL` |
-| `now_variant` | `base` | `total` | ring 1 |
-| `now_variant` | `base` | `age0_19` | ring 1 |
-| *…* | `base` | *remaining ages* | ring 1 |
-| *…* | `base` | *all ages* | *remaining rings* |
-| `now_variant` | second real variant | `total` | `RING_ALL` |
-| `now_variant` | second real variant | `age0_19` | `RING_ALL` |
-| *…* | second real variant | *remaining ages* | `RING_ALL` |
-| `now_variant` | second real variant | `total` | ring 1 |
-| `now_variant` | second real variant | `age0_19` | ring 1 |
-| *…* | second real variant | *remaining ages* | ring 1 |
-| *…* | second real variant | *all ages* | *remaining rings* |
-| *…* | *remaining registered variants* | *same age order* | *same ring order* |
+| Column | Coordinates |
+|---:|---|
+| `0` | status / now / unexposed / ring 1 / age0_19 |
+| `4` | status / now / unexposed / ring 1 / age80_up |
+| `5` | status / now / unexposed / ring 2 / age0_19 |
+| `9` | status / now / unexposed / ring 2 / age80_up |
+| `10` | status / now / infectious / ring 1 / age0_19 |
+| `39` | status / now / dead / ring 2 / age80_up |
+| `40` | status / new / unexposed / ring 1 / age0_19 |
+| `79` | status / new / dead / ring 2 / age80_up |
+| `80` | vax / now / first brand / ring 1 / age0_19 |
+| `120` | variant / now / first variant / ring 1 / age0_19 |
+| `159` | variant / new / second variant / ring 2 / age80_up |
 
-## `new_variant` is the final run
+Columns `40..49` in this example are the deliberate `new_unexposed`
+placeholders. They remain zero and are not selectable. No other physical
+columns are intentionally unused.
 
-| Kind | Subject | Age | Ring |
-|---|---|---|---|
-| `new_variant` | `none` (stored sentinel) | `total` | `RING_ALL` |
-| `new_variant` | `none` (stored sentinel) | `age0_19` | `RING_ALL` |
-| *…* | `none` | *remaining ages* | `RING_ALL` |
-| `new_variant` | `none` (stored sentinel) | `total` | ring 1 |
-| `new_variant` | `none` (stored sentinel) | `age0_19` | ring 1 |
-| *…* | `none` | *remaining ages* | ring 1 |
-| *…* | `none` | *all ages* | *remaining rings* |
-| `new_variant` | `base` | `total` | `RING_ALL` |
-| `new_variant` | `base` | `age0_19` | `RING_ALL` |
-| *…* | `base` | *remaining ages* | `RING_ALL` |
-| `new_variant` | `base` | `total` | ring 1 |
-| `new_variant` | `base` | `age0_19` | ring 1 |
-| *…* | `base` | *remaining ages* | ring 1 |
-| *…* | `base` | *all ages* | *remaining rings* |
-| `new_variant` | second real variant | `total` | `RING_ALL` |
-| `new_variant` | second real variant | `age0_19` | `RING_ALL` |
-| *…* | second real variant | *remaining ages* | `RING_ALL` |
-| `new_variant` | second real variant | `total` | ring 1 |
-| `new_variant` | second real variant | `age0_19` | ring 1 |
-| *…* | second real variant | *remaining ages* | ring 1 |
-| *…* | second real variant | *all ages* | *remaining rings* |
-| *…* | *remaining registered variants* | *same age order* | *same ring order* |
+## case-1 layout
 
-The final `new_variant` ellipsis is followed by the end of `cols_`. Each
-listed column contains its own inner day vector:
-`[unused day 0, day 1, ..., day_cnt]`.
+The referenced case-1 configuration has six real variants, vaccination
+disabled, and rings disabled. Therefore:
+
+```text
+S = 4 * 1 * 5 = 20
+V = 0
+W = 6 * 1 * 5 = 30
+total columns = 2 * (20 + 0 + 30) = 100
+```
+
+Its ranges are:
+
+| Columns | Group |
+|---:|---|
+| `0..19` | status / now |
+| `20..39` | status / new |
+| none | vax / now and vax / new |
+| `40..69` | variant / now |
+| `70..99` | variant / new |
+
+The five columns `20..24` are the only always-zero outer columns: the five
+concrete-age `new_unexposed` placeholders in the implicit population ring
+lane. Each listed outer column contains its own inner day vector:
+
+```text
+[unused day 0, day 1, ..., day_cnt]
+```

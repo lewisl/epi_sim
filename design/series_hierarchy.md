@@ -1,188 +1,175 @@
-# AllSeries Column Table And Selection
+# Histories Layout And Selection
 
-`AllSeries` stores simulation history as one private `columns × days` table.
-It is separate from `PopData` serialization: population output formats
-person-level fields, while series output selects already-collected integer count
-columns.
+`Histories` is an in-memory table whose physical columns are ordinary
+`std::vector<HistoryValue>` objects. Each physical column is atomic: it
+represents one trait, phase, concrete trait value, concrete age group, and
+concrete ring lane. Its inner vector contains the count for each simulation
+day.
 
-## Logical Blocks
+Totals are query results. They are not physical history columns and simulation
+updates never maintain them.
 
-The table contains six typed blocks:
+## Stored axes
 
-| `SeriesBlock` | Subject axis | Meaning |
-|---|---|---|
-| `now_status` | `Status` | current status stock |
-| `new_status` | `Status` | status-transition flow |
-| `now_vax` | `Vax` brand | current vaccinated stock |
-| `new_vax` | `Vax` brand | first-vaccination flow |
-| `now_variant` | `Variant` | current infectious stock by variant |
-| `new_variant` | `Variant` | new infection flow by variant |
+| Axis | Stored values |
+|---|---|
+| `Trait` | `status`, vaccine brand (`vax`), `variant` |
+| `Phase` | `now`, `new_` |
+| status value | `unexposed`, `infectious`, `recovered`, `dead` |
+| vaccine value | Each active real vaccine brand; never `Vax{0}` |
+| variant value | Each real variant; never `Variant{0}` |
+| age | The five concrete age groups, raw values `1..5` |
+| ring | Each active real ring, or one implicit population lane if rings are disabled |
 
-Status, vaccine, and variant are parallel classifications. They are not crossed
-with each other. Every block is dense across its own subjects, all ring slots,
-and all six age buckets, so ring-by-age intersections remain available.
+There is no `Vaxstatus` history. Vaccine histories retain the original brand
+semantics:
 
-The `now_*` blocks are stocks. `init_history_series(day)` carries every column
-in each stock block from `day - 1` to `day`. The `new_*` blocks are flows; their
-preallocated day cells remain zero until an event updates them.
+- `new_vax:<brand>` counts first vaccinations with that brand on that day.
+- `now_vax:<brand>` is the carried stock of people ever vaccinated with that
+  brand.
+- `Vax{0}` remains “unvaccinated” in `PopData`, but it is not a stored history
+  value.
 
-## Physical Layout
+`new_unexposed` is the one deliberate schema placeholder. Its atomic columns
+exist so status `now` and `new_` have equal widths. Simulation code never
+updates them, the selector rejects them, and `HistorySelectionSpec("all")`
+does not include them.
 
-The storage member is:
+## Compact physical indexing
 
-```cpp
-std::vector<std::vector<std::int32_t>> cols_;
+The flat outer-vector order is:
+
+```text
+Trait -> Phase -> TraitValue -> Ring -> Age
+
+status/now
+status/new_
+vax/now
+vax/new_
+variant/now
+variant/new_
 ```
 
-Each outer element is one resolved history column. Each inner vector has
-`day_cnt + 1` cells. Simulation days are 1-based, so slot 0 is allocated but
+Let:
+
+```text
+A = 5 concrete ages
+R = max(number of active real rings, 1)
+Cstatus = 4
+Cvax = number of active real vaccine brands
+Cvariant = number of real variants
+
+S = Cstatus  * R * A
+V = Cvax     * R * A
+W = Cvariant * R * A
+```
+
+`S`, `V`, and `W` are the three phase widths. Group bases are derived directly:
+
+```text
+status/now     0
+status/new_    S
+vax/now        2S
+vax/new_       2S + V
+variant/now    2(S + V)
+variant/new_   2(S + V) + W
+```
+
+Raw one-based values are converted to compact ordinals only at the history
+index boundary:
+
+```text
+value_ordinal = raw_trait_value - 1
+age_ordinal   = raw_age - 1
+ring_ordinal  = raw_ring - 1              when rings are active
+ring_ordinal  = 0                         when rings are disabled
+```
+
+The single physical-index expression is:
+
+```text
+index = trait_phase_base
+      + value_ordinal * R * A
+      + ring_ordinal * A
+      + age_ordinal
+```
+
+There is no `TraitPhaseLayout` descriptor or parallel overlay structure.
+`Histories` stores only the three phase widths and the active value/ring
+counts needed to evaluate this expression.
+
+Days remain 1-based inside each column vector; inner slot 0 is allocated but
 not emitted.
 
-`SeriesColumnMap` builds a `SeriesBlockDescriptor` for every block. A descriptor
-contains the block's base column, subject count, subject stride, ring stride,
-column count, and stock/flow flag. Physical order is:
-
-```text
-block -> subject -> ring -> age bucket
-```
-
-Age bucket is the fastest-changing coordinate. For a descriptor `d`:
-
-```text
-column = d.base_col
-       + subject * d.subject_stride
-       + ring * d.ring_stride
-       + bucket
-
-d.ring_stride    = AgeBucket::COUNT
-d.subject_stride = ring_count * AgeBucket::COUNT
-d.column_count   = subject_count * d.subject_stride
-```
-
-The day selects a value inside that column:
-
-```cpp
-series.at(block, subject, bucket, ring)[day]
-```
-
-`column_index(...)`, `column(...)`, `at(...)`, and `update(...)` are the public
-numeric access layer. Their hot-path operations are inline and unchecked.
-Callers must supply valid block, subject, ring, bucket, and day coordinates.
-
-## Index Semantics
-
-| Coordinate | Convention |
-|---|---|
-| block | Zero-based `SeriesBlock` enum; all six values are physical blocks. |
-| subject | Raw `Status`, `Vax`, or `Variant` ID. Slot 0 exists in storage as that family's sentinel but is excluded from normal output selection. |
-| ring | `RING_ALL == 0` is the aggregate slot; real rings are `1..N`. |
-| age bucket | Zero-based `AgeBucket`; `total == 0`, followed by five concrete age buckets. |
-| day | `1..day_cnt`; slot 0 is unused by normal output. |
-
-When no real rings are configured, `AllSeries` still has one ring slot: the
-`RING_ALL` aggregate.
-
-## Updates And Aggregates
+## Updates and initialization
 
 Simulation transitions call:
 
 ```cpp
-series.update(block, subject, ring, agegrp, day, change);
+histories.update(trait, phase, raw_trait_value, raw_ring,
+                 concrete_age, day, change);
 ```
 
-`Agegrp` is converted to its concrete `AgeBucket`. One event normally updates
-four columns:
+One call changes exactly one physical column. There are no mirror writes for
+total age or total ring.
 
-```text
-(subject, specific ring, specific age)
-(subject, specific ring, total age)
-(subject, RING_ALL, specific age)
-(subject, RING_ALL, total age)
-```
+The constructor seeds `now_unexposed` day 1 by walking people `1..popn`, so it
+seeds the correct atomic age and ring cell. `init_history_series(day)` carries
+only every `Phase::now` atomic vector forward. `Phase::new_` vectors start each
+day at zero.
 
-If the supplied ring is already `RING_ALL`, the aggregate mirror writes are
-skipped. This preserves the no-rings behavior without double-counting.
+## Selection and materialized totals
 
-Disease transitions update status and variant blocks. First vaccinations update
-vaccine blocks. A vaccination total is not stored: `now_vaccinated` and
-`new_vaccinated` are materialized at read time by summing every non-sentinel
-vaccine-brand column for the requested ring and age bucket.
-
-The constructor preserves the existing day-1 seed: only aggregate-ring
-`now_status[UNEXPOSED]` is populated from `PopData`, for the total and each age
-bucket. Per-ring day-1 unexposed stocks remain a follow-up.
-
-`finalize_series()` is intentionally empty. Ring and age totals are maintained
-during updates, and vaccinated totals are reductions during selection.
-
-`validate_variant_invariant()` checks every simulated day:
-
-```text
-sum(now_variant[real variant, RING_ALL, total])
-    == now_status[INFECTIOUS, RING_ALL, total]
-```
-
-## Text Selection And Numeric Resolution
-
-Strings are post-run selectors. They do not determine which history columns are
-collected.
+`HistorySelection` remains the public string query:
 
 ```cpp
-struct SeriesSelection {
+struct HistorySelection {
     std::string name;
-    std::string bucket;
-    std::string ring = "";
+    std::string age;       // "total" or a concrete age name
+    std::string ring = ""; // empty means all rings
 };
 ```
-
-`SeriesColSpec` preserves requested order and supports explicit selections or
-the `"all"` expansion. The expansion emits every public status, vaccine-brand,
-variant, and vaccinated-total selection for the requested age buckets; sentinel
-subjects are omitted.
-
-Resolution proceeds as follows:
-
-1. Parse `bucket` to an `AgeBucket`.
-2. Parse `ring`: empty means `RING_ALL`; a decimal token is a ring ID; otherwise
-   use the registered `Ring::names` value.
-3. Split `name` into `now_`/`new_` and a family/subject selector.
-4. Use the family registry for status, vaccine, or variant to find the subject
-   ID and block.
-5. Calculate the outer-column index with `column_index(...)`.
-6. Materialize that physical column, or sum vaccine-brand columns for a
-   vaccinated-total selection.
 
 Examples:
 
 ```text
-now_infectious       -> now_status, INFECTIOUS
-new_vax:pfizer       -> new_vax, registered Pfizer subject
-now_variant:delta    -> now_variant, registered Delta subject
-now_vaccinated       -> reduction across non-sentinel now_vax subjects
+now_infectious
+new_vax:Pfizer
+now_variant:delta
+now_vaccinated
 ```
 
-Labels are generated from resolved coordinates. Aggregate-ring labels omit a
-ring suffix. Real-ring labels use the registered ring name, so a numeric alias
-such as `"2"` selects ring 2 but serializes using `Ring::names[2]`.
+Resolution expands a requested total into its atomic source-column indices,
+sums those columns into an owned `std::vector<HistoryValue>`, and records the
+source indices in `ResolvedHistoryVector::source_history_vectors`. A resolved
+vector is therefore the materialized total used by printing, CSV
+serialization, and plotting; it is not inserted back into `Histories`.
 
-Invalid selections are reported separately. Serialization skips invalid
-columns while retaining valid selections in caller order; printing rejects a
-set containing an invalid selection.
+The resolver supports:
 
-## Output Consumers
+- total age: sum all five concrete ages;
+- total ring: sum every real ring, or use the implicit lane when rings are
+  disabled;
+- `now_vaccinated` / `new_vaccinated`: sum every active real vaccine brand;
+- any combination of the above.
 
-`print_selected_series`, `serialize_selected_series`, and `seriesplot` share
-`resolve_selected_series`:
+With no active vaccine brands, `vaccinated` is a valid all-zero materialized
+vector. A named vaccine brand is invalid because no such physical column
+exists. Invalid selections are reported and skipped; valid selections in the
+same request continue through printing, serialization, or plotting.
 
-```text
-SeriesColSpec
-  -> typed coordinates and numeric outer-column indices
-  -> ResolvedSeriesSelection
-       -> terminal table
-       -> CSV
-       -> Plotly traces
-```
+## Introspection
 
-Condition history is not part of the current table. Later support adds
-`now_condition` and `new_condition` descriptors plus transition updates; it does
-not require changing the physical indexing scheme.
+The layout can be inspected in both directions without storing a duplicate
+schema:
+
+- `history_vector_index(...)` maps valid raw coordinates to a physical index.
+- `describe_history_vector(index)` reconstructs raw coordinates.
+- `history_column_label(index)` produces a field-labelled description.
+- `explain_history_vector_index(...)` shows the index and each ordinal.
+- `dump_history_layout(out)` prints every physical column.
+- `validate_history_layout()` exhaustively checks uniqueness, coverage, and
+  forward/reverse round trips.
+
+This gives debugging and user-facing inspection a stable vocabulary while the
+simulation hot path keeps direct vector indexing.

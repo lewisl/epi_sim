@@ -8,9 +8,15 @@ namespace {
 
 constexpr std::string_view GROUP = "vaccination";
 
-AllSeries make_series(const PopData& pop, size_t day_cnt) {
-  size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
-  return AllSeries(day_cnt, pop, Variant::names.size(), Vax::names.size(), n_ring_slots);
+Histories make_series(const PopData& pop, size_t day_cnt) {
+  const size_t variants = Variant::names.empty() ? 0 : Variant::names.size() - 1;
+  const size_t vaccines = Vax::names.empty() ? 0 : Vax::names.size() - 1;
+  return Histories(day_cnt, pop, variants, vaccines, 0);
+}
+
+HistoryValue total(const Histories& histories, Trait trait, Phase phase,
+                   uint8_t trait_value, size_t day) {
+  return histories.aggregate_value(trait, phase, trait_value, day);
 }
 
 VaxSet make_pfizer_set(int reqdshots, int delay2ndshot, int delaybooster) {
@@ -66,7 +72,7 @@ void set_only_people_in_agegrp(PopData& pop, std::initializer_list<size_t> peopl
   for (const size_t p : people) pop.agegrp[p] = agegrp;
 }
 
-void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
+void test_vaccinate_first_shot_respects_supply_limit_and_updates_histories() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
   Variant::names = {"none"};
@@ -74,7 +80,7 @@ void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
 
   PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
-  AllSeries series = make_series(pop, 20);
+  Histories series = make_series(pop, 20);
   VaxSet vaxset = make_pfizer_set(1, 0, 999);
   VaxSchedSet schedset = make_pfizer_schedset(1);
 
@@ -83,8 +89,8 @@ void test_vaccinate_first_shot_respects_supply_limit_and_updates_series() {
 
   CHECK(vaccinated_count(pop) == 1);
   CHECK(schedset.schedules[0].second.vaxesincluded[0].doses == 0);
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
-  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 1);
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{1}), 10) == 1);
+  CHECK(total(series, Trait::vax, Phase::now, uint8_t(Vax{1}), 10) == 1);
 }
 
 void test_vaccinate_uses_scalar_recovday_eligibility() {
@@ -100,7 +106,7 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   pop.status[3] = RECOVERED;
   pop.recovday[3] = 10;
 
-  AllSeries series = make_series(pop, 30);
+  Histories series = make_series(pop, 30);
   VaxSet vaxset = make_pfizer_set(1, 0, 999);
   VaxSchedSet schedset = make_pfizer_schedset(10);
 
@@ -113,7 +119,7 @@ void test_vaccinate_uses_scalar_recovday_eligibility() {
   CHECK(pop.vax_hist[1].count == 1);
   CHECK(pop.vax_hist[2].count == 1);
   CHECK(pop.vax_hist[3].count == 0);
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[20] == 2);
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{1}), 20) == 2);
 }
 
 void test_vaccinate_second_shot_after_delay() {
@@ -130,7 +136,7 @@ void test_vaccinate_second_shot_after_delay() {
   pop.vax_hist[1].set(Vax{1});
   pop.vaxday_hist[1].set(1);
 
-  AllSeries series = make_series(pop, 20);
+  Histories series = make_series(pop, 20);
   VaxSet vaxset = make_pfizer_set(2, 7, 999);
   VaxSchedSet schedset = make_pfizer_schedset(2, {1, 5});
 
@@ -141,7 +147,7 @@ void test_vaccinate_second_shot_after_delay() {
   CHECK(pop.vax_hist[1].count == 2);
   CHECK(pop.vax_hist[1].latest() == Vax{1});
   CHECK(pop.vaxday_hist[1].latest() == 10);
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] == 0);
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{1}), 10) == 0);
 }
 
 void test_vaccinate_booster_after_delay() {
@@ -158,7 +164,7 @@ void test_vaccinate_booster_after_delay() {
   pop.vax_hist[1].set(Vax{1});
   pop.vaxday_hist[1].set(1);
 
-  AllSeries series = make_series(pop, 30);
+  Histories series = make_series(pop, 30);
   VaxSet vaxset = make_pfizer_set(2, 7, 10);
   VaxSchedSet schedset = make_pfizer_schedset(2);
 
@@ -168,7 +174,7 @@ void test_vaccinate_booster_after_delay() {
   CHECK(pop.vaxday[1] == 20);
   CHECK(pop.vax_hist[1].count == 2);
   CHECK(pop.vaxday_hist[1].latest() == 20);
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[20] == 0);
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{1}), 20) == 0);
 }
 
 void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
@@ -180,7 +186,7 @@ void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
   const int popn = 30;
   PopData pop(popn, {0.2, 0.2, 0.2, 0.2, 0.2});
   set_agegrp(pop, AGE20_39);
-  AllSeries series = make_series(pop, 20);
+  Histories series = make_series(pop, 20);
 
   VaxSet vaxset;
   vaxset.params.push_back(Vaxparam{});  // index 0: unused placeholder
@@ -237,13 +243,13 @@ void test_vaccinate_mixed_brand_first_shot_distributes_and_tracks_per_brand() {
   CHECK(result_specs[0].doses == popn - pfizer_count);
   CHECK(result_specs[1].doses == popn - moderna_count);
 
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{1}), AgeBucket::total)[10] ==
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{1}), 10) ==
         pfizer_count);
-  CHECK(series.at(SeriesBlock::new_vax, uint8_t(Vax{2}), AgeBucket::total)[10] ==
+  CHECK(total(series, Trait::vax, Phase::new_, uint8_t(Vax{2}), 10) ==
         moderna_count);
-  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{1}), AgeBucket::total)[10] ==
+  CHECK(total(series, Trait::vax, Phase::now, uint8_t(Vax{1}), 10) ==
         pfizer_count);
-  CHECK(series.at(SeriesBlock::now_vax, uint8_t(Vax{2}), AgeBucket::total)[10] ==
+  CHECK(total(series, Trait::vax, Phase::now, uint8_t(Vax{2}), 10) ==
         moderna_count);
 }
 
@@ -282,7 +288,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
   {
     PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
     set_agegrp(pop, AGE20_39);
-    AllSeries series = make_series(pop, 20);
+    Histories series = make_series(pop, 20);
     VaxSet vaxset = make_pfizer_set(1, 0, 999);
     VaxSchedSet schedset = make_pfizer_schedset(1);
     xo::seed(1);
@@ -291,10 +297,10 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     artifact << "  vaccinated_count: " << vaccinated_count(pop) << "\n";
     artifact << "  remaining doses: " << schedset.schedules[0].second.vaxesincluded[0].doses << "\n";
     artifact << "  new_vax/now_vax day10: "
-             << series.at(SeriesBlock::new_vax, uint8_t(Vax{1}),
-                          AgeBucket::total)[10] << "/"
-             << series.at(SeriesBlock::now_vax, uint8_t(Vax{1}),
-                          AgeBucket::total)[10] << "\n\n";
+             << total(series, Trait::vax, Phase::new_,
+                      uint8_t(Vax{1}), 10) << "/"
+             << total(series, Trait::vax, Phase::now,
+                      uint8_t(Vax{1}), 10) << "\n\n";
   }
 
   {
@@ -304,7 +310,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     pop.recovday[2] = 5;
     pop.status[3] = RECOVERED;
     pop.recovday[3] = 10;
-    AllSeries series = make_series(pop, 30);
+    Histories series = make_series(pop, 30);
     VaxSet vaxset = make_pfizer_set(1, 0, 999);
     VaxSchedSet schedset = make_pfizer_schedset(10);
     xo::seed(2);
@@ -313,8 +319,8 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     artifact << "  statuses: " << pop.vaxstatus[1].show() << ", "
              << pop.vaxstatus[2].show() << ", " << pop.vaxstatus[3].show() << "\n";
     artifact << "  new_vax day20: "
-             << series.at(SeriesBlock::new_vax, uint8_t(Vax{1}),
-                          AgeBucket::total)[20] << "\n\n";
+             << total(series, Trait::vax, Phase::new_,
+                      uint8_t(Vax{1}), 20) << "\n\n";
   }
 
   {
@@ -325,7 +331,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     pop.vaxday[1] = 1;
     pop.vax_hist[1].set(Vax{1});
     pop.vaxday_hist[1].set(1);
-    AllSeries series = make_series(pop, 20);
+    Histories series = make_series(pop, 20);
     VaxSet vaxset = make_pfizer_set(2, 7, 999);
     VaxSchedSet schedset = make_pfizer_schedset(2, {1, 5});
     vaccinate(10, schedset, vaxset, pop, series);
@@ -342,7 +348,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
     pop.vaxday[1] = 1;
     pop.vax_hist[1].set(Vax{1});
     pop.vaxday_hist[1].set(1);
-    AllSeries series = make_series(pop, 30);
+    Histories series = make_series(pop, 30);
     VaxSet vaxset = make_pfizer_set(2, 7, 10);
     VaxSchedSet schedset = make_pfizer_schedset(2);
     vaccinate(20, schedset, vaxset, pop, series);
@@ -373,7 +379,7 @@ void write_vaccination_artifact(const test_support::TestRunOptions& options) {
 
 void run_vaccination_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running vaccination tests...");
-  test_vaccinate_first_shot_respects_supply_limit_and_updates_series();
+  test_vaccinate_first_shot_respects_supply_limit_and_updates_histories();
   test_vaccinate_uses_scalar_recovday_eligibility();
   test_vaccinate_second_shot_after_delay();
   test_vaccinate_booster_after_delay();

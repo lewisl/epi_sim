@@ -1,5 +1,10 @@
 # Implementation plan: add a ring dimension to the series subsystem
 
+> **Superseded:** This is a historical implementation plan for the former
+> eager-aggregate series layout. The current atomic-only design is documented
+> in `series_hierarchy.md` and `series_column_order.md`; do not use the indexing
+> or mirror-write rules below for current code.
+
 Branch: `ring_by_ai` of `epi_sim`. C++23, xmake, doctest-style tests in `test/`.
 
 ## Goal

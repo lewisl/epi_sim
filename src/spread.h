@@ -5,7 +5,7 @@
 #include "cases.h"
 #include "series.h"
 
-void spread(PopData &pop, AllSeries & series, AgentView person, SocialParams &social,
+void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& social,
             vector<InfectParams> &infectparams, const VaxSet& vaxset, bool dovax,
             vector<size_t> &contacts, float density_factor, vector<float> &indoor_seq,
             const vector<SocialDistancing>& sd_cases,

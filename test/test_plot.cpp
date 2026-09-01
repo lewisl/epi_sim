@@ -102,6 +102,48 @@ void test_produce_plot_writes_valid_html_file() {
   test_support::fs::remove_all(temp_dir);
 }
 
+void test_historyplot_uses_materialized_age_and_ring_total() {
+  test_support::VariantNamesGuard variant_guard;
+  test_support::VaxNamesGuard vax_guard;
+  test_support::RingNamesGuard ring_guard;
+  Variant::names = {"none", "base"};
+  Vax::names = {"none"};
+  Ring::names = {"", "ring_1", "ring_2"};
+
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
+  for (size_t person = 1; person <= pop.popn; ++person) {
+    pop.ring[person] = static_cast<uint8_t>((person - 1) % 2 + 1);
+  }
+  Histories histories(2, pop, 1, 0, 2);
+  histories.at(Trait::status, Phase::now,
+               uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
+  histories.at(Trait::status, Phase::now,
+               uint8_t(INFECTIOUS), AGE20_39, 2)[1] = 3;
+
+  const auto temp_dir = test_support::fs::temp_directory_path()
+                      / test_support::unique_name("epi_sim_historyplot_");
+  const auto output_path = temp_dir / "history_totals.html";
+  const HistorySelectionSpec selections(std::vector<HistorySelection>{
+      {"not_a_history", "total"},
+      {"now_infectious", "total"},
+  });
+  const std::vector<absl::CivilDay> calendar_days{
+      absl::CivilDay(2020, 1, 1), absl::CivilDay(2020, 1, 2)};
+
+  historyplot(selections, histories, calendar_days, SummaryData{},
+              "History Total Test", false, output_path);
+
+  const string html = test_support::read_file_text(output_path);
+  const json data = json::parse(extract_json_assignment(html, "data"));
+  REQUIRE(data.size() == 1);
+  CHECK(data[0]["name"] == "now_infectious:total");
+  CHECK(data[0]["y"] == json::array({5, 0}));
+  CHECK(data[0]["x"] == json::array({"2020-01-01", "2020-01-02"}));
+  CHECK(data[0]["type"] == "scatter");
+
+  test_support::fs::remove_all(temp_dir);
+}
+
 void write_plot_artifacts(const test_support::TestRunOptions& options) {
   if (!options.write_artifacts) return;
 
@@ -130,6 +172,7 @@ void run_plot_tests(const test_support::TestRunOptions& options) {
   fmt::println("Running plot tests...");
   test_render_plot_html_replaces_template_tokens();
   test_produce_plot_writes_valid_html_file();
+  test_historyplot_uses_materialized_age_and_ring_total();
   write_plot_artifacts(options);
   if (options.write_artifacts) {
     fmt::println("plot artifacts written under '{}'",

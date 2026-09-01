@@ -85,4 +85,4 @@ struct SummaryData {
 
 
 // Simulation runner
-AllSeries runsim(Model& model);
+Histories runsim(Model& model);

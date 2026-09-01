@@ -768,6 +768,12 @@ void test_check_variants_rejects_non_base_first() {
   CHECK(has_error_containing(e, "the first variant must be named 'base'"));
 }
 
+void test_check_variants_rejects_empty_input() {
+  Errors e;
+  input_verify_detail::check_variants(json::object(), e);
+  CHECK(has_error_containing(e, "expected a non-empty object of variants"));
+}
+
 void test_check_variants_rejects_wrong_progression_row_length() {
   Errors e;
   json v = json::parse(variants_json);
@@ -903,6 +909,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_check_config_rejects_age_dist_wrong_size();
   test_check_config_rejects_age_dist_bad_sum();
   test_check_config_requires_vax_keys_when_dovax();
+  test_check_variants_rejects_empty_input();
   test_check_variants_rejects_non_base_first();
   test_check_variants_rejects_wrong_progression_row_length();
   test_check_variants_rejects_progression_row_bad_sum();

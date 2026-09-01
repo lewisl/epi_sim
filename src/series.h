@@ -3,181 +3,196 @@
 #include "population.h"
 #include <cstdint>
 #include <initializer_list>
+#include <iostream>
+#include <numeric>
+#include <ostream>
+#include <utility>
 
 
-enum class AgeBucket : uint8_t { total, age0_19, age20_39, age40_59, age60_79, age80_up, COUNT };
+using AgeVecIndex = uint8_t;
 
-// Reserved ring slot holding the all-rings aggregate. Reuses the unused
-// sentinel index so no real person (rings are 1-based) ever collides with it.
-inline constexpr uint8_t RING_ALL = 0;
+inline constexpr AgeVecIndex HISTORY_AGE_TOTAL = 0;
+// Histories store only the five concrete age groups. "total" is a query
+// selector and is materialized by summing those atomic vectors.
+inline constexpr size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
-struct SeriesSelection {
-    std::string name;        // this must be a string that matches -> presumably a subject FINISH YOUR DANM COMMENTS!
-    std::string bucket;      // this must be a string that matches an AgeBucket enum
-    std::string ring = "";   // "" → RING_ALL (all-rings aggregate)
-
-    bool operator==(const SeriesSelection&) const = default;
-};
-
-inline constexpr auto all_age_buckets = std::array{
-    AgeBucket::total, AgeBucket::age0_19, AgeBucket::age20_39,
-    AgeBucket::age40_59, AgeBucket::age60_79, AgeBucket::age80_up};
-
-inline constexpr auto age_bucket_labels = std::array{
-    "total", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
-
-static_assert(all_age_buckets.size() == size_t(AgeBucket::COUNT));
-static_assert(age_bucket_labels.size() == size_t(AgeBucket::COUNT));
-
-constexpr std::string_view to_string(AgeBucket bucket) {
-    return age_bucket_labels[size_t(bucket)];
+constexpr std::string_view age_vec_label(AgeVecIndex age) {
+    if (age == HISTORY_AGE_TOTAL) return "total";
+    return std::string_view{Agegrp::names[age]};
 }
 
-inline std::optional<AgeBucket> age_bucket_from_string(std::string_view text) {
-    for (size_t i = 0; i < age_bucket_labels.size(); ++i) {
-        if (age_bucket_labels[i] == text) return static_cast<AgeBucket>(i);
+inline std::optional<AgeVecIndex> age_vec_index_from_string(std::string_view text) {
+    if (text == "total") return HISTORY_AGE_TOTAL;
+    for (size_t i = 1; i < Agegrp::names.size(); ++i) {
+        if (Agegrp::names[i] == text) return static_cast<AgeVecIndex>(i);
     }
     return std::nullopt;
 }
 
-AgeBucket bucket_from_age(Agegrp agegrp);
+// Query selector for all rings. When rings are disabled, raw ring 0 also names
+// the single implicit whole-population storage lane.
+inline constexpr uint8_t RING_ALL = 0;
 
-// becomes TraitGroup
-enum class SeriesBlock : uint8_t {
-    now_status,
-    new_status,
-    now_vax,
-    new_vax,
-    now_variant,
-    new_variant,
+struct HistorySelection {
+    std::string name;
+    std::string age;         // "total" or one of the concrete Agegrp names
+    std::string ring = "";   // "" -> RING_ALL (all-rings aggregate)
+
+    bool operator==(const HistorySelection&) const = default;
+};
+
+enum class Trait : uint8_t {
+    status,
+    vax,
+    variant,
     COUNT
 };
 
-inline constexpr auto all_series_blocks = std::array{
-    SeriesBlock::now_status, SeriesBlock::new_status,
-    SeriesBlock::now_vax, SeriesBlock::new_vax,
-    SeriesBlock::now_variant, SeriesBlock::new_variant};
-
-static_assert(all_series_blocks.size() == size_t(SeriesBlock::COUNT));
-
-using SeriesValue = std::int32_t;
-using SeriesColumn = std::vector<SeriesValue>;
-using SeriesColumnIndex = size_t;
-
-struct SeriesBlockDescriptor {
-    SeriesColumnIndex base_col{};
-    size_t subject_count{};
-    size_t subject_stride{};
-    size_t ring_stride{};
-    size_t column_count{};
-    bool is_stock{};
+enum class Phase : uint8_t {
+    now,
+    new_,
+    COUNT
 };
 
-class SeriesColumnMap {
-public:
-    SeriesColumnMap(size_t n_status, size_t n_vax, size_t n_variants,
-                    size_t n_rings);
+inline constexpr auto all_traits = std::array{
+    Trait::status, Trait::vax, Trait::variant};
 
-    // calculates the index of a series in AllSeries
-    [[clang::always_inline]] SeriesColumnIndex column_index(
-        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
-        uint8_t ring = RING_ALL) const {
-        const auto& desc = descriptors_[size_t(block)];
-        return desc.base_col
-             + size_t(subject_idx) * desc.subject_stride
-             + size_t(ring) * desc.ring_stride
-             + size_t(bucket);
-    }
+inline constexpr auto all_phases = std::array{
+    Phase::now, Phase::new_};
 
-    [[clang::always_inline]] const SeriesBlockDescriptor& descriptor(
-        SeriesBlock block) const {
-        return descriptors_[size_t(block)];
-    }
+static_assert(all_traits.size() == size_t(Trait::COUNT));
+static_assert(all_phases.size() == size_t(Phase::COUNT));
 
-    size_t n_rings() const { return n_rings_; }
-    size_t total_columns() const { return total_columns_; }
+using HistoryValue = std::int32_t;
 
-private:
-    std::array<SeriesBlockDescriptor, size_t(SeriesBlock::COUNT)> descriptors_{};
-    size_t n_rings_{};
-    size_t total_columns_{};
+struct HistoryColumnCoordinates {
+    Trait trait;
+    Phase phase;
+    uint8_t trait_value; // raw enum value; concrete values begin at 1
+    Agegrp age;
+    uint8_t ring;        // 0 only for the implicit lane when rings are disabled
+
+    bool operator==(const HistoryColumnCoordinates&) const = default;
 };
-
 
 /*
-AllSeries: top-level container for all time-series data in the simulation.
+Histories: top-level container for all collected history in the simulation.
 
 Nesting:
-  AllSeries (one instance, passed by reference everywhere)
-    vector of columns (indexed through SeriesColumnMap)
+  Histories (one instance, passed by reference everywhere)
+    vector of HistoryVectors (indexed directly by Histories)
       vector<int32_t> (indexed by simulation day, 1-based; slot 0 unused)
 */
-struct AllSeries {
+struct Histories {
     size_t day_cnt;
 
-    AllSeries(size_t day_cnt, const PopData& pop,
-              size_t n_variants, size_t n_vax, size_t n_rings);
+    Histories(size_t n_days, const PopData& pop,
+              size_t real_variant_count, size_t real_vax_count,
+              size_t real_ring_count);
 
-    [[clang::always_inline]] SeriesColumnIndex column_index(
-        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+    [[clang::always_inline]] size_t history_vector_index(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
-        return column_map_.column_index(block, subject_idx, bucket, ring);
+        const size_t value_ordinal = size_t(trait_value - 1);
+        const size_t ring_ordinal = real_ring_count_ == 0
+                                  ? 0
+                                  : size_t(ring - 1);
+        const size_t age_ordinal = size_t(age.v - 1);
+        return trait_phase_base(trait, phase)
+             + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
+             + ring_ordinal * HISTORY_AGE_COUNT
+             + age_ordinal;
     }
 
-    [[clang::always_inline]] SeriesColumn& column(SeriesColumnIndex col) {
-        return cols_[col];
+    [[clang::always_inline]] std::vector<HistoryValue>& history_vector(
+        size_t index) {
+        return history_vectors_[index];
     }
-    [[clang::always_inline]] const SeriesColumn& column(SeriesColumnIndex col) const {
-        return cols_[col];
+    [[clang::always_inline]] const std::vector<HistoryValue>& history_vector(
+        size_t index) const {
+        return history_vectors_[index];
     }
 
-    [[clang::always_inline]] SeriesColumn& at(
-        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+    [[clang::always_inline]] std::vector<HistoryValue>& at(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) {
-        return cols_[column_index(block, subject_idx, bucket, ring)];
+        return history_vectors_[history_vector_index(
+            trait, phase, trait_value, age, ring)];
     }
-    [[clang::always_inline]] const SeriesColumn& at(
-        SeriesBlock block, uint8_t subject_idx, AgeBucket bucket,
+    [[clang::always_inline]] const std::vector<HistoryValue>& at(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
-        return cols_[column_index(block, subject_idx, bucket, ring)];
+        return history_vectors_[history_vector_index(
+            trait, phase, trait_value, age, ring)];
     }
 
     [[clang::always_inline]] void update(
-        SeriesBlock block, uint8_t subject_idx, uint8_t ring, Agegrp agegrp,
-        size_t day, SeriesValue change) {
-        const auto& desc = column_map_.descriptor(block);
-        const size_t bucket = size_t(bucket_from_age(agegrp));
-        const size_t subject_base = desc.base_col + size_t(subject_idx) * desc.subject_stride;
-        const size_t ring_base = subject_base + size_t(ring) * desc.ring_stride;
-
-        cols_[ring_base + bucket][day] += change;
-        cols_[ring_base + size_t(AgeBucket::total)][day] += change;
-        if (ring != RING_ALL) {
-            cols_[subject_base + bucket][day] += change;
-            cols_[subject_base + size_t(AgeBucket::total)][day] += change;
-        }
+        Trait trait, Phase phase, uint8_t trait_value, uint8_t ring,
+        Agegrp agegrp, size_t day, HistoryValue change) {
+        history_vectors_[history_vector_index(
+            trait, phase, trait_value, agegrp, ring)][day] += change;
     }
 
-    const SeriesBlockDescriptor& block_descriptor(SeriesBlock block) const {
-        return column_map_.descriptor(block);
+    size_t trait_value_count(Trait trait) const;
+    size_t phase_width(Trait trait) const {
+        return phase_widths_[size_t(trait)];
     }
-    size_t n_rings() const { return column_map_.n_rings(); }
-    size_t column_count() const { return column_map_.total_columns(); }
+    size_t real_variant_count() const { return real_variant_count_; }
+    size_t real_vax_count() const { return real_vax_count_; }
+    size_t real_ring_count() const { return real_ring_count_; }
+    size_t ring_lane_count() const { return ring_lane_count_; }
+    size_t history_vector_count() const { return history_vectors_.size(); }
+    bool valid_history_coordinates(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
+        uint8_t ring = RING_ALL) const;
+
+    std::optional<HistoryColumnCoordinates> describe_history_vector(
+        size_t index) const;
+    std::string history_column_label(size_t index) const;
+    std::string explain_history_vector_index(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
+        uint8_t ring = RING_ALL) const;
+    void dump_history_layout(std::ostream& out = std::cout) const;
+    void validate_history_layout() const;
+
+    HistoryValue aggregate_value(Trait trait, Phase phase,
+                                 uint8_t trait_value, size_t day) const;
 
     void init_history_series(size_t day);
-    void finalize_series();
 
-    // Checks that sum(now_variant[v][total][day]) == now_status[INFECTIOUS][total][day]
+    // Checks that sum(now variant values, total age) == now infectious, total age
     // for every simulated day. Throws on the first mismatch; prints OK if all pass.
     void validate_variant_invariant() const;
 
 private:
-    SeriesColumnMap column_map_;
-    std::vector<SeriesColumn> cols_;
+    [[clang::always_inline]] size_t trait_phase_base(
+        Trait trait, Phase phase) const {
+        const size_t status_width = phase_widths_[size_t(Trait::status)];
+        const size_t vax_width = phase_widths_[size_t(Trait::vax)];
+        switch (trait) {
+            case Trait::status:
+                return size_t(phase) * status_width;
+            case Trait::vax:
+                return 2 * status_width + size_t(phase) * vax_width;
+            case Trait::variant:
+                return 2 * (status_width + vax_width)
+                     + size_t(phase) * phase_widths_[size_t(Trait::variant)];
+            case Trait::COUNT:
+                break;
+        }
+        std::unreachable();
+    }
+
+    std::array<size_t, size_t(Trait::COUNT)> phase_widths_{};
+    size_t real_variant_count_{};
+    size_t real_vax_count_{};
+    size_t real_ring_count_{};
+    size_t ring_lane_count_{};
+    std::vector<std::vector<HistoryValue>> history_vectors_;
 };
 
-// Maps a ring token (as it appears in SeriesSelection::ring) to a ring id.
-// "" → RING_ALL (all-rings aggregate). A decimal token is taken as a literal
+// Maps a ring token (as it appears in HistorySelection::ring) to a ring id.
+// "" -> RING_ALL (all-rings aggregate). A decimal token is taken as a literal
 // ring id; otherwise the token is looked up by name in Ring::names. Returns
 // nullopt for an unknown name or out-of-range index.
 std::optional<uint8_t> ring_id_from_token(const std::string& tok);
@@ -195,56 +210,65 @@ struct RingNameParse {
 std::optional<RingNameParse> parse_ring_suffix(std::string_view name);
 
 /*
-Input argument type for series columns to be printed/serialized/plotted.
+Input argument type for histories to be printed, serialized, or plotted.
 
 Usage:
-  SeriesColSpec("all")                         → all subjects × all age buckets
-  SeriesColSpec("all", "total")                → all subjects × total bucket only
-  SeriesColSpec("all", {"total", "age20_39"})  → all subjects × listed buckets
-  SeriesColSpec({{"now_infectious","total"}, {"now_recovered","total"}})  → explicit list
-  SeriesColSpec{{"now_infectious","total"}, {"now_recovered","total"}}    → initializer list
-  SeriesColSpec{{"now_infectious","total","Jail"}, {"now_dead","total"}}  → mixed: ring-qualified + bare (aggregate)
+  HistorySelectionSpec("all")
+  HistorySelectionSpec("all", "total")
+  HistorySelectionSpec("all", {"total", "age20_39"})
+  HistorySelectionSpec({{"now_infectious","total"}, {"now_recovered","total"}})
+  HistorySelectionSpec{{"now_infectious","total"}, {"now_recovered","total"}}
+  HistorySelectionSpec{{"now_infectious","total","Jail"}, {"now_dead","total"}}
 */
-struct SeriesColSpec {
-    std::vector<SeriesSelection> selections;
+struct HistorySelectionSpec {
+    std::vector<HistorySelection> selections;
 
-    // explicit vector of (name, bucket) pairs
-    SeriesColSpec(std::vector<SeriesSelection> v) : selections(std::move(v)) {}
+    HistorySelectionSpec(std::vector<HistorySelection> v)
+        : selections(std::move(v)) {}
 
-    // initializer list of (name, bucket) pairs
-    SeriesColSpec(std::initializer_list<SeriesSelection> v) : selections(v) {}
+    HistorySelectionSpec(std::initializer_list<HistorySelection> v)
+        : selections(v) {}
 
-    // "all" sentinel → all subjects × all age buckets
-    SeriesColSpec(const char* sentinel);
+    // "all" sentinel -> all trait values x all selectable ages
+    HistorySelectionSpec(const char* sentinel);
 
-    // "all" sentinel × single bucket
-    SeriesColSpec(const char* sentinel, const char* bucket);
+    // "all" sentinel x single age
+    HistorySelectionSpec(const char* sentinel, const char* age);
 
-    // "all" sentinel × multiple buckets
-    SeriesColSpec(const char* sentinel, std::vector<std::string> buckets);
+    // "all" sentinel x multiple ages
+    HistorySelectionSpec(const char* sentinel, std::vector<std::string> ages);
 
 private:
     static void validate_sentinel(const char* s);
-    static std::vector<SeriesSelection> build_for_buckets(const std::vector<std::string>& buckets);
+    static std::vector<HistorySelection> build_for_ages(
+        const std::vector<std::string>& ages);
 };
 
-struct ResolvedSeriesCol {
+struct ResolvedHistoryVector {
     std::string label;
-    SeriesColumn data;
+    std::vector<HistoryValue> data;
+    std::vector<size_t> source_history_vectors;
 };
 
-struct ResolvedSeriesSelection {
-    std::vector<ResolvedSeriesCol> cols;
+struct ResolvedHistorySelection {
+    std::vector<ResolvedHistoryVector> history_vectors;
     std::vector<std::string> invalid_selections;
 };
 
-ResolvedSeriesSelection resolve_selected_series(const SeriesColSpec& spec,
-                                                const AllSeries& series);
+ResolvedHistorySelection resolve_history_selection(
+    const HistorySelectionSpec& spec, const Histories& histories);
 
-void print_total_status_series(const AllSeries& series, size_t days_per_block = 15);
-void print_selected_series(SeriesColSpec spec, const AllSeries& series,
-                           size_t days_per_block = 15);
-void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
-                           std::filesystem::path output_path);
-void serialize_selected_series(SeriesColSpec spec, const AllSeries& series,
-                           string base_fname, vector<string> path_steps={});
+void print_total_status_histories(const Histories& histories,
+                                  size_t days_per_group = 15,
+                                  std::ostream& out = std::cout);
+void print_selected_histories(HistorySelectionSpec spec,
+                              const Histories& histories,
+                              size_t days_per_group = 15,
+                              std::ostream& out = std::cout);
+void serialize_selected_histories(HistorySelectionSpec spec,
+                                  const Histories& histories,
+                                  std::filesystem::path output_path);
+void serialize_selected_histories(HistorySelectionSpec spec,
+                                  const Histories& histories,
+                                  string base_fname,
+                                  vector<string> path_steps = {});

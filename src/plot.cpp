@@ -105,14 +105,22 @@ void produce_plot(std::filesystem::path output_path, std::string end_message, js
 }
 
 //
-// standard plot types for simulation history output:  so far only seriesplot is needed
+// Standard plot type for simulation history output.
 //
-void seriesplot(SeriesColSpec spec, const AllSeries& series,
+void historyplot(HistorySelectionSpec spec, const Histories& histories,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack, std::filesystem::path output_path) {
 
       // step 1: assemble data from simulation run
-      auto resolved = resolve_selected_series(spec, series);
+      auto resolved = resolve_history_selection(spec, histories);
+      if (!resolved.invalid_selections.empty()) {
+        fmt::println("Skipping invalid plot history selections: {}",
+                     resolved.invalid_selections);
+      }
+      if (resolved.history_vectors.empty()) {
+        fmt::println("No valid history selected for plot '{}'.", plot_title);
+        return;
+      }
       // x axis values
       std::vector<std::string> daystrs;
       daystrs.reserve(caldays.size());
@@ -126,15 +134,15 @@ void seriesplot(SeriesColSpec spec, const AllSeries& series,
 
       // step 2: create the json objects
       json data_json = json::array();
-      for (const auto& col : resolved.cols) {
-        std::vector<int> y_values(col.data.begin() + 1, col.data.end());
+      for (const auto& history : resolved.history_vectors) {
+        std::vector<int> y_values(history.data.begin() + 1, history.data.end());
 
         json trace = {
           {"x", daystrs},
           {"y", y_values},
           {"type", "scatter"},
           {"mode", "lines"},
-          {"name", col.label}
+          {"name", history.label}
         };
 
         if (dostack) {

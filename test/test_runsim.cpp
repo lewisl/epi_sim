@@ -77,7 +77,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
 
   const int seeded = 6;  // 3 Age20_39 + 3 Age40_59 from the scaffolded seed.json
 
-  AllSeries series = runsim(model);
+  Histories series = runsim(model);
 
   const RunsimResult r = tally(model.pop);
 
@@ -106,7 +106,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(plot_count == 4);
 
   if (options.write_artifacts) {
-    SeriesColSpec comprehensive("all");
+    HistorySelectionSpec comprehensive("all");
     const auto aggregate_selections = comprehensive.selections;
     for (size_t ring = 1; ring < Ring::names.size(); ++ring) {
       for (auto selection : aggregate_selections) {
@@ -114,7 +114,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
         comprehensive.selections.push_back(std::move(selection));
       }
     }
-    serialize_selected_series(
+    serialize_selected_histories(
         std::move(comprehensive), series,
         test_support::artifact_group_dir(options, GROUP) / "history_full.csv");
 

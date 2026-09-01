@@ -1,5 +1,9 @@
 # AllSeries Column-Table Refactor
 
+> **Superseded:** This plan describes the former eager-aggregate table. See
+> `series_hierarchy.md` and `series_column_order.md` for the current
+> atomic-only `Histories` implementation.
+
 ## Summary
 
 Replace the six `SeriesGroup` hierarchies with one `columns × days` table while preserving the complete current history space:

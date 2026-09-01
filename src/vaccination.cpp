@@ -55,7 +55,7 @@ static void doshots(
         const absl::flat_hash_map<uint8_t, int>& delaybooster,
         vector<size_t>& eligible,
         PopData& pop,
-        AllSeries& series)
+        Histories& histories)
 {
     auto& specs = sched.vaxesincluded;
 
@@ -106,10 +106,10 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
-            series.update(SeriesBlock::new_vax, uint8_t(choice), agent.ring().v,
-                          agent.agegrp(), today, 1);
-            series.update(SeriesBlock::now_vax, uint8_t(choice), agent.ring().v,
-                          agent.agegrp(), today, 1);
+            histories.update(Trait::vax, Phase::new_, uint8_t(choice), agent.ring().v,
+                             agent.agegrp(), today, 1);
+            histories.update(Trait::vax, Phase::now, uint8_t(choice), agent.ring().v,
+                             agent.agegrp(), today, 1);
 
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
@@ -159,7 +159,7 @@ static void vaccinate_sched(int today,
                             VaxSched& sched,
                             const VaxSet& vaxset,
                             PopData& pop,
-                            AllSeries& series)
+                            Histories& histories)
 {
     auto& specs    = sched.vaxesincluded;
     auto& dayrange = sched.dayrange;
@@ -209,7 +209,7 @@ static void vaccinate_sched(int today,
 
     doshots(today, sched, vaxset,
             doses_today, delay2ndshot, delaybooster,
-            eligible, pop, series);
+            eligible, pop, histories);
 }
 
 // ---------------------------------------------------------------
@@ -220,10 +220,10 @@ void vaccinate(int today,
                VaxSchedSet& schedset,
                const VaxSet& vaxset,
                PopData& pop,
-               AllSeries& series)
+               Histories& histories)
 {
     for (auto& [name, sched] : schedset.schedules) {
         (void)name;
-        vaccinate_sched(today, sched, vaxset, pop, series);
+        vaccinate_sched(today, sched, vaxset, pop, histories);
     }
 }

@@ -9,7 +9,7 @@ struct ModelParams;
 struct SocialParams;
 class PopData;
 struct AgentView;
-struct AllSeries;
+struct Histories;
 
 // A single trait column reference + its expected or new value.
 // trait is the AgentView accessor name (e.g. "status", "agegrp", "cond", "variant").
@@ -47,7 +47,7 @@ struct SeedCase {
         filter(std::move(filt)), change(std::move(chg)) {}
   SeedCase() = delete;
 
-  std::vector<size_t> operator()(PopData& pop, AllSeries& series);
+  std::vector<size_t> operator()(PopData& pop, Histories& histories);
 };
 
 struct SocialDistancing {
@@ -63,7 +63,7 @@ struct SocialDistancing {
 };
 
 
-void apply_change(AgentView person, const Change& chg, AllSeries& series);
+void apply_change(AgentView person, const Change& chg, Histories& histories);
 bool matches_filter(AgentView person, const Filter& filt);
 // Load a single seed case from a parsed JSON object; requires ModelParams for variant lookup.
 SeedCase load_seed_case(const json& sc, const ModelParams& mp);

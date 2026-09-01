@@ -33,7 +33,7 @@ std::filesystem::path case_artifact_path(const Model& model,
 }  // namespace
 
 
-AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
+Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialDistancing>& sd_cases
   ModelParams& mp = model.mp;  // all disease, vaccine, social parameters
   PopData &pop = model.pop;    // all person data
   vector<SeedCase>& seedcases = model.seedcases;
@@ -47,14 +47,13 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // seed the random number generator
   xo::seed(99999);  // have used 12345
 
-  // Ring slot count: max(Ring::names.size(), 1). With no rings defined
-  // Ring::names is empty -> 1 slot (index 0); with N rings defined the
-  // size is N+1 (sentinel + names) -> N+1 slots, index 0 = RING_ALL.
-  size_t n_ring_slots = std::max<size_t>(Ring::names.size(), 1);
-
-  // create vector set for series statistics.
-  AllSeries series(model.ndays, pop, Variant::names.size(),
-                   Vax::names.size(), n_ring_slots);
+  const size_t real_variant_count = Variant::names.size() - 1;
+  const size_t real_vax_count = !model.dovax || Vax::names.empty()
+                              ? 0 : Vax::names.size() - 1;
+  const size_t real_ring_count = !model.do_rings || Ring::names.empty()
+                               ? 0 : Ring::names.size() - 1;
+  Histories histories(model.ndays, pop, real_variant_count,
+                      real_vax_count, real_ring_count);
 
   // reset day counter to zero
   sim::reset_day();
@@ -90,13 +89,13 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     sim::ds.day = sim::get_day();
 
     sim::history_timing.start();
-    series.init_history_series(d_i);
+    histories.init_history_series(d_i);
     sim::history_timing.cum();
 
     // run beginning of day seed cases
     for (auto& sc : seedcases)
       if (sc.startofday && sc.triggerday == sim::ds.day) {
-        auto seeds = sc(pop, series);
+        auto seeds = sc(pop, histories);
         std::string filt;
         for (const auto& t : sc.filter.terms)
           filt += fmt::format("{}{}={}", filt.empty() ? "" : ",", t.trait, t.val);
@@ -116,7 +115,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
                mp.vaxschedset,
                mp.vaxset,
                pop,
-               series);
+               histories);
       vax_timing.cum();
       }
 
@@ -142,7 +141,7 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
       auto sendrisk = mp.infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
-        spread(pop, series, person, mp.socialdata, mp.infectparams, mp.vaxset,
+        spread(pop, histories, person, mp.socialdata, mp.infectparams, mp.vaxset,
                model.dovax, contacts, density_factor, model.indoor_seq, sd_cases,
                mp.ringtraits, model.ring_members, model.ring_lengths);
       }
@@ -150,7 +149,8 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
       // progression kernel
       progression_timing.start();
-      progression(person, series, mp.progressionset, mp.infectparams, model.dovax, mp.vaxset);
+      progression(person, histories, mp.progressionset, mp.infectparams,
+                  model.dovax, mp.vaxset);
       progression_timing.cum();
 
     } // end persons loop
@@ -176,10 +176,6 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   } // end day loop
 
-  // sim::history_timing.start();
-  // series.finalize_series();
-  // debugging only: series.validate_variant_invariant();
-  // sim::history_timing.cum();
 
   //
   // at end of simulation
@@ -194,12 +190,12 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // 
   // pop_print(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}, std::cout);
 
-  // print some series and a summary
-  // print_selected_series({ {"now_infectious", "total"},
+  // print some histories and a summary
+  // print_selected_histories({ {"now_infectious", "total"},
   //                         {"new_infectious", "total"},
   //                         {"new_recovered", "total"},
   //                         {"new_dead", "total"} },
-  //                       series);
+  //                          histories);
 
   // write series + PopData columns to csv (skipped in headless runs)
   const std::string output_timestamp = model.headless ? std::string{} : make_timestamp_token();
@@ -209,12 +205,12 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     }
     std::filesystem::create_directories(model.output_dir);
 
-    serialize_selected_series(
+    serialize_selected_histories(
         {{"now_infectious", "total"}, // select with strings
         {"new_infectious", "total"},
         {"new_dead",       "total"},
         {"now_dead",       "total"}},
-      series, case_artifact_path(model, "series", output_timestamp, "csv"));
+      histories, case_artifact_path(model, "series", output_timestamp, "csv"));
 
     pop_to_csv(pop, pop.all_idx, "all",
                OutSpec(case_artifact_path(model, "pop", output_timestamp, "csv")));
@@ -225,66 +221,66 @@ AllSeries runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
         spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
 
-  if (model.headless) return series;  // headless runs skip browser plots
+  if (model.headless) return histories;  // headless runs skip browser plots
 
 
   //
   // create and output plots
   //
   if (!model.dovax)
-    seriesplot(
-                //select using SeriesColSpec using initializer list with strings
+    historyplot(
+                // select histories using an initializer list of strings
                 {{"now_infectious", "total"},
                 {"now_unexposed", "total"},
                 {"now_recovered", "total"},
                 {"now_dead", "total"}},
-            series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+            histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
             case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
   else
-    seriesplot(
-                //select using SeriesColSpec using initializer list with strings
+    historyplot(
+                // select histories using an initializer list of strings
                 {{"now_infectious", "total"},
                 {"now_unexposed", "total"},
                 {"now_recovered", "total"},
                 {"now_dead", "total"},
                 {"now_vaccinated", "total"}},
-            series, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+            histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
             case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  seriesplot({{"now_dead", "age0_19"},
+  historyplot({{"now_dead", "age0_19"},
           {"now_dead", "age20_39"}, 
           {"now_dead", "age40_59"}, 
           {"now_dead", "age60_79"},
           {"now_dead", "age80_up"}}, 
-          series, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
+          histories, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
           case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  seriesplot({{"new_infectious", "total"}},
+  historyplot({{"new_infectious", "total"}},
           // {"now_dead", "age20_39"},
           // {"now_dead", "age40_59"},
           // {"now_dead", "age60_79"},
           // {"now_dead", "age80_up"}},
-          series, model.caldays, sumstruct, "New Infection Cases", false,
+          histories, model.caldays, sumstruct, "New Infection Cases", false,
           case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  seriesplot({{"new_dead", "total"}},
+  historyplot({{"new_dead", "total"}},
           // {"now_dead", "age20_39"}, 
           // {"now_dead", "age40_59"}, 
           // {"now_dead", "age60_79"},
           // {"now_dead", "age80_up"}}, 
-          series, model.caldays, sumstruct, "Daily Deaths", false,
+          histories, model.caldays, sumstruct, "Daily Deaths", false,
           case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   // output of the simulation captured in terminal app
-  return series;
+  return histories;
         
 } // end runsim function
 

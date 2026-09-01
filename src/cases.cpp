@@ -92,7 +92,7 @@ bool matches_filter(AgentView person, const Filter& filt) {
 // make_sick / make_well / make_dead to preserve all invariants.
 // Guard: make_sick is only applied to unexposed or recovered persons and
 // requires an explicit variant term in the change.
-void apply_change(AgentView person, const Change& chg, AllSeries& series) {
+void apply_change(AgentView person, const Change& chg, Histories& histories) {
   // Find a status term if present
   auto status_it = std::find_if(chg.terms.begin(), chg.terms.end(),
                                 [](const Term& t) { return t.trait == "status"; });
@@ -118,7 +118,7 @@ void apply_change(AgentView person, const Change& chg, AllSeries& series) {
         throw std::runtime_error(
             "SeedCase change with status 'infectious' requires a 'variant' term");
       }
-      person.make_sick(*var, series, cond, dur);
+      person.make_sick(*var, histories, cond, dur);
       // Fall through to apply any remaining terms not consumed by make_sick
       for (const auto& t : chg.terms) {
         if (t.trait == "status" || t.trait == "variant" ||
@@ -129,8 +129,8 @@ void apply_change(AgentView person, const Change& chg, AllSeries& series) {
       return;
     }
 
-    if (new_status == RECOVERED) { person.make_well(series);  return; }
-    if (new_status == DEAD)      { person.make_dead(series);   return; }
+    if (new_status == RECOVERED) { person.make_well(histories);  return; }
+    if (new_status == DEAD)      { person.make_dead(histories);   return; }
   }
 
   // No status routing: apply all terms directly
@@ -144,13 +144,13 @@ void apply_change(AgentView person, const Change& chg, AllSeries& series) {
 
 
 // SeedCase::operator(): find candidates via filter, apply change to up to change.count of them.
-vector<size_t> SeedCase::operator()(PopData& pop, AllSeries& series) {
+vector<size_t> SeedCase::operator()(PopData& pop, Histories& histories) {
   vector<size_t> seeded;
   int matched = 0;
   for (size_t i = 1; i <= pop.popn && matched < change.count; ++i) {
     auto person = pop.agent(i);
     if (matches_filter(person, filter)) {
-      apply_change(person, change, series);
+      apply_change(person, change, histories);
       seeded.push_back(i);
       ++matched;
     }

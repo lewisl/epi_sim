@@ -38,17 +38,18 @@ namespace {
   with a progression probability array, or increment the number of days
   the person has been sick.
   */
-  void do_progression(AgentView person, AllSeries & series, const array<float,6> &probvec, size_t today) {  // PopData &pop, size_t p
+  void do_progression(AgentView person, Histories& histories,
+                      const array<float, 6>& probvec, size_t today) {
 
     uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
 
     if (outcome == Progressmap::ToDead) {  // for outcome == 5
 
-      person.make_dead(series);  // pass the series vectors to update the simulation history
+      person.make_dead(histories);
 
     } else if (outcome == Progressmap::ToRecover) {     // for outcome == 0
 
-        person.make_well(series);
+        person.make_well(histories);
         
     } else {
         person.cond() = static_cast<Condition>(outcome);  // this ONLY works because conds are 1..4 in Progressmap
@@ -68,7 +69,7 @@ nil (asymptomatic) to mild to sick to severe, depending on their
 age group, illness duration, and transition probabilities. Outcomes
 can also be recovery or death.
 */
-void progression(AgentView person, AllSeries& series, const ProgressionSet& progset,
+void progression(AgentView person, Histories& histories, const ProgressionSet& progset,
                  vector<InfectParams>& infectparams, bool dovax,
                  const VaxSet& vaxset) {
 
@@ -95,7 +96,7 @@ void progression(AgentView person, AllSeries& series, const ProgressionSet& prog
 
       const float risk = riskfactor(recoveff, vaxeff);
       redistribute_probability(probvec, risk, duration);
-      do_progression(person, series, probvec, today);
+      do_progression(person, histories, probvec, today);
     } else {
       ++person.duration();
     }

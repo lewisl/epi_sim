@@ -12,7 +12,7 @@ std::string render_plot_html(
 );
 
 
-void seriesplot(SeriesColSpec spec, const AllSeries& series,
+void historyplot(HistorySelectionSpec spec, const Histories& histories,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     std::string plot_title, const bool dostack=false,
     std::filesystem::path output_path={});

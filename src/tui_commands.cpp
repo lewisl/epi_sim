@@ -38,7 +38,7 @@ struct Command {
 struct AppState {
   bool quit = false;
   std::optional<Model> active_model;
-  std::optional<AllSeries> result_series;
+  std::optional<Histories> result_histories;
   std::string current_case_label;
   std::filesystem::path current_case_dir;
   std::filesystem::path last_output_dir;
@@ -144,9 +144,9 @@ void show_plot_files(const AppState& state) {
 
 void run_case(AppState& state, const std::string& case_label) {
   state.active_model.reset();
-  state.result_series.reset();
+  state.result_histories.reset();
   state.active_model.emplace(use_managed_case(case_label));
-  state.result_series = runsim(*state.active_model);   // should this be a move or will elision happen?   make sure to test for existence before using
+  state.result_histories = runsim(*state.active_model);
   state.current_case_label = case_label;
   state.current_case_dir.clear();
   state.last_output_dir = state.active_model->output_dir;
@@ -164,9 +164,9 @@ void r0sim(const std::string& case_label) {
 
 void run_dir(AppState& state, const std::string& path_arg) {
   state.active_model.reset();
-  state.result_series.reset();
+  state.result_histories.reset();
   state.active_model.emplace(use_dir(path_arg));
-  state.result_series = runsim(*state.active_model);
+  state.result_histories = runsim(*state.active_model);
   state.current_case_label = state.active_model->case_label;
   state.current_case_dir = path_arg;
   state.last_output_dir = state.active_model->output_dir;

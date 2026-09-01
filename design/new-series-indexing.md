@@ -1,5 +1,9 @@
 # AllSeries column-table refactor
 
+> **Superseded:** This records the earlier descriptor-based, eager-aggregate
+> table. The current atomic-only `Histories` design is documented in
+> `series_hierarchy.md` and `series_column_order.md`.
+
 ## Status
 
 Implemented in August 2026. This document began as a preliminary proposal; it

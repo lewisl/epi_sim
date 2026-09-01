@@ -1,7 +1,7 @@
 #include "parameters.h"
 #include "population.h"
 
-struct AllSeries;
+struct Histories;
 
 // helpers
 static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax);
@@ -17,10 +17,10 @@ static void doshots(
         const absl::flat_hash_map<uint8_t, int>& delaybooster,
         vector<size_t>& eligible,
         PopData& pop,
-        AllSeries& series);
+        Histories& histories);
 
 void vaccinate(int today,
                VaxSchedSet& schedset,
                const VaxSet& vaxset,
                PopData& pop,
-               AllSeries& series);
+               Histories& histories);

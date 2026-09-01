@@ -116,7 +116,9 @@ struct SimDayGuard {
   }
 };
 
-void seed_gen1(vector<size_t> & gen1_spreaders, PopData & rtpop, AllSeries & r0series, vector<double> & age_dist, Variant usevariant, int scale) {
+void seed_gen1(vector<size_t>& gen1_spreaders, PopData& rtpop,
+               Histories& histories, vector<double>& age_dist,
+               Variant usevariant, int scale) {
 // WE DO NEED TO TRICK DAY TO USE make_sick--we could use day 0, which is normally not used to hold the seeding counts 
   // Per-age seeding budget proportional to age_dist / min(age_dist), scaled.
   double min_share = std::ranges::min(age_dist);
@@ -132,14 +134,14 @@ void seed_gen1(vector<size_t> & gen1_spreaders, PopData & rtpop, AllSeries & r0s
     auto person = rtpop.agent(p);
     const size_t age_idx = zidx(person.agegrp());  // index into remaining 
     if (remaining[age_idx] > 0) {
-      person.make_sick(usevariant, r0series);
+      person.make_sick(usevariant, histories);
       gen1_spreaders.push_back(p);
       --remaining[age_idx];
     }
   }
 }
 
-size_t spread_and_count(PopData& pop, AllSeries& series, AgentView person,
+size_t spread_and_count(PopData& pop, Histories& histories, AgentView person,
                         SocialParams& social, std::vector<InfectParams>& infectparams,
                         const VaxSet& vaxset, bool dovax, std::vector<size_t>& contacts,
                         float density_factor, const std::vector<float>& indoor_seq) {
@@ -195,7 +197,8 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   ProgressionSet & progressionset = model.mp.progressionset;
   vector<InfectParams> & infectparams = model.mp.infectparams;  
   SocialParams & socialparams = model.mp.socialdata;
-  AllSeries r0series(DURATIONLIM, r0pop, Variant::names.size(), 1, 1);  
+  Histories r0_histories(
+      DURATIONLIM, r0pop, Variant::names.size() - 1, 0, 0);
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
   vector<double> age_dist = model.age_dist;
 
@@ -203,7 +206,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   vector<size_t> gen1_spreaders{};  // mutated in place
 
 
-  seed_gen1(gen1_spreaders, r0pop, r0series, age_dist, variant, scale);
+  seed_gen1(gen1_spreaders, r0pop, r0_histories, age_dist, variant, scale);
   const size_t gen1_spreader_cnt = gen1_spreaders.size();
   if (gen1_spreader_cnt == 0) {
     sim::current_day = saved_day;
@@ -231,7 +234,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
       if (sendrisk <= 0.0f) continue;
       if (person.status() != INFECTIOUS) continue;
 
-      const size_t infected = spread_and_count(r0pop, r0series, person, socialparams,
+      const size_t infected = spread_and_count(r0pop, r0_histories, person, socialparams,
                               infectparams, vaxset, dovax, contacts, density_factor, indoor_seq);
       r0_infected += infected;
     }
@@ -239,7 +242,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
     // daily progression for spreaders: to get better or die
     for (size_t p : gen1_spreaders) {
       auto person = r0pop.agent(p);
-      progression(person, r0series, progressionset, infectparams, dovax, vaxset);
+      progression(person, r0_histories, progressionset, infectparams, dovax, vaxset);
     }
   }
   fmt::println("infected spreaders seeded: {}", gen1_spreader_cnt);
@@ -281,16 +284,18 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
   float density_factor = model.mp.geodata.density[locale_idx];
 
   // keep track of spreaders and outcomes
-  AllSeries rtseries(DURATIONLIM, rtpop, Variant::names.size(), 1, 1);  
+  Histories rt_histories(
+      DURATIONLIM, rtpop, Variant::names.size() - 1, 0, 0);
   // keep track of the other infected people and throw it away
-  AllSeries throwaway_series(DURATIONLIM, rtpop, Variant::names.size(), 1, 1);
+  Histories throwaway_histories(
+      DURATIONLIM, rtpop, Variant::names.size() - 1, 0, 0);
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
   vector<double> age_dist = model.age_dist;
 
   vector<size_t> gen1_spreaders{};  // mutated in place by seed_gen1
 
 
-  seed_gen1(gen1_spreaders, rtpop, rtseries, age_dist, variant, scale);
+  seed_gen1(gen1_spreaders, rtpop, rt_histories, age_dist, variant, scale);
   const size_t gen1_spreader_cnt = gen1_spreaders.size();
   if (gen1_spreader_cnt == 0) {
     return std::nullopt;  // will result in neg. message in caller, but simulation can continue
@@ -318,14 +323,14 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
       const float sendrisk = infectparams[idx(spr_variant)].sendrisk[spr_duration];
 
       if (sendrisk > 0.0f) {
-        spread(rtpop, rtseries, person, socialparams, infectparams, vaxset,
+        spread(rtpop, rt_histories, person, socialparams, infectparams, vaxset,
                 dovax, contacts, density_factor, indoor_seq, model.sd_cases,
                 model.mp.ringtraits, model.ring_members, model.ring_lengths);
       }
     
 
       // daily progression for spreaders: to get better or die
-      progression(person, rtseries, progressionset, infectparams, dovax, vaxset);
+      progression(person, rt_histories, progressionset, infectparams, dovax, vaxset);
     
     }
   
@@ -344,18 +349,18 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
       auto sendrisk = infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk > 0.0) {
         // sim::ds.starting_spreaders++;
-        spread(rtpop, throwaway_series, person, socialparams, infectparams, vaxset,
+        spread(rtpop, throwaway_histories, person, socialparams, infectparams, vaxset,
                 dovax, contacts, density_factor, indoor_seq, model.sd_cases,
                 model.mp.ringtraits, model.ring_members, model.ring_lengths);
       }
 
       // progression kernel
-      progression(person, throwaway_series, progressionset, infectparams, dovax, vaxset);
+      progression(person, throwaway_histories, progressionset, infectparams, dovax, vaxset);
 
     } // end persons loop
 
-    rt_infected += rtseries.at(SeriesBlock::new_status, uint8_t(INFECTIOUS),
-                               AgeBucket::total)[d];
+    rt_infected += rt_histories.aggregate_value(
+        Trait::status, Phase::new_, uint8_t(INFECTIOUS), d);
 
   }   // end day loop
 
