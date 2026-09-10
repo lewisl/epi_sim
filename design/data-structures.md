@@ -18,4 +18,13 @@ At load time this JSON hierarchy is converted to `ProgressionTree`:
   lookup or allocation.
 - Age and current-condition indices are zero-based projections of the real
   one-based `Agegrp` and `Condition` values. Outcome indices are directly
-  zero-based `Progressionmap` values (`recover=0` through `dead=5`).
+  zero-based `Progressionmap` underlying values (`ToRecover=0` through `ToDead=5`).
+
+Fixed trait metadata is defined by scoped enums and reflected with magic_enum.
+`Agegrp`, `Status`, `Condition`, and `Vaxstatus` retain their concrete PopData
+wrappers and single `uint8_t v` storage member. Their nested `Enum` supplies
+names and parsing; it does not add per-person storage. `Progressionmap`,
+`Trait`, and `Phase` are ordinary scoped enums. All fixed IDs remain explicit;
+history indexing and progression continue to use numeric offsets.
+
+`Variant`, `Vax`, `SDCase`, and `Ring` still use runtime name registries.

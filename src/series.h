@@ -4,28 +4,24 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iostream>
-#include <numeric>
 #include <ostream>
 #include <utility>
 
 
-using AgeVecIndex = uint8_t;
-
-inline constexpr AgeVecIndex HISTORY_AGE_TOTAL = 0;
+inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
 inline constexpr size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
-constexpr std::string_view age_vec_label(AgeVecIndex age) {
+constexpr std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
     return std::string_view{Agegrp::names[age]};
 }
 
-inline std::optional<AgeVecIndex> age_vec_index_from_string(std::string_view text) {
+inline std::optional<uint8_t> age_vec_index_from_string(std::string_view text) {
     if (text == "total") return HISTORY_AGE_TOTAL;
-    for (size_t i = 1; i < Agegrp::names.size(); ++i) {
-        if (Agegrp::names[i] == text) return static_cast<AgeVecIndex>(i);
-    }
+    const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
+    if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     return std::nullopt;
 }
 
@@ -34,46 +30,46 @@ inline std::optional<AgeVecIndex> age_vec_index_from_string(std::string_view tex
 inline constexpr uint8_t RING_ALL = 0;
 
 struct HistorySelection {
-    std::string name;
+    std::string phase;
+    std::string trait_value;
     std::string age;         // "total" or one of the concrete Agegrp names
+    std::string trait = "";  // needed for some uses...
     std::string ring = "";   // "" -> RING_ALL (all-rings aggregate)
 
     bool operator==(const HistorySelection&) const = default;
+    const void print() {
+      auto print_ring = ring == "" ? "\"population\"" : ring;
+      fmt::println("phase: {:<6} trait: {:<9} trait value: {:18} age: {:<9} ring: {:<10}", phase, trait, trait_value, age, print_ring);
+    }
 };
 
 enum class Trait : uint8_t {
-    status,
-    vax,
-    variant,
-    COUNT
+    status = 0,
+    vax = 1,
+    variant = 2
 };
 
 enum class Phase : uint8_t {
-    now,
-    new_,
-    COUNT
+    now = 0,
+    new_ = 1
 };
 
-inline constexpr auto all_traits = std::array{
-    Trait::status, Trait::vax, Trait::variant};
+inline constexpr auto trait_names = magic_enum::enum_names<Trait>();
+inline constexpr auto phase_names = magic_enum::enum_names<Phase>();
 
-inline constexpr auto all_phases = std::array{
-    Phase::now, Phase::new_};
+inline constexpr auto all_traits = magic_enum::enum_values<Trait>();
 
-static_assert(all_traits.size() == size_t(Trait::COUNT));
-static_assert(all_phases.size() == size_t(Phase::COUNT));
+inline constexpr auto all_phases = magic_enum::enum_values<Phase>();
+
+static_assert(magic_enum::enum_count<Trait>() == 3);
+static_assert(magic_enum::enum_count<Phase>() == 2);
+static_assert(std::to_underlying(Trait::status) == 0
+              && std::to_underlying(Trait::vax) == 1
+              && std::to_underlying(Trait::variant) == 2);
+static_assert(std::to_underlying(Phase::now) == 0
+              && std::to_underlying(Phase::new_) == 1);
 
 using HistoryValue = std::int32_t;
-
-struct HistoryColumnCoordinates {
-    Trait trait;
-    Phase phase;
-    uint8_t trait_value; // raw enum value; concrete values begin at 1
-    Agegrp age;
-    uint8_t ring;        // 0 only for the implicit lane when rings are disabled
-
-    bool operator==(const HistoryColumnCoordinates&) const = default;
-};
 
 /*
 Histories: top-level container for all collected history in the simulation.
@@ -86,39 +82,58 @@ Nesting:
 struct Histories {
     size_t day_cnt;
 
+    // constructor declaration, defined in series.cpp
     Histories(size_t n_days, const PopData& pop,
               size_t real_variant_count, size_t real_vax_count,
               size_t real_ring_count);
 
+    // returns index to Histories.history_vectors_ method uses enum value inputs
     [[clang::always_inline]] size_t history_vector_index(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
+        // trait values are all 1-indexed; we need 0 indexed for this
         const size_t value_ordinal = size_t(trait_value - 1);
         const size_t ring_ordinal = real_ring_count_ == 0
                                   ? 0
                                   : size_t(ring - 1);
         const size_t age_ordinal = size_t(age.v - 1);
-        return trait_phase_base(trait, phase)
+        return trait_phase_base(trait, phase)     // this is a great way to do this
              + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
              + ring_ordinal * HISTORY_AGE_COUNT
              + age_ordinal;
     }
+    // method uses string inputs
+    // [[clang::always_inline]] size_t history_vector_index(
+    //     std::string trait, std::string phase, std::string trait_value, std::string age,
+    //     std::string ring = "") const {
+    //       Trait out_trait = trait == "status" ? Trait::status :
+    //                         trait == "vax" ? Trait::vax :
+    //                         Trait::variant;
+    //       uint8_t out_trait_value = 
+    //       Phase out_phase = phase == "now" ? Phase::now : Phase::new_;
+    //       Agegrp out_age = Agegrp::resolve_name(age);
+    //       uint8_t out_ring = 
+    //     }
 
+
+    // return a mutable vector using index input
     [[clang::always_inline]] std::vector<HistoryValue>& history_vector(
         size_t index) {
         return history_vectors_[index];
     }
+    // return a const vector using index input
     [[clang::always_inline]] const std::vector<HistoryValue>& history_vector(
         size_t index) const {
         return history_vectors_[index];
     }
-
+    // return a mutable vector 
     [[clang::always_inline]] std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) {
         return history_vectors_[history_vector_index(
             trait, phase, trait_value, age, ring)];
     }
+    // return a const vector 
     [[clang::always_inline]] const std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
@@ -146,7 +161,7 @@ struct Histories {
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const;
 
-    std::optional<HistoryColumnCoordinates> describe_history_vector(
+    std::optional<HistorySelection> describe_history_vector(
         size_t index) const;
     std::string history_column_label(size_t index) const;
     std::string explain_history_vector_index(
@@ -165,25 +180,25 @@ struct Histories {
     void validate_variant_invariant() const;
 
 private:
+      // returns index of the column group that will contain the desired column,
+      // starting at the trait and the phase within that trait
     [[clang::always_inline]] size_t trait_phase_base(
         Trait trait, Phase phase) const {
         const size_t status_width = phase_widths_[size_t(Trait::status)];
         const size_t vax_width = phase_widths_[size_t(Trait::vax)];
-        switch (trait) {
-            case Trait::status:
+        switch (trait) {   // this is a great way to do this
+            case Trait::status:  // first trait within indices
                 return size_t(phase) * status_width;
-            case Trait::vax:
+            case Trait::vax:  // both phases of status + 0 or 1 phase of vax
                 return 2 * status_width + size_t(phase) * vax_width;
-            case Trait::variant:
+            case Trait::variant:  // didn't cache a variant_width variable because there is no re-use
                 return 2 * (status_width + vax_width)
                      + size_t(phase) * phase_widths_[size_t(Trait::variant)];
-            case Trait::COUNT:
-                break;
         }
         std::unreachable();
     }
 
-    std::array<size_t, size_t(Trait::COUNT)> phase_widths_{};
+    std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     size_t real_variant_count_{};
     size_t real_vax_count_{};
     size_t real_ring_count_{};
@@ -223,6 +238,7 @@ Usage:
 struct HistorySelectionSpec {
     std::vector<HistorySelection> selections;
 
+    // constructors
     HistorySelectionSpec(std::vector<HistorySelection> v)
         : selections(std::move(v)) {}
 
@@ -272,3 +288,5 @@ void serialize_selected_histories(HistorySelectionSpec spec,
                                   const Histories& histories,
                                   string base_fname,
                                   vector<string> path_steps = {});
+const std::vector<HistorySelection>
+   enumerate_history_selections(const Histories& histories);

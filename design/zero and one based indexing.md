@@ -11,9 +11,9 @@
 - MapEnum Vaxstatus
   - 0 is "none", which is a valid status
   - Need to check on use as an index
-- Runtime Enum Progressionmap
+- Compile-time scoped enum Progressionmap (uint8_t underlying value)
   - specifically meant to be used as a zero-based index in the progression functions
-  - valid_nums are in 0..5
+  - valid values are in 0..5; use std::to_underlying at numeric index boundaries
 
 #### PopData
 - all data vectors have size population count + 1

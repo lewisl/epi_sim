@@ -140,14 +140,27 @@ void test_load_progression_set_maps_reordered_ages_and_packs_breakdays() {
   const int16_t young_entry = tree.entry_index[zidx(AGE0_19)][5];
   REQUIRE(young_entry != NO_PROGRESSION_ENTRY);
   const auto& young_nil = tree.entries[static_cast<size_t>(young_entry)][zidx(NIL)];
-  CHECK(approx_equal(young_nil[Progressmap::ToNil], 0.4, 1e-6));
-  CHECK(approx_equal(young_nil[Progressmap::ToMild], 0.5, 1e-6));
+  CHECK(approx_equal(young_nil[std::to_underlying(Progressmap::ToNil)], 0.4, 1e-6));
+  CHECK(approx_equal(young_nil[std::to_underlying(Progressmap::ToMild)], 0.5, 1e-6));
 
   const int16_t old_entry = tree.entry_index[zidx(AGE80_UP)][5];
   REQUIRE(old_entry != NO_PROGRESSION_ENTRY);
   const auto& old_nil = tree.entries[static_cast<size_t>(old_entry)][zidx(NIL)];
-  CHECK(approx_equal(old_nil[Progressmap::ToNil], 0.1, 1e-6));
-  CHECK(approx_equal(old_nil[Progressmap::ToSick], 0.4, 1e-6));
+  CHECK(approx_equal(old_nil[std::to_underlying(Progressmap::ToNil)], 0.1, 1e-6));
+  CHECK(approx_equal(old_nil[std::to_underlying(Progressmap::ToSick)], 0.4, 1e-6));
+}
+
+void test_load_progression_set_requires_exact_real_age_names() {
+  for (const auto invalid_age : {"unknown", "AGE0_19", "age019", "COUNT"}) {
+    json body = base_progression_variant();
+    auto& tree = body["progression_tree"];
+    tree[invalid_age] = tree["age0_19"];
+    tree.erase("age0_19");
+    json jdata;
+    jdata["base"] = std::move(body);
+    expect_throws_containing([&] { (void)load_progression_set(jdata); },
+                             "unknown age group");
+  }
 }
 
 void test_load_progression_set_rejects_out_of_range_breakday() {
@@ -260,6 +273,21 @@ void test_load_ring_traits_happy_path() {
   // out_ring_prob is indexed directly by the Agegrp's raw (1-based) value, not zidx
   CHECK(approx_equal(rt.out_ring_prob[1][AGE0_19.v], 0.05, 1e-6));
   CHECK(approx_equal(rt.out_ring_prob[2][AGE80_UP.v], 0.15, 1e-6));
+}
+
+void test_vax_schedule_age_aliases_and_fallback() {
+  const auto path = write_temp_json("sched_age_aliases", R"({
+    "vaxesincluded": {},
+    "dayrange": [1, 30],
+    "targetpct": 1.0,
+    "filtervec": ["AGE80UP", "Age_20_39", "unknown", "bogus_age"],
+    "shotmode": "all",
+    "pattern": [1.0, 1.0]
+  })");
+  const auto sched = load_vax_sched(path.string());
+  CHECK((sched.filtervec == std::vector<Agegrp>{
+      AGE80_UP, AGE20_39, UNKNOWN, UNKNOWN}));
+  fs::remove_all(path.parent_path());
 }
 
 void test_load_ring_traits_rejects_missing_rings_key() {
@@ -447,8 +475,8 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   const auto& base_age0_day5_nil =
       base_tree.entries[static_cast<size_t>(base_age0_day5)][zidx(NIL)];
   CHECK(base_age0_day5_nil.size() == 6);
-  CHECK(approx_equal(base_age0_day5_nil[Progressmap::ToNil], 0.4, 1e-6));
-  CHECK(approx_equal(base_age0_day5_nil[Progressmap::ToMild], 0.5, 1e-6));
+  CHECK(approx_equal(base_age0_day5_nil[std::to_underlying(Progressmap::ToNil)], 0.4, 1e-6));
+  CHECK(approx_equal(base_age0_day5_nil[std::to_underlying(Progressmap::ToMild)], 0.5, 1e-6));
   CHECK(progressionset.progression[2].factors.riskadjust.size() == 6);
   CHECK(approx_equal(progressionset.progression[2].factors.riskadjust[3], 1.1, 1e-6));
   const auto& alpha_tree = progressionset.progression[2].tree;
@@ -459,8 +487,8 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(approx_equal(
       std::accumulate(alpha_age0_day5_nil.begin(), alpha_age0_day5_nil.end(), 0.0f),
       1.0, 1e-6));
-  CHECK(alpha_age0_day5_nil[Progressmap::ToSick] >
-        base_age0_day5_nil[Progressmap::ToSick]);
+  CHECK(alpha_age0_day5_nil[std::to_underlying(Progressmap::ToSick)] >
+        base_age0_day5_nil[std::to_underlying(Progressmap::ToSick)]);
 
   SocialParams socialdata = load_social_params(paths.social);
   CHECK(approx_equal(socialdata.gammashape, 1.0, 1e-6));
@@ -878,6 +906,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_progression_set_rejects_row_not_summing_to_one();
   test_load_progression_set_rejects_wrong_row_length();
   test_load_progression_set_maps_reordered_ages_and_packs_breakdays();
+  test_load_progression_set_requires_exact_real_age_names();
   test_load_progression_set_rejects_out_of_range_breakday();
   test_load_progression_set_requires_terminal_breakday();
   test_load_progression_set_requires_terminal_outcome();
@@ -885,6 +914,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_progression_set_rejects_wrong_riskadjust_length();
   test_load_seed_case_rejects_duration_above_limit();
   test_load_vax_sched_rejects_mix_not_summing_to_one();
+  test_vax_schedule_age_aliases_and_fallback();
   test_load_ring_traits_happy_path();
   test_load_ring_traits_rejects_missing_rings_key();
   test_load_ring_traits_rejects_non_array_rings();

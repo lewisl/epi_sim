@@ -197,7 +197,8 @@ void validate_terminal_progression(const ProgressionTree& tree,
 
     const auto& condition_rows = tree.entries[static_cast<size_t>(terminal_entry)];
     for (size_t cond_idx = 0; cond_idx < condition_rows.size(); ++cond_idx) {
-      for (size_t outcome = Progressmap::ToNil; outcome <= Progressmap::ToSevere;
+      for (size_t outcome = std::to_underlying(Progressmap::ToNil);
+           outcome <= std::to_underlying(Progressmap::ToSevere);
            ++outcome) {
         if (!approx_equal(condition_rows[cond_idx][outcome], 0.0, 1e-6)) {
           throw std::runtime_error(fmt::format(
@@ -270,15 +271,14 @@ ProgressionSet load_progression_set(json jdata) {
       tree.entries.reserve(breakday_count);
 
       for (const auto& [age, body_age] : jsontree.items()) {
-        const auto age_it = std::find(Agegrp::names.begin() + 1,
-                                      Agegrp::names.end(), age);
-        if (age_it == Agegrp::names.end()) {
+        const auto age_value = magic_enum::enum_cast<Agegrp::Enum>(age);
+        if (!age_value || *age_value == Agegrp::Enum::unknown) {
           throw std::runtime_error(fmt::format(
               "progression_tree: variant '{}' has unknown age group '{}'.",
               variant, age));
         }
         const size_t age_idx =
-            static_cast<size_t>(std::distance(Agegrp::names.begin(), age_it) - 1);
+            size_t(std::to_underlying(*age_value) - 1);
         if (seen_ages[age_idx]) {
           throw std::runtime_error(fmt::format(
               "progression_tree: variant '{}' repeats age group '{}'.", variant, age));
@@ -296,7 +296,7 @@ ProgressionSet load_progression_set(json jdata) {
           OutcomesByCurrentCondition condition_rows{};
           for (size_t cond_idx = 0; cond_idx < PROGRESSION_CONDITION_COUNT;
                ++cond_idx) {
-            const string& key = Condition::names[cond_idx + 1];
+            const auto key = Condition::names[cond_idx + 1];
             const auto& json_row = body_duration[key];
             if (!json_row.is_array() || json_row.size() != PROGRESSION_OUTCOME_COUNT) {
               throw std::runtime_error(fmt::format(
@@ -443,7 +443,7 @@ static Agegrp agegrp_from_string(const string& s) {
     string sl = s;
     std::transform(sl.begin(), sl.end(), sl.begin(), ::tolower);
     for (size_t i = 0; i < Agegrp::names.size(); ++i) {
-        string nl = Agegrp::names[i];
+        string nl{Agegrp::names[i]};
         std::transform(nl.begin(), nl.end(), nl.begin(), ::tolower);
         // also handle underscore vs no-underscore: "age80_up" vs "age80up"
         nl.erase(std::remove(nl.begin(), nl.end(), '_'), nl.end());

@@ -91,6 +91,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   int series_count = 0;
   int pop_count = 0;
   int plot_count = 0;
+  bool has_total_dead_trace = false;
   for (const auto& entry : fs::directory_iterator(model.output_dir)) {
     if (!entry.is_regular_file()) continue;
     const std::string name = entry.path().filename().string();
@@ -99,11 +100,16 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
     CHECK(name.rfind("runsimtestcase_", 0) == 0);
     if (name.find("_series_") != std::string::npos && entry.path().extension() == ".csv") ++series_count;
     if (name.find("_pop_") != std::string::npos && entry.path().extension() == ".csv") ++pop_count;
-    if (entry.path().extension() == ".html") ++plot_count;
+    if (entry.path().extension() == ".html") {
+      ++plot_count;
+      has_total_dead_trace |= test_support::read_file_text(entry.path())
+                                 .contains("now_dead:total");
+    }
   }
   CHECK(series_count == 1);
   CHECK(pop_count == 1);
   CHECK(plot_count == 4);
+  CHECK(has_total_dead_trace);
 
   if (options.write_artifacts) {
     HistorySelectionSpec comprehensive("all");

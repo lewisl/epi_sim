@@ -2,6 +2,7 @@ add_rules("mode.debug", "mode.release")
 add_requires("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil")
 add_requires("toml++ 3.4.0")
 add_requires("vcpkg::ftxui")
+add_requires("magic_enum")
 set_languages("c++23")
 set_toolchains("llvm")
 set_optimize("fastest")
@@ -11,7 +12,8 @@ target("epi_sim")
     set_default(false)
     set_policy("build.optimization.lto", true)
     add_files("src/*.cpp")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", 
+                "vcpkg::fmt", "vcpkg::abseil", "toml++", "magic_enum")
     add_packages("vcpkg::ftxui")
 
 target("test")
@@ -23,35 +25,18 @@ target("test")
         "test/test_series.cpp", "test/test_setup.cpp", "test/test_plot.cpp", "test/test_runsim.cpp",
         "test/test_templates.cpp")
     add_files("src/*.cpp|epi_sim.cpp")
-    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
+    add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++", "magic_enum")
     add_packages("vcpkg::ftxui")
 
 
 target("this")
     set_kind("binary")
     set_default(false)
-    add_packages("vcpkg::ftxui")
     add_packages("vcpkg::fmt")
-    add_files("scratch/tui/tui_example.cpp", "scratch/tui/stubs.cpp")
+    add_packages("magic_enum")
+    add_files("scratch/test_magic_enum.cpp")
 
--- target("randstuff")
---     set_kind("binary")
---     set_default(false)
---     add_files("scratch/benchmark_rand.cpp")
---     add_files("src/helpers.cpp")
---     add_packages("vcpkg::abseil", "vcpkg::fmt")
 
--- target("dates")
---     set_kind("binary")
---     set_default(false)
---     add_files("scratch/date-tests.cpp")
---     add_packages("vcpkg::abseil")
-
--- target("ring_experiment")
---     set_kind("binary")
---     set_default(false)
---     add_files("scratch/ring_experiment.cpp", "src/*.cpp|epi_sim.cpp")
---     add_packages("vcpkg::p-ranav-csv2", "vcpkg::nlohmann-json", "vcpkg::fmt", "vcpkg::abseil", "toml++")
 
 
 
