@@ -87,14 +87,27 @@ void test_atomic_layout_formula_and_introspection() {
        index < histories.history_vector_count(); ++index) {
     const auto coordinates = histories.describe_history_vector(index);
     REQUIRE(coordinates.has_value());
+    const auto parsed_trait = magic_enum::enum_cast<Trait>(coordinates->trait);
+    const auto parsed_phase = magic_enum::enum_cast<Phase>(coordinates->phase);
+    REQUIRE(parsed_trait.has_value());
+    REQUIRE(parsed_phase.has_value());
+    const auto trait = *parsed_trait;
+    const auto phase = *parsed_phase;
+    const auto value = trait == Trait::status
+        ? uint8_t(*trait_from_string<Status>(coordinates->trait_value))
+        : trait == Trait::vax
+            ? uint8_t(*trait_from_string<Vax>(coordinates->trait_value))
+            : uint8_t(*trait_from_string<Variant>(coordinates->trait_value));
+    const auto age = age_vec_index_from_string(coordinates->age);
+    const auto ring = ring_id_from_token(coordinates->ring);
+    REQUIRE(age.has_value());
+    REQUIRE(ring.has_value());
     CHECK(histories.history_vector_index(
-              coordinates->trait, coordinates->phase,
-              coordinates->trait_value, coordinates->age,
-              coordinates->ring) == index);
+              trait, phase, value, Agegrp{*age}, *ring) == index);
   }
   CHECK(!histories.describe_history_vector(160).has_value());
   CHECK(histories.history_column_label(159) ==
-        "trait=variant/phase=new/value=variant_2/ring=ring_2/age=age80_up");
+        "trait=variant|phase=new_|value=variant_2|ring=ring_2|age=age80_up");
   CHECK(histories.explain_history_vector_index(
             Trait::variant, Phase::new_, 2, AGE80_UP, 2)
         .contains("column=159"));
@@ -105,7 +118,7 @@ void test_atomic_layout_formula_and_introspection() {
   std::ostringstream dump;
   histories.dump_history_layout(dump);
   CHECK(test_support::split_trimmed_lines(dump.str()).size() == 160);
-  CHECK(dump.str().contains("0: trait=status/phase=now/value=unexposed"));
+  CHECK(dump.str().contains("0: trait=status|phase=now|value=unexposed"));
 }
 
 void test_layout_all_zero_one_many_cardinalities() {
@@ -196,32 +209,32 @@ void test_resolver_materializes_age_ring_and_vaccine_totals() {
   histories.at(Trait::variant, Phase::new_, 2, AGE60_79, 2)[1] = 7;
 
   auto total_status = resolve_history_selection(
-      HistorySelectionSpec{{"now_infectious", "total"}}, histories);
+      HistorySelectionSpec{{"now", "infectious", "total"}}, histories);
   CHECK(only_history(total_status).data[1] == 5);
   CHECK(only_history(total_status).source_history_vectors.size() == 10);
 
   auto age_total_rings = resolve_history_selection(
-      HistorySelectionSpec{{"now_infectious", "age0_19"}}, histories);
+      HistorySelectionSpec{{"now", "infectious", "age0_19"}}, histories);
   CHECK(only_history(age_total_rings).data[1] == 2);
   CHECK(only_history(age_total_rings).source_history_vectors.size() == 2);
 
   auto ring_total_ages = resolve_history_selection(
-      HistorySelectionSpec{{"now_infectious", "total", "ring_2"}}, histories);
+      HistorySelectionSpec{{"now", "infectious", "total", "", "ring_2"}}, histories);
   CHECK(only_history(ring_total_ages).data[1] == 3);
   CHECK(only_history(ring_total_ages).source_history_vectors.size() == 5);
 
   auto vaccinated = resolve_history_selection(
-      HistorySelectionSpec{{"now_vaccinated", "total"}}, histories);
+      HistorySelectionSpec{{"now", "vaccinated", "total"}}, histories);
   CHECK(only_history(vaccinated).data[1] == 9);
   CHECK(only_history(vaccinated).source_history_vectors.size() == 20);
 
   auto brand = resolve_history_selection(
-      HistorySelectionSpec{{"now_vax:vax_1", "total"}}, histories);
+      HistorySelectionSpec{{"now", "vax:vax_1", "total"}}, histories);
   CHECK(only_history(brand).data[1] == 4);
   CHECK(only_history(brand).source_history_vectors.size() == 10);
 
   auto variant = resolve_history_selection(
-      HistorySelectionSpec{{"new_variant:variant_2", "total"}}, histories);
+      HistorySelectionSpec{{"new_", "variant:variant_2", "total"}}, histories);
   CHECK(only_history(variant).data[1] == 7);
   CHECK(only_history(variant).label == "new_variant:variant_2:total");
 }
@@ -231,14 +244,14 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
 
   Histories no_vax = make_histories(1, 1, 0, 0);
   auto none = resolve_history_selection(
-      HistorySelectionSpec{{"now_vaccinated", "total"}}, no_vax);
+      HistorySelectionSpec{{"now", "vaccinated", "total"}}, no_vax);
   CHECK(only_history(none).data[1] == 0);
   CHECK(only_history(none).source_history_vectors.empty());
 
   Histories one_vax = make_histories(1, 1, 1, 0);
   one_vax.at(Trait::vax, Phase::now, 1, AGE0_19)[1] = 4;
   auto one = resolve_history_selection(
-      HistorySelectionSpec{{"now_vaccinated", "total"}}, one_vax);
+      HistorySelectionSpec{{"now", "vaccinated", "total"}}, one_vax);
   CHECK(only_history(one).data[1] == 4);
   CHECK(only_history(one).source_history_vectors.size() == 5);
 
@@ -247,23 +260,23 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
   many_vax.at(Trait::vax, Phase::now, 2, AGE0_19)[1] = 2;
   many_vax.at(Trait::vax, Phase::now, 3, AGE0_19)[1] = 3;
   auto many = resolve_history_selection(
-      HistorySelectionSpec{{"now_vaccinated", "total"}}, many_vax);
+      HistorySelectionSpec{{"now", "vaccinated", "total"}}, many_vax);
   CHECK(only_history(many).data[1] == 6);
   CHECK(only_history(many).source_history_vectors.size() == 15);
 
   auto mixed = resolve_history_selection(
-      HistorySelectionSpec{{"new_unexposed", "total"},
-                           {"now_unexposed", "total"}},
+      HistorySelectionSpec{{"new_", "unexposed", "total"},
+                           {"now", "unexposed", "total"}},
       many_vax);
   CHECK(mixed.invalid_selections ==
-        std::vector<std::string>{"new_unexposed:total"});
+        std::vector<std::string>{"new_|unexposed|total"});
   REQUIRE(mixed.history_vectors.size() == 1);
   CHECK(mixed.history_vectors[0].data[1] == 5);
 
   HistorySelectionSpec all_total("all", "total");
   CHECK(all_total.selections.size() == 17);
   CHECK(std::ranges::find(all_total.selections,
-                          HistorySelection{"new_unexposed", "total"})
+                          HistorySelection{"new_", "unexposed", "total"})
         == all_total.selections.end());
 }
 
@@ -276,9 +289,9 @@ void test_print_and_serialization_use_materialized_totals() {
   histories.at(Trait::vax, Phase::now, 2, AGE20_39, 2)[1] = 5;
 
   const HistorySelectionSpec selections(std::vector<HistorySelection>{
-      {"unknown_history", "total"},
-      {"now_infectious", "total"},
-      {"now_vaccinated", "total"},
+      {"now", "unknown_history", "total"},
+      {"now", "infectious", "total"},
+      {"now", "vaccinated", "total"},
   });
 
   std::ostringstream printed;
@@ -341,6 +354,47 @@ void test_ring_selection_parsing() {
   CHECK(!parse_ring_suffix("now_infectious@ring:").has_value());
 }
 
+void test_fixed_selection_metadata_and_validation() {
+  RuntimeNamesGuard guard;
+  Histories histories = make_histories(1, 1, 1, 0);
+  CHECK((trait_names == std::array<std::string_view, 3>{"status", "vax", "variant"}));
+  CHECK((phase_names == std::array<std::string_view, 2>{"now", "new_"}));
+  for (const auto trait : all_traits) {
+    CHECK(magic_enum::enum_cast<Trait>(magic_enum::enum_name(trait)) == trait);
+  }
+  for (const auto phase : all_phases) {
+    CHECK(magic_enum::enum_cast<Phase>(magic_enum::enum_name(phase)) == phase);
+  }
+  CHECK(!magic_enum::enum_cast<Trait>("COUNT").has_value());
+  CHECK(!magic_enum::enum_cast<Phase>("COUNT").has_value());
+  CHECK(!histories.valid_history_coordinates(
+      static_cast<Trait>(3), Phase::now, 1, AGE0_19));
+  CHECK(!histories.valid_history_coordinates(
+      Trait::status, static_cast<Phase>(2), 1, AGE0_19));
+  CHECK(!age_vec_index_from_string("unknown").has_value());
+  CHECK(!age_vec_index_from_string("AGE0_19").has_value());
+  CHECK(!age_vec_index_from_string("age80up").has_value());
+  CHECK(age_vec_index_from_string("total") == HISTORY_AGE_TOTAL);
+
+  const HistorySelectionSpec invalid{
+      {"now", "none", "total"},
+      {"now", "INFECTIOUS", "total"},
+      {"NOW", "infectious", "total"},
+      {"new", "infectious", "total"},
+      {"COUNT", "infectious", "total"},
+      {"now", "infectious", "unknown"},
+      {"new_", "unexposed", "total"},
+      {"now", "vax:none", "total"},
+      {"now", "variant:none", "total"}};
+  const auto rejected = resolve_history_selection(invalid, histories);
+  CHECK(rejected.history_vectors.empty());
+  CHECK(rejected.invalid_selections.size() == invalid.selections.size());
+
+  const auto valid = resolve_history_selection(
+      HistorySelectionSpec{{"new_", "dead", "total"}}, histories);
+  CHECK(only_history(valid).label == "new_dead:total");
+}
+
 void write_series_artifacts(const test_support::TestRunOptions& options) {
   if (!options.write_artifacts) return;
   RuntimeNamesGuard guard;
@@ -378,6 +432,7 @@ void run_series_tests(const test_support::TestRunOptions& options) {
   test_print_and_serialization_use_materialized_totals();
   test_variant_invariant_uses_materialized_totals();
   test_ring_selection_parsing();
+  test_fixed_selection_metadata_and_validation();
   write_series_artifacts(options);
   if (options.write_artifacts) {
     fmt::println("series artifacts written under '{}'",

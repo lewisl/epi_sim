@@ -122,7 +122,7 @@ struct ProgressionFactors {  // for one variant
 
 inline constexpr size_t PROGRESSION_AGE_COUNT = Agegrp::names.size() - 1;
 inline constexpr size_t PROGRESSION_CONDITION_COUNT = Condition::names.size() - 1;
-inline constexpr size_t PROGRESSION_OUTCOME_COUNT = Progressionmap::names.size();
+inline constexpr size_t PROGRESSION_OUTCOME_COUNT = magic_enum::enum_count<Progressionmap>();
 inline constexpr size_t PROGRESSION_DAY_COUNT = static_cast<size_t>(DURATIONLIM) + 1;
 inline constexpr int16_t NO_PROGRESSION_ENTRY = -1;
 

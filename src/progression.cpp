@@ -16,17 +16,17 @@ namespace {
   void redistribute_probability(array<float, 6> &probvec, float riskfactor, uint8_t duration) {
       float tot_excess = 0.0f;
       for (auto to_idx : {Progressmap::ToSick, Progressmap::ToSevere, Progressmap::ToDead}) {
-          float excess = probvec[to_idx] * (1.0f - riskfactor);
-          probvec[to_idx] -= excess;
+          float excess = probvec[std::to_underlying(to_idx)] * (1.0f - riskfactor);
+          probvec[std::to_underlying(to_idx)] -= excess;
           tot_excess += excess;
       }
 
       if (duration == DURATIONLIM) {
-        probvec[Progressmap::ToRecover] += tot_excess;  // on the last day, do we want to skew towards survival?
+        probvec[std::to_underlying(Progressmap::ToRecover)] += tot_excess;  // on the last day, do we want to skew towards survival?
       } else {
         tot_excess /= 3.0f;
         for (auto to_idx : {Progressmap::ToRecover, Progressmap::ToNil, Progressmap::ToMild}) {
-            probvec[to_idx] += tot_excess;
+            probvec[std::to_underlying(to_idx)] += tot_excess;
         }
       }
   }
@@ -43,11 +43,11 @@ namespace {
 
     uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
 
-    if (outcome == Progressmap::ToDead) {  // for outcome == 5
+    if (outcome == std::to_underlying(Progressmap::ToDead)) {  // for outcome == 5
 
       person.make_dead(histories);
 
-    } else if (outcome == Progressmap::ToRecover) {     // for outcome == 0
+    } else if (outcome == std::to_underlying(Progressmap::ToRecover)) {     // for outcome == 0
 
         person.make_well(histories);
         

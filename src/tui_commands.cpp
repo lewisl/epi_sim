@@ -12,6 +12,7 @@
 #include "r0_simulation.h"
 #include "show_help.h"
 #include "sim.h"
+#include "series.h"
 
 namespace {
 
@@ -25,6 +26,7 @@ enum class CommandAction {
   RunDir,
   R0Sim,
   Plot,
+  ListHistories,
   Quit,
 };
 
@@ -62,6 +64,7 @@ const std::vector<Command> commands = {
       CommandAction::R0Sim},
     {"/plot", "Show where the last run plot files were written", "",
       CommandAction::Plot},
+    {"/list_histories", "List all history vectors", "", CommandAction::ListHistories},
     {"/q", "Quit epi_sim", "", CommandAction::Quit},
 };
 
@@ -231,6 +234,17 @@ void dispatch_command(AppState& state, const Command& command) {
       case CommandAction::Plot:
         show_plot_files(state);
         break;
+      case CommandAction::ListHistories:
+        if (!state.result_histories) {
+           fmt::println("No histories: run a case or run a directory to create history vectors first.");
+           break;
+        }
+        else {
+          auto selections = enumerate_history_selections(*state.result_histories);
+          fmt::println("History vector selectors for {} columns.\n", selections.size());
+          for (auto sel : selections) sel.print();
+          break;
+        }
       case CommandAction::Quit:
         break;
     }

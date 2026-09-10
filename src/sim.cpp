@@ -206,10 +206,10 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     std::filesystem::create_directories(model.output_dir);
 
     serialize_selected_histories(
-        {{"now_infectious", "total"}, // select with strings
-        {"new_infectious", "total"},
-        {"new_dead",       "total"},
-        {"now_dead",       "total"}},
+        {{"now", "infectious", "total"}, // select with strings
+        {"new_", "infectious", "total"},
+        {"new_", "dead",       "total"},
+        {"now", "dead",       "total"}},
       histories, case_artifact_path(model, "series", output_timestamp, "csv"));
 
     pop_to_csv(pop, pop.all_idx, "all",
@@ -230,50 +230,42 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   if (!model.dovax)
     historyplot(
                 // select histories using an initializer list of strings
-                {{"now_infectious", "total"},
-                {"now_unexposed", "total"},
-                {"now_recovered", "total"},
-                {"now_dead", "total"}},
+                {{"now", "infectious", "total"},
+                {"now", "unexposed", "total"},
+                {"now", "recovered", "total"},
+                {"now", "dead", "total"}},
             histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
             case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
   else
     historyplot(
                 // select histories using an initializer list of strings
-                {{"now_infectious", "total"},
-                {"now_unexposed", "total"},
-                {"now_recovered", "total"},
-                {"now_dead", "total"},
-                {"now_vaccinated", "total"}},
+                {{"now", "infectious", "total"},
+                {"now", "unexposed", "total"},
+                {"now", "recovered", "total"},
+                {"now", "dead", "total"},
+                {"now", "vaccinated", "total"}},
             histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
             case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"now_dead", "age0_19"},
-          {"now_dead", "age20_39"}, 
-          {"now_dead", "age40_59"}, 
-          {"now_dead", "age60_79"},
-          {"now_dead", "age80_up"}}, 
+  historyplot({{"now", "dead", "age0_19"},
+          {"now", "dead", "age20_39"}, 
+          {"now", "dead", "age40_59"}, 
+          {"now", "dead", "age60_79"},
+          {"now", "dead", "age80_up"}}, 
           histories, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
           case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"new_infectious", "total"}},
-          // {"now_dead", "age20_39"},
-          // {"now_dead", "age40_59"},
-          // {"now_dead", "age60_79"},
-          // {"now_dead", "age80_up"}},
+  historyplot({{"new_", "infectious", "total"}},
           histories, model.caldays, sumstruct, "New Infection Cases", false,
           case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"new_dead", "total"}},
-          // {"now_dead", "age20_39"}, 
-          // {"now_dead", "age40_59"}, 
-          // {"now_dead", "age60_79"},
-          // {"now_dead", "age80_up"}}, 
+  historyplot({{"new_", "dead", "total"}},
           histories, model.caldays, sumstruct, "Daily Deaths", false,
           case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
 
@@ -281,6 +273,8 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   // output of the simulation captured in terminal app
   return histories;
+
+
         
 } // end runsim function
 

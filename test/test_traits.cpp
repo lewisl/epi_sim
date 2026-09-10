@@ -92,7 +92,7 @@ void test_compile_time_trait_names_and_lookup() {
   CHECK(UNINFECTED.show() == "uninfected");
   CHECK(SEVERE.show() == "severe");
   CHECK(Vaxstat::booster.show() == "booster");
-  CHECK(Progressmap::ToDead.name() == "ToDead");
+  CHECK(magic_enum::enum_name(Progressmap::ToDead) == "ToDead");
 
   CHECK(trait_from_string<Agegrp>("AGE20_39") == AGE20_39);
   CHECK(trait_from_string<Status>("infectious") == INFECTIOUS);
@@ -100,6 +100,53 @@ void test_compile_time_trait_names_and_lookup() {
   CHECK(trait_from_string<Vaxstatus>("full") == Vaxstat::full);
   CHECK(!trait_from_string<Agegrp>("bad_age").has_value());
   CHECK(!trait_from_string<Status>("bad_status").has_value());
+  CHECK(!trait_from_string<Condition>("bad_condition").has_value());
+  CHECK(!trait_from_string<Vaxstatus>("bad_vaxstatus").has_value());
+}
+
+template <typename T, size_t N>
+void check_fixed_trait_metadata(const std::array<std::string_view, N>& expected) {
+  static_assert(sizeof(T) == sizeof(uint8_t));
+  static_assert(std::is_trivially_copyable_v<T>);
+  static_assert(magic_enum::enum_count<typename T::Enum>() == N);
+  CHECK(T::names == expected);
+  for (size_t i = 0; i < N; ++i) {
+    const auto value = magic_enum::enum_values<typename T::Enum>()[i];
+    CHECK(std::to_underlying(value) == i);
+    const T wrapped{value};
+    CHECK(wrapped.v == i);
+    CHECK(wrapped.show() == expected[i]);
+    CHECK(trait_from_string<T>(std::string{expected[i]}) == wrapped);
+    std::string uppercase{expected[i]};
+    std::ranges::transform(uppercase, uppercase.begin(),
+        [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    CHECK(trait_from_string<T>(uppercase) == wrapped);
+  }
+  CHECK(!trait_from_string<T>("").has_value());
+  CHECK(!trait_from_string<T>("COUNT").has_value());
+}
+
+void test_fixed_metadata_round_trips() {
+  check_fixed_trait_metadata<Agegrp>(std::array<std::string_view, 6>{
+      "unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"});
+  check_fixed_trait_metadata<Status>(std::array<std::string_view, 5>{
+      "none", "unexposed", "infectious", "recovered", "dead"});
+  check_fixed_trait_metadata<Condition>(std::array<std::string_view, 5>{
+      "uninfected", "nil", "mild", "sick", "severe"});
+  check_fixed_trait_metadata<Vaxstatus>(std::array<std::string_view, 4>{
+      "none", "first", "full", "booster"});
+
+  constexpr std::array<std::string_view, 6> outcomes{
+      "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};
+  CHECK(magic_enum::enum_names<Progressionmap>() == outcomes);
+  for (size_t i = 0; i < outcomes.size(); ++i) {
+    const auto value = magic_enum::enum_values<Progressionmap>()[i];
+    CHECK(std::to_underlying(value) == i);
+    CHECK(trait_from_string<Progressionmap>(std::string{outcomes[i]}) == value);
+  }
+  CHECK(trait_from_string<Progressionmap>("torecover") == Progressmap::ToRecover);
+  CHECK(!trait_from_string<Progressionmap>("missing").has_value());
+  CHECK(!trait_from_string<Agegrp>("age80up").has_value());
 }
 
 // Agegrp is the primary comorbidity marker for covid and is heavily used
@@ -184,6 +231,9 @@ void test_ring_runtime_registration_renders_names() {
   CHECK(school.v == 2);
   CHECK(jail.show() == "Jail");
   CHECK(school.show() == "School");
+  CHECK(trait_from_string<Ring>("sChOoL") == school);
+  CHECK(trait_from_string<Ring>("") == Ring{0});
+  CHECK(!trait_from_string<Ring>("missing_ring").has_value());
 
   // the reserved sentinel slot has an empty name, so it still falls back
   // to numeric rendering even though names is now populated
@@ -350,6 +400,7 @@ void run_traits_tests(const test_support::TestRunOptions& options) {
   test_primitive_wrappers();
   test_wrapper_comparisons();
   test_compile_time_trait_names_and_lookup();
+  test_fixed_metadata_round_trips();
   test_agegrp_string_constructor_round_trips_all_names();
   test_status_and_condition_string_constructors();
   test_runtime_traits_register_and_render_names();

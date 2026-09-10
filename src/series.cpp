@@ -2,6 +2,7 @@
 #include "parameters.h"
 #include "population.h"
 #include <charconv>
+#include <stdexcept>
 
 namespace {
 void ensure_parent_dir(const std::filesystem::path& output_path) {
@@ -79,18 +80,22 @@ void Histories::init_history_series(size_t day) {
 
 size_t Histories::trait_value_count(Trait trait) const {
     switch (trait) {
-        case Trait::status: return Status::names.size() - 1;
-        case Trait::vax: return real_vax_count_;
-        case Trait::variant: return real_variant_count_;
-        case Trait::COUNT: break;
+        case Trait::status: 
+          return Status::names.size() - 1;
+        case Trait::vax: 
+          return real_vax_count_;
+        case Trait::variant: 
+          return real_variant_count_;
     }
-    std::unreachable();
+    throw std::runtime_error("Invalid trait value for histories.");
+
 }
 
 bool Histories::valid_history_coordinates(
     Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
     uint8_t ring) const {
-    if (trait >= Trait::COUNT || phase >= Phase::COUNT
+    if (size_t(trait) >= magic_enum::enum_count<Trait>()
+        || size_t(phase) >= magic_enum::enum_count<Phase>()
         || trait_value == 0
         || size_t(trait_value) > trait_value_count(trait)
         || age.v == 0 || age.v > HISTORY_AGE_COUNT) {
@@ -101,7 +106,12 @@ bool Histories::valid_history_coordinates(
          : ring >= 1 && size_t(ring) <= real_ring_count_;
 }
 
-std::optional<HistoryColumnCoordinates> Histories::describe_history_vector(
+//
+// introspection of Histories object and specific history vectors
+//
+
+// change output of this to HistorySelection
+std::optional<HistorySelection> Histories::describe_history_vector(
     size_t index) const {
     if (index >= history_vectors_.size()) return std::nullopt;
 
@@ -117,70 +127,21 @@ std::optional<HistoryColumnCoordinates> Histories::describe_history_vector(
             const size_t within_value = within_group % value_stride;
             const size_t ring_ordinal = within_value / HISTORY_AGE_COUNT;
             const size_t age_ordinal = within_value % HISTORY_AGE_COUNT;
-            return HistoryColumnCoordinates{
-                .trait = trait,
-                .phase = phase,
-                .trait_value = static_cast<uint8_t>(value_ordinal + 1),
-                .age = Agegrp{static_cast<uint8_t>(age_ordinal + 1)},
+            return HistorySelection{
+                .phase = std::string{magic_enum::enum_name(phase)},
+                .trait_value = std::string{
+                    trait == Trait::status ? Status::names[value_ordinal + 1] :
+                    trait == Trait::vax ? Vax::names[value_ordinal + 1] :
+                                         Variant::names[value_ordinal + 1]},
+                .age = std::string{Agegrp::names[age_ordinal + 1]},
+                .trait = std::string{magic_enum::enum_name(trait)},
                 .ring = real_ring_count_ == 0
-                      ? RING_ALL
-                      : static_cast<uint8_t>(ring_ordinal + 1),
+                      ? ""
+                      : Ring::names[static_cast<size_t>(ring_ordinal+1)],
             };
         }
     }
     return std::nullopt;
-}
-
-namespace {
-
-constexpr std::string_view trait_label(Trait trait) {
-    switch (trait) {
-        case Trait::status: return "status";
-        case Trait::vax: return "vax";
-        case Trait::variant: return "variant";
-        case Trait::COUNT: break;
-    }
-    std::unreachable();
-}
-
-constexpr std::string_view phase_label(Phase phase) {
-    return phase == Phase::now ? "now" : "new";
-}
-
-std::string trait_value_label(Trait trait, uint8_t raw_value) {
-    const auto value = size_t(raw_value);
-    switch (trait) {
-        case Trait::status:
-            return value < Status::names.size()
-                 ? Status::names[value] : fmt::format("{}", value);
-        case Trait::vax:
-            return value < Vax::names.size()
-                 ? Vax::names[value] : fmt::format("{}", value);
-        case Trait::variant:
-            return value < Variant::names.size()
-                 ? Variant::names[value] : fmt::format("{}", value);
-        case Trait::COUNT:
-            break;
-    }
-    std::unreachable();
-}
-
-} // namespace
-
-std::string Histories::history_column_label(size_t index) const {
-    const auto coordinates = describe_history_vector(index);
-    if (!coordinates) return fmt::format("invalid_history_column={}", index);
-    const auto& c = *coordinates;
-    const std::string ring = real_ring_count_ == 0
-        ? "population"
-        : (size_t(c.ring) < Ring::names.size()
-            ? Ring::names[c.ring]
-            : fmt::format("{}", c.ring));
-    return fmt::format(
-        "trait={}/phase={}/value={}/ring={}/age={}",
-        trait_label(c.trait), phase_label(c.phase),
-        trait_value_label(c.trait, c.trait_value), ring,
-        Agegrp::names[c.age.v]);
 }
 
 std::string Histories::explain_history_vector_index(
@@ -211,8 +172,7 @@ void Histories::validate_history_layout() const {
     for (const Trait trait : all_traits) {
         for (const Phase phase : all_phases) {
             for (size_t value = 1; value <= trait_value_count(trait); ++value) {
-                for (size_t ring_ordinal = 0;
-                     ring_ordinal < ring_lane_count_; ++ring_ordinal) {
+                for (size_t ring_ordinal = 0; ring_ordinal < ring_lane_count_; ++ring_ordinal) {
                     const uint8_t ring = real_ring_count_ == 0
                         ? RING_ALL
                         : static_cast<uint8_t>(ring_ordinal + 1);
@@ -227,9 +187,14 @@ void Histories::validate_history_layout() const {
                         seen[index] = true;
                         ++visited;
                         const auto reverse = describe_history_vector(index);
-                        const HistoryColumnCoordinates expected{
-                            trait, phase, static_cast<uint8_t>(value),
-                            Agegrp{static_cast<uint8_t>(age)}, ring};
+                        const HistorySelection expected{
+                            std::string{magic_enum::enum_name(phase)},
+                            std::string{trait == Trait::status ? Status::names[value] :
+                                        trait == Trait::vax ? Vax::names[value] :
+                                                             Variant::names[value]},
+                            std::string{Agegrp::names[age]},
+                            std::string{magic_enum::enum_name(trait)},
+                            real_ring_count_ == 0 ? "" : Ring::names[static_cast<size_t>(ring)]};
                         if (!reverse || *reverse != expected) {
                             throw std::logic_error(fmt::format(
                                 "History layout reverse lookup failed at column {}",
@@ -245,6 +210,33 @@ void Histories::validate_history_layout() const {
         throw std::logic_error("History layout does not cover every column");
     }
 }
+
+
+const std::vector<HistorySelection> enumerate_history_selections(const Histories& histories) {
+    vector<HistorySelection> vh;
+    for (auto i = 0; i < histories.history_vector_count(); ++i) {
+      auto desc = histories.describe_history_vector(i);
+      if (desc)
+        vh.push_back(*desc);
+      else 
+        throw std::runtime_error(fmt::format("history description failed at {}", i));
+    }
+    return vh;
+  }
+
+
+std::string Histories::history_column_label(size_t index) const {
+    const auto selection = describe_history_vector(index);
+    if (!selection) return fmt::format("invalid_history_column={}", index);
+    const auto& c = *selection;
+    return fmt::format(
+        "trait={}|phase={}|value={}|ring={}|age={}",
+        c.trait, c.phase, c.trait_value, c.ring=="" ? "population" : c.ring,
+        c.age);
+}
+
+
+
 
 HistoryValue Histories::aggregate_value(
     Trait trait, Phase phase, uint8_t trait_value, size_t day) const {
@@ -316,25 +308,25 @@ std::vector<HistorySelection> HistorySelectionSpec::build_for_ages(
     for (const auto& age : ages) {
         // Status: skip index 0 ("none")
         for (size_t i = 1; i < Status::names.size(); ++i) {
-            out.push_back({"now_" + Status::names[i], age});
+            out.push_back({"now", std::string{Status::names[i]}, age});
             // new_unexposed is an allocated-but-never-written schema
             // placeholder, not a meaningful reporting selection.
             if (i != size_t(UNEXPOSED)) {
-                out.push_back({"new_" + Status::names[i], age});
+                out.push_back({"new_", std::string{Status::names[i]}, age});
             }
         }
         // Vaccinated aggregate (sums all brands)
-        out.push_back({"now_vaccinated", age});
-        out.push_back({"new_vaccinated", age});
+        out.push_back({"now", "vaccinated", age});
+        out.push_back({"new_", "vaccinated", age});
         // Per-brand vax: skip index 0 ("none")
         for (size_t i = 1; i < Vax::names.size(); ++i) {
-            out.push_back({"now_vax:" + Vax::names[i], age});
-            out.push_back({"new_vax:" + Vax::names[i], age});
+            out.push_back({"now", "vax:" + Vax::names[i], age});
+            out.push_back({"new_", "vax:" + Vax::names[i], age});
         }
         // Per-variant: skip index 0 ("none")
         for (size_t i = 1; i < Variant::names.size(); ++i) {
-            out.push_back({"now_variant:" + Variant::names[i], age});
-            out.push_back({"new_variant:" + Variant::names[i], age});
+            out.push_back({"now", "variant:" + Variant::names[i], age});
+            out.push_back({"new_", "variant:" + Variant::names[i], age});
         }
     }
     return out;
@@ -380,22 +372,12 @@ struct ResolvedHistorySource {
 };
 
 std::optional<ResolvedHistorySource> resolve_history_source(
-    const Histories& histories, std::string_view name, AgeVecIndex age,
-    uint8_t ring) {
-    Phase phase;
-    std::string_view phase_label;
-    std::string_view trait_value_selector;
-    if (name.starts_with("now_")) {
-        phase = Phase::now;
-        phase_label = "now";
-        trait_value_selector = name.substr(4);
-    } else if (name.starts_with("new_")) {
-        phase = Phase::new_;
-        phase_label = "new";
-        trait_value_selector = name.substr(4);
-    } else {
-        return std::nullopt;
-    }
+    const Histories& histories, std::string_view phase_token,
+    std::string_view trait_value_selector, uint8_t age, uint8_t ring) {
+    const auto parsed_phase = magic_enum::enum_cast<Phase>(phase_token);
+    if (!parsed_phase) return std::nullopt;
+    const Phase phase = *parsed_phase;
+    const auto display_phase = phase == Phase::now ? "now" : "new_";
 
     if (age > HISTORY_AGE_COUNT) return std::nullopt;
 
@@ -447,7 +429,7 @@ std::optional<ResolvedHistorySource> resolve_history_source(
 
     if (trait_value_selector == "vaccinated") {
         ResolvedHistorySource source{
-            fmt::format("{}_vaccinated", phase_label), {}};
+            fmt::format("{}_vaccinated", display_phase), {}};
         std::vector<uint8_t> trait_values;
         trait_values.reserve(histories.real_vax_count());
         for (size_t trait_value = 1;
@@ -465,9 +447,6 @@ std::optional<ResolvedHistorySource> resolve_history_source(
         TraitSelectionView{
             "variant:", Trait::variant,
             std::span<const std::string>{Variant::names.data(), Variant::names.size()}},
-        TraitSelectionView{
-            "", Trait::status,
-            std::span<const std::string>{Status::names.data(), Status::names.size()}},
     };
 
     for (const auto& trait : traits) {
@@ -485,14 +464,8 @@ std::optional<ResolvedHistorySource> resolve_history_source(
             return std::nullopt;
         }
 
-        // Kept only so status now/new groups have the same fixed stride.
-        if (trait.trait == Trait::status && phase == Phase::new_
-            && trait_value == size_t(UNEXPOSED)) {
-            return std::nullopt;
-        }
-
         ResolvedHistorySource source{
-            fmt::format("{}_{}{}", phase_label, trait.selector_prefix,
+            fmt::format("{}_{}{}", display_phase, trait.selector_prefix,
                         trait.trait_value_names[trait_value]),
         };
         const std::array trait_values{static_cast<uint8_t>(trait_value)};
@@ -500,17 +473,27 @@ std::optional<ResolvedHistorySource> resolve_history_source(
         return source;
     }
 
-    return std::nullopt;
+    const auto status = magic_enum::enum_cast<Status::Enum>(trait_value_selector);
+    if (!status || *status == Status::Enum::none
+        // Kept only so status now/new groups have the same fixed stride.
+        || (phase == Phase::new_ && *status == Status::Enum::unexposed)) {
+        return std::nullopt;
+    }
+    ResolvedHistorySource source{
+        fmt::format("{}_{}", display_phase, magic_enum::enum_name(*status)), {}};
+    const std::array trait_values{std::to_underlying(*status)};
+    append_atomic_sources(source, Trait::status, trait_values);
+    return source;
 }
 
 std::string raw_selection_label(const HistorySelection& selection) {
     return selection.ring.empty()
-        ? fmt::format("{}:{}", selection.name, selection.age)
-        : fmt::format("{}:{}:{}", selection.name, selection.age, selection.ring);
+        ? fmt::format("{}|{}|{}", selection.phase, selection.trait_value, selection.age)
+        : fmt::format("{}|{}|{}|{}", selection.phase, selection.trait_value,  selection.age, selection.ring);
 }
 
 std::string canonical_selection_label(const ResolvedHistorySource& source,
-                                      AgeVecIndex age, uint8_t ring) {
+                                      uint8_t age, uint8_t ring) {
     if (ring == RING_ALL) {
         return fmt::format("{}:{}", source.canonical_name, age_vec_label(age));
     }
@@ -580,7 +563,7 @@ ResolvedHistorySelection resolve_history_selection(
       resolved.invalid_selections.push_back(raw_label);
       continue;
     }
-    auto source = resolve_history_source(histories, sel.name, *age, *ring);
+    auto source = resolve_history_source(histories, sel.phase, sel.trait_value, *age, *ring);
     if (!source) {
       resolved.invalid_selections.push_back(raw_label);
       continue;
@@ -609,10 +592,10 @@ void print_total_status_histories(const Histories& histories,
 
   constexpr auto labels   = std::array{"infected", "unexposed", "recovered", "dead"};
   const HistorySelectionSpec spec(std::vector<HistorySelection>{
-      {"now_infectious", "total"},
-      {"now_unexposed", "total"},
-      {"now_recovered", "total"},
-      {"now_dead", "total"},
+      {"now", "infectious", "total"},
+      {"now", "unexposed", "total"},
+      {"now", "recovered", "total"},
+      {"now", "dead", "total"},
   });
   const auto resolved = resolve_history_selection(spec, histories);
   if (!resolved.invalid_selections.empty()

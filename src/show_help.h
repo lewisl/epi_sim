@@ -286,22 +286,15 @@ infectfactor and effectiveness must stay aligned with variants.json.
 Template (JSONC):
 
 
-// vaccines.json is an object keyed by vaccine product name.
-{
+{  // vaccines.json is keyed by vaccine product name.
     // Each vaccine entry uses the same fields.
-    "Pfizer": {
-        // Days for vaccine-derived protection to halve.
-        "halflife": 360,
-        // Number of shots in the primary series.
-        "reqdshots": 2,
-        // Days after first shot before a second shot.
-        "delay2ndshot": 21,
-        // Days after full vaccination before booster eligibility.
-        "delaybooster": 160,
-        // Days after a shot to reach full effect.
-        "full_effect_days": 14,
-        // Initial fraction of the eventual shot effect.
-        "day1_effect": 0.65,
+    "Pfizer": {    
+        "halflife": 360,        // Days for vaccine-derived protection to halve.
+        "reqdshots": 2,         // Number of shots in the primary series.
+        "delay2ndshot": 21,     // Days after first shot before a second shot.
+        "delaybooster": 160,    // Days after full vaccination before booster eligibility.
+        "full_effect_days": 14, // Days after a shot to reach full effect.
+        "day1_effect": 0.65,    // Initial fraction of the eventual shot effect.
         // Relative infection risk by infecting variant.
         "infectfactor": {
             "base": 0.9,

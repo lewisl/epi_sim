@@ -285,8 +285,8 @@ void test_progression_uses_packed_breakday_outcomes() {
     progressionset.progression.resize(2);
     auto& tree = progressionset.progression[1].tree;
     OutcomesByCurrentCondition outcomes{};
-    outcomes[zidx(MILD)][Progressmap::ToRecover] = 1.0f;
-    outcomes[zidx(SEVERE)][Progressmap::ToDead] = 1.0f;
+    outcomes[zidx(MILD)][std::to_underlying(Progressmap::ToRecover)] = 1.0f;
+    outcomes[zidx(SEVERE)][std::to_underlying(Progressmap::ToDead)] = 1.0f;
     tree.entries.push_back(outcomes);
     tree.entry_index[zidx(AGE0_19)][5] = 0;
     tree.entry_index[zidx(AGE20_39)][5] = 0;
