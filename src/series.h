@@ -9,10 +9,12 @@
 
 
 inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
+inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
 inline constexpr size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
+constexpr std::string_view age_vec_label(uint8_t age) {
 constexpr std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
     return std::string_view{Agegrp::names[age]};
@@ -20,6 +22,8 @@ constexpr std::string_view age_vec_label(uint8_t age) {
 
 inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text) {
     if (text == "total") return HISTORY_AGE_TOTAL;
+    const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
+    if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
     if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     return std::nullopt;
@@ -87,6 +91,7 @@ struct Histories {
     size_t day_cnt;
 
     // constructor declaration, defined in series.cpp
+    // constructor declaration, defined in series.cpp
     Histories(size_t n_days, const PopData& pop,
               size_t real_variant_count, size_t real_vax_count,
               size_t real_ring_count);
@@ -95,6 +100,7 @@ struct Histories {
     [[clang::always_inline]] size_t history_vector_idx(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
+        // trait values are all 1-indexed; we need 0 indexed for this
         // trait values are all 1-indexed; we need 0 indexed for this
         const size_t value_ordinal = size_t(trait_value - 1);
         const size_t ring_ordinal = real_ring_count_ == 0
@@ -118,12 +124,14 @@ struct Histories {
         return history_vectors_[index];
     }
     // return a mutable vector 
+    // return a mutable vector 
     [[clang::always_inline]] std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) {
         return history_vectors_[history_vector_idx(
             trait, phase, trait_value, age, ring)];
     }
+    // return a const vector 
     // return a const vector 
     [[clang::always_inline]] const std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
@@ -175,15 +183,21 @@ struct Histories {
 private:
       // returns index of the column group that will contain the desired column,
       // starting at the trait and the phase within that trait
+      // returns index of the column group that will contain the desired column,
+      // starting at the trait and the phase within that trait
     [[clang::always_inline]] size_t trait_phase_base(
         Trait trait, Phase phase) const {
         const size_t status_width = phase_widths_[size_t(Trait::status)];
         const size_t vax_width = phase_widths_[size_t(Trait::vax)];
         switch (trait) {   // this is a great way to do this
             case Trait::status:  // first trait within indices
+        switch (trait) {   // this is a great way to do this
+            case Trait::status:  // first trait within indices
                 return size_t(phase) * status_width;
             case Trait::vax:  // both phases of status + 0 or 1 phase of vax
+            case Trait::vax:  // both phases of status + 0 or 1 phase of vax
                 return 2 * status_width + size_t(phase) * vax_width;
+            case Trait::variant:  // didn't cache a variant_width variable because there is no re-use
             case Trait::variant:  // didn't cache a variant_width variable because there is no re-use
                 return 2 * (status_width + vax_width)
                      + size_t(phase) * phase_widths_[size_t(Trait::variant)];
@@ -191,6 +205,7 @@ private:
         std::unreachable();
     }
 
+    std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     size_t real_variant_count_{};
     size_t real_vax_count_{};

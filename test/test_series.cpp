@@ -119,6 +119,7 @@ void test_atomic_layout_formula_and_introspection() {
   histories.dump_history_layout(dump);
   CHECK(test_support::split_trimmed_lines(dump.str()).size() == 160);
   CHECK(dump.str().contains("0: trait=status|phase=now|value=unexposed"));
+  CHECK(dump.str().contains("0: trait=status|phase=now|value=unexposed"));
 }
 
 void test_layout_all_zero_one_many_cardinalities() {
@@ -269,6 +270,7 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
                            {"now", "unexposed", "total"}},
       many_vax);
   CHECK(mixed.invalid_selections ==
+        std::vector<std::string>{"new_|unexposed|total"});
         std::vector<std::string>{"new_|unexposed|total"});
   REQUIRE(mixed.history_vectors.size() == 1);
   CHECK(mixed.history_vectors[0].data[1] == 5);
