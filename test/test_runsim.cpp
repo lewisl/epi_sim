@@ -112,7 +112,7 @@ void test_runsim_end_to_end(const test_support::TestRunOptions& options) {
   CHECK(has_total_dead_trace);
 
   if (options.write_artifacts) {
-    HistorySelectionSpec comprehensive("all");
+    HistorySelectorSet comprehensive("all");
     const auto aggregate_selections = comprehensive.selections;
     for (size_t ring = 1; ring < Ring::names.size(); ++ring) {
       for (auto selection : aggregate_selections) {

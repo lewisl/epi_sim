@@ -123,7 +123,7 @@ void test_historyplot_uses_materialized_age_and_ring_total() {
   const auto temp_dir = test_support::fs::temp_directory_path()
                       / test_support::unique_name("epi_sim_historyplot_");
   const auto output_path = temp_dir / "history_totals.html";
-  const HistorySelectionSpec selections(std::vector<HistorySelection>{
+  const HistorySelectorSet selections(std::vector<HistorySelector>{
       {"now", "not_a_history", "total"},
       {"now", "infectious", "total"},
   });

@@ -16,12 +16,15 @@
 #include <string>
 
 /*
-Note:  these are not what computer languages call type traits.
+Note:  these are not what computer languages call type traits.  These are 
+       people's traits (or agents, per the epidemiology literature) in the simulation.
 
-Traits of people or agents in the simulation.
 Most of these trait structs are used as the types of the vectors (semantically, columns)
 in the PopData struct, which is an SOA (struct of arrays) pattern for building
 the population table for the simulation.
+
+The values of Traits are used in the Histories vectors for some traits important to track during the 
+simulation and plot or serialize after the simulation.
 */
 
 
@@ -67,6 +70,7 @@ struct Agegrp {
 static_assert(sizeof(Agegrp) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Agegrp>);
 
+// constants for Agegrp instances used in PopData and Series
 inline constexpr Agegrp UNKNOWN{Agegrp::Enum::unknown};
 inline constexpr Agegrp AGE0_19{Agegrp::Enum::age0_19};
 inline constexpr Agegrp AGE20_39{Agegrp::Enum::age20_39};
@@ -108,6 +112,7 @@ struct Status {
 static_assert(sizeof(Status) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Status>);
 
+// constants for Status instances used in PopData and Series
 inline constexpr Status NONE{Status::Enum::none};
 inline constexpr Status UNEXPOSED{Status::Enum::unexposed};
 inline constexpr Status INFECTIOUS{Status::Enum::infectious};
@@ -148,6 +153,7 @@ struct Condition {
 static_assert(sizeof(Condition) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Condition>);
 
+// constants for Condition instances used in PopData
 inline constexpr Condition UNINFECTED{Condition::Enum::uninfected};
 inline constexpr Condition NIL{Condition::Enum::nil};
 inline constexpr Condition MILD{Condition::Enum::mild};
@@ -160,7 +166,7 @@ static_assert(UNINFECTED.v == 0 && NIL.v == 1 && MILD.v == 2
 // Vaxstatus: enum metadata with one-byte PopData storage.
 struct Vaxstatus {
   enum class Enum : uint8_t {
-    none = 0, first = 1, full = 2, booster = 3
+    none = 0, first = 1, full = 2, booster = 3, exhaused = 4
   };
 
   uint8_t v{};
@@ -184,6 +190,7 @@ namespace Vaxstat {
   inline constexpr Vaxstatus first{Vaxstatus::Enum::first};
   inline constexpr Vaxstatus full{Vaxstatus::Enum::full};
   inline constexpr Vaxstatus booster{Vaxstatus::Enum::booster};
+  inline constexpr Vaxstatus exhausted{Vaxstatus::Enum::exhaused};
 } // namespace Vaxstat
 
 static_assert(Vaxstat::none.v == 0 && Vaxstat::first.v == 1
@@ -211,6 +218,7 @@ static_assert(std::to_underlying(Progressmap::ToSick) == SICK.v);
 static_assert(std::to_underlying(Progressmap::ToSevere) == SEVERE.v);
 static_assert(std::to_underlying(Progressmap::ToDead) == 5);
 
+// length of time being infected, per each infection incidence
 struct Duration {
   uint8_t v{};
 
@@ -360,7 +368,7 @@ struct Vaxday {
 
 // Variant -- create instances at runtime
 struct Variant {
-  uint8_t v{};
+  uint8_t v{};  // will take on values 0..number of variants:  effectively 1-indexed
   inline static std::vector<std::string> names;
 
   Variant() = default;

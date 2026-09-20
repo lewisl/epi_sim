@@ -153,6 +153,7 @@ void run_case(AppState& state, const std::string& case_label) {
   state.current_case_label = case_label;
   state.current_case_dir.clear();
   state.last_output_dir = state.active_model->output_dir;
+  post_simulation(*state.active_model, *state.result_histories);
   print_state_summary(state);
 }
 
@@ -173,6 +174,7 @@ void run_dir(AppState& state, const std::string& path_arg) {
   state.current_case_label = state.active_model->case_label;
   state.current_case_dir = path_arg;
   state.last_output_dir = state.active_model->output_dir;
+  post_simulation(*state.active_model, *state.result_histories);
   print_state_summary(state);
 }
 

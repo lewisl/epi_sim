@@ -86,3 +86,6 @@ struct SummaryData {
 
 // Simulation runner
 Histories runsim(Model& model);
+
+// post_simulation plotting and serialization
+void post_simulation(Model & model, Histories & histories);

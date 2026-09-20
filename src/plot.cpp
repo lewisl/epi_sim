@@ -107,12 +107,12 @@ void produce_plot(std::filesystem::path output_path, std::string end_message, js
 //
 // Standard plot type for simulation history output.
 //
-void historyplot(HistorySelectionSpec spec, const Histories& histories,
+void historyplot(HistorySelectorSet spec, const Histories& histories,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack, std::filesystem::path output_path) {
 
       // step 1: assemble data from simulation run
-      auto resolved = resolve_history_selection(spec, histories);
+      auto resolved = create_history_set(spec, histories);
       if (!resolved.invalid_selections.empty()) {
         fmt::println("Skipping invalid plot history selections: {}",
                      resolved.invalid_selections);

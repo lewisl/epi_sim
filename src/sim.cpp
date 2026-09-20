@@ -155,47 +155,26 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
     } // end persons loop
 
-    // simple debug print to console
-    // if (d_i == 90) {
-    //   std::vector<size_t> rows;
-    //   for (size_t p = 1; p <= pop.popn; ++p) {
-    //     auto person = pop.agent(p);
-    //     if (person.status() == RECOVERED && person.agegrp() == AGE80_UP) {
-    //       rows.push_back(p);
-    //       if (rows.size() == 10) break;
-    //     }
-    //   }
-    //   pop_print(pop, rows, {"status", "agegrp", "cond", "variant_hist"}, std::cout);
-    // }
-
 
     // run end of day cases
 
-    // cleanup sim::ds
-    // sim::ds.reset();
 
   } // end day loop
 
+  // update total history columns
 
-  //
-  // at end of simulation
-  // 
+  fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
+      spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
 
-  // a debug example to print people who have been reinfected
-  // std::vector<size_t> reinfected_rows;
-  // for (size_t p = 1; p <= pop.popn; ++p) {
-  //   if (pop.sickday_hist[p].count > 1) reinfected_rows.push_back(p);
-  //   if (reinfected_rows.size() == 10) break;
-  // }
-  // 
-  // pop_print(pop, reinfected_rows, {"status", "agegrp", "sickday_hist", "variant_hist"}, std::cout);
+  // output of the simulation captured in terminal app
+  return histories;
+        
+} // end runsim function
 
-  // print some histories and a summary
-  // print_selected_histories({ {"now_infectious", "total"},
-  //                         {"new_infectious", "total"},
-  //                         {"new_recovered", "total"},
-  //                         {"new_dead", "total"} },
-  //                          histories);
+
+void post_simulation(Model & model, Histories  & histories) {
+
+  PopData &pop = model.pop;    // all person data
 
   // write series + PopData columns to csv (skipped in headless runs)
   const std::string output_timestamp = model.headless ? std::string{} : make_timestamp_token();
@@ -205,12 +184,24 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     }
     std::filesystem::create_directories(model.output_dir);
 
+    // total values for status selected with string literals
     serialize_selected_histories(
-        {{"now", "infectious", "total"}, // select with strings
+        {{"now", "infectious", "total"}, 
         {"new_", "infectious", "total"},
         {"new_", "dead",       "total"},
         {"now", "dead",       "total"}},
       histories, case_artifact_path(model, "series", output_timestamp, "csv"));
+
+    // all series columns with materialized totals
+    serialize_selected_histories(
+        HistorySelectorSet("all"),
+      histories, case_artifact_path(model, "all_series", output_timestamp, "csv"));
+
+    // all series columns, totals only
+    serialize_selected_histories(
+        HistorySelectorSet("all", "total"),
+      histories, case_artifact_path(model, "all_total_series", output_timestamp, "csv"));
+
 
     pop_to_csv(pop, pop.all_idx, "all",
                OutSpec(case_artifact_path(model, "pop", output_timestamp, "csv")));
@@ -218,66 +209,58 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
   SummaryData sumstruct = print_summary(pop); fmt::println("");
 
-  fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
-        spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
-
-  if (model.headless) return histories;  // headless runs skip browser plots
-
-
   //
   // create and output plots
   //
-  if (!model.dovax)
-    historyplot(
-                // select histories using an initializer list of strings
-                {{"now", "infectious", "total"},
-                {"now", "unexposed", "total"},
-                {"now", "recovered", "total"},
-                {"now", "dead", "total"}},
-            histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
-            case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
-  else
-    historyplot(
-                // select histories using an initializer list of strings
-                {{"now", "infectious", "total"},
-                {"now", "unexposed", "total"},
-                {"now", "recovered", "total"},
-                {"now", "dead", "total"},
-                {"now", "vaccinated", "total"}},
-            histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
-            case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
+  if (!model.headless) {
+    if (model.output_dir.empty()) {
+      throw std::runtime_error("Model output_dir is not configured.");
+    }
+    if (!model.dovax)
+      historyplot(
+                  // select histories using an initializer list of strings
+                  {{"now", "infectious", "total"},
+                  {"now", "unexposed", "total"},
+                  {"now", "recovered", "total"},
+                  {"now", "dead", "total"}},
+              histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
+    else
+      historyplot(
+                  // select histories using an initializer list of strings
+                  {{"now", "infectious", "total"},
+                  {"now", "unexposed", "total"},
+                  {"now", "recovered", "total"},
+                  {"now", "dead", "total"},
+                  {"now", "vaccinated", "total"}},
+              histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
+              case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"now", "dead", "age0_19"},
-          {"now", "dead", "age20_39"}, 
-          {"now", "dead", "age40_59"}, 
-          {"now", "dead", "age60_79"},
-          {"now", "dead", "age80_up"}}, 
-          histories, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
-          case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
+    historyplot({{"now", "dead", "age0_19"},
+            {"now", "dead", "age20_39"}, 
+            {"now", "dead", "age40_59"}, 
+            {"now", "dead", "age60_79"},
+            {"now", "dead", "age80_up"}}, 
+            histories, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
+            case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"new_", "infectious", "total"}},
-          histories, model.caldays, sumstruct, "New Infection Cases", false,
-          case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
+    historyplot({{"new_", "infectious", "total"}},
+            histories, model.caldays, sumstruct, "New Infection Cases", false,
+            case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  historyplot({{"new_", "dead", "total"}},
-          histories, model.caldays, sumstruct, "Daily Deaths", false,
-          case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
+    historyplot({{"new_", "dead", "total"}},
+            histories, model.caldays, sumstruct, "Daily Deaths", false,
+            case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  // output of the simulation captured in terminal app
-  return histories;
-
-
-        
-} // end runsim function
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+}
 
 // Breakdown by age group: unexposed, infected, reinfected, dead, recovered
 SummaryData print_summary(PopData & pop)

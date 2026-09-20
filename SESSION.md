@@ -1,5 +1,45 @@
 # Session Notes
 
+## 2026-09-17: post-simulation split; total columns next
+
+- User is stopping and will return to implement total history columns. This
+  session was discussion/review only; assistant changed no product code.
+- Leave trait wrappers and the three-value Trait enum arrangement unchanged.
+- Planned stored Total: one vector per eligible (trait, phase, trait_value),
+  summing both all concrete ages and all ring lanes. Separate stored per-ring
+  or per-age totals are outside this immediate scope; existing selection-time
+  aggregation remains a separate capability.
+- Favored layout: append totals after atomic vectors in corresponding subject
+  order, preserving atomic indices. Create/fill them once at the end of runsim
+  before returning, including headless runs. Keep implementation in Histories
+  and call it from runsim; output consumers should reuse completed totals.
+- User explicitly wants to reuse the existing totaling function.
+  materialize_history_vector in src/series.cpp already sums source day vectors;
+  adapt/reuse that logic rather than introduce a competing summation path.
+  Preserve 1-based day semantics when implementing (current helper also visits
+  index 0). Total-column implementation has not begun in this session.
+- User extracted summary, CSV exports, and default plots to post_simulation,
+  called by both CLI paths and TUI run_case/run_dir. Last reviewed source has
+  serialization and plotting guarded by !model.headless, with summary outside.
+  runsim now has one unconditional return of Histories.
+- Explained that Histories& directly mutates the caller's object; no returned
+  copy or TUI reassignment is needed. Latest saved sim.h declares
+  void post_simulation(Model&, Histories&). Recheck definition/call sites on
+  resumption, since user continued editing after the review.
+- Review follow-up: test_runsim_end_to_end still called only runsim when last
+  inspected, yet expected output artifacts. It needs the post_simulation call
+  and CSV-count expectations matching the three current series exports.
+- xmake build epi_sim passed during the initial split review, before subsequent
+  user edits. No tests were run; latest edits have not been build-verified.
+- Appending totals also requires updating layout validation, reverse lookup,
+  labels, and atomic-versus-total column counts. Do not double-append totals or
+  include derived columns among summation sources.
+- Keep PopData lifetime unchanged for now: Model owns it, runsim borrows it,
+  and population serialization/summary and later callers still use it.
+- Older notes below describe prior naming/APIs; current user edits use
+  HistorySelector / HistorySelectorSet and TotalHistorySet. Preserve their
+  ongoing work and inspect current source before implementing.
+
 ## 2026-09-10: magic_enum migration completed
 
 - Implemented the user-approved `design/magic_enum_migration_plan.md`.

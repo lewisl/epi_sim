@@ -18,7 +18,7 @@ constexpr std::string_view age_vec_label(uint8_t age) {
     return std::string_view{Agegrp::names[age]};
 }
 
-inline std::optional<uint8_t> age_vec_index_from_string(std::string_view text) {
+inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text) {
     if (text == "total") return HISTORY_AGE_TOTAL;
     const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
     if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
@@ -29,14 +29,19 @@ inline std::optional<uint8_t> age_vec_index_from_string(std::string_view text) {
 // the single implicit whole-population storage lane.
 inline constexpr uint8_t RING_ALL = 0;
 
-struct HistorySelection {
+/*
+HistorySelector: semantic coordinates used to select a specific history (vector or column),
+by phase (now or new_), trait_value (such as "Dead" or "Recovered" for trait Status),
+age, trait, and ring.
+*/
+struct HistorySelector {
     std::string phase;
     std::string trait_value;
     std::string age;         // "total" or one of the concrete Agegrp names
     std::string trait = "";  // needed for some uses...
     std::string ring = "";   // "" -> RING_ALL (all-rings aggregate)
 
-    bool operator==(const HistorySelection&) const = default;
+    bool operator==(const HistorySelector&) const = default;
     const void print() {
       auto print_ring = ring == "" ? "\"population\"" : ring;
       fmt::println("phase: {:<6} trait: {:<9} trait value: {:18} age: {:<9} ring: {:<10}", phase, trait, trait_value, age, print_ring);
@@ -58,7 +63,6 @@ inline constexpr auto trait_names = magic_enum::enum_names<Trait>();
 inline constexpr auto phase_names = magic_enum::enum_names<Phase>();
 
 inline constexpr auto all_traits = magic_enum::enum_values<Trait>();
-
 inline constexpr auto all_phases = magic_enum::enum_values<Phase>();
 
 static_assert(magic_enum::enum_count<Trait>() == 3);
@@ -88,7 +92,7 @@ struct Histories {
               size_t real_ring_count);
 
     // returns index to Histories.history_vectors_ method uses enum value inputs
-    [[clang::always_inline]] size_t history_vector_index(
+    [[clang::always_inline]] size_t history_vector_idx(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
         // trait values are all 1-indexed; we need 0 indexed for this
@@ -97,31 +101,18 @@ struct Histories {
                                   ? 0
                                   : size_t(ring - 1);
         const size_t age_ordinal = size_t(age.v - 1);
-        return trait_phase_base(trait, phase)     // this is a great way to do this
+        return (trait_phase_base(trait, phase)     // this is a great way to do this
              + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
              + ring_ordinal * HISTORY_AGE_COUNT
-             + age_ordinal;
+             + age_ordinal);
     }
-    // method uses string inputs
-    // [[clang::always_inline]] size_t history_vector_index(
-    //     std::string trait, std::string phase, std::string trait_value, std::string age,
-    //     std::string ring = "") const {
-    //       Trait out_trait = trait == "status" ? Trait::status :
-    //                         trait == "vax" ? Trait::vax :
-    //                         Trait::variant;
-    //       uint8_t out_trait_value = 
-    //       Phase out_phase = phase == "now" ? Phase::now : Phase::new_;
-    //       Agegrp out_age = Agegrp::resolve_name(age);
-    //       uint8_t out_ring = 
-    //     }
 
-
-    // return a mutable vector using index input
+    // return a mutable vector reference using index input
     [[clang::always_inline]] std::vector<HistoryValue>& history_vector(
         size_t index) {
         return history_vectors_[index];
     }
-    // return a const vector using index input
+    // return a const vector reference using index input
     [[clang::always_inline]] const std::vector<HistoryValue>& history_vector(
         size_t index) const {
         return history_vectors_[index];
@@ -130,21 +121,21 @@ struct Histories {
     [[clang::always_inline]] std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) {
-        return history_vectors_[history_vector_index(
+        return history_vectors_[history_vector_idx(
             trait, phase, trait_value, age, ring)];
     }
     // return a const vector 
     [[clang::always_inline]] const std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const {
-        return history_vectors_[history_vector_index(
+        return history_vectors_[history_vector_idx(
             trait, phase, trait_value, age, ring)];
     }
 
     [[clang::always_inline]] void update(
         Trait trait, Phase phase, uint8_t trait_value, uint8_t ring,
         Agegrp agegrp, size_t day, HistoryValue change) {
-        history_vectors_[history_vector_index(
+        history_vectors_[history_vector_idx(
             trait, phase, trait_value, agegrp, ring)][day] += change;
     }
 
@@ -156,19 +147,21 @@ struct Histories {
     size_t real_vax_count() const { return real_vax_count_; }
     size_t real_ring_count() const { return real_ring_count_; }
     size_t ring_lane_count() const { return ring_lane_count_; }
-    size_t history_vector_count() const { return history_vectors_.size(); }
+    size_t sim_history_count() const { return history_vectors_.size(); }
     bool valid_history_coordinates(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const;
 
-    std::optional<HistorySelection> describe_history_vector(
-        size_t index) const;
+    // externally defined methods (in series.cpp)
+    std::optional<HistorySelector> describe_history_vector(size_t index) const;
     std::string history_column_label(size_t index) const;
-    std::string explain_history_vector_index(
+    std::string explain_history_vector_idx(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const;
     void dump_history_layout(std::ostream& out = std::cout) const;
-    void validate_history_layout() const;
+    void validate_history_indexing() const;
+    void insert_total_vecs();
+    void calc_total_histories();
 
     HistoryValue aggregate_value(Trait trait, Phase phase,
                                  uint8_t trait_value, size_t day) const;
@@ -206,7 +199,7 @@ private:
     std::vector<std::vector<HistoryValue>> history_vectors_;
 };
 
-// Maps a ring token (as it appears in HistorySelection::ring) to a ring id.
+// Maps a ring token (as it appears in HistorySelector::ring) to a ring id.
 // "" -> RING_ALL (all-rings aggregate). A decimal token is taken as a literal
 // ring id; otherwise the token is looked up by name in Ring::names. Returns
 // nullopt for an unknown name or out-of-range index.
@@ -225,68 +218,68 @@ struct RingNameParse {
 std::optional<RingNameParse> parse_ring_suffix(std::string_view name);
 
 /*
-Input argument type for histories to be printed, serialized, or plotted.
+HistorySelectorSet: a vector (to hold the set) of HistorySelectors.
 
 Usage:
-  HistorySelectionSpec("all")
-  HistorySelectionSpec("all", "total")
-  HistorySelectionSpec("all", {"total", "age20_39"})
-  HistorySelectionSpec({{"now_infectious","total"}, {"now_recovered","total"}})
-  HistorySelectionSpec{{"now_infectious","total"}, {"now_recovered","total"}}
-  HistorySelectionSpec{{"now_infectious","total","Jail"}, {"now_dead","total"}}
+  HistorySelectorSet("all")   // constructor with single sentinel value
+  HistorySelectorSet("all", "total")     // constructor with sentinel value and agegrp value
+  HistorySelectorSet("all", {"total", "age20_39"})
+  HistorySelectorSet({{"now_infectious","total"}, {"now_recovered","total"}})
+  HistorySelectorSet{{"now_infectious","total"}, {"now_recovered","total"}}
+  HistorySelectorSet{{"now_infectious","total","Jail"}, {"now_dead","total"}}  // initializer list
 */
-struct HistorySelectionSpec {
-    std::vector<HistorySelection> selections;
+struct HistorySelectorSet {
+    std::vector<HistorySelector> selections;
 
     // constructors
-    HistorySelectionSpec(std::vector<HistorySelection> v)
+    HistorySelectorSet(std::vector<HistorySelector> v)
         : selections(std::move(v)) {}
 
-    HistorySelectionSpec(std::initializer_list<HistorySelection> v)
+    HistorySelectorSet(std::initializer_list<HistorySelector> v)
         : selections(v) {}
 
     // "all" sentinel -> all trait values x all selectable ages
-    HistorySelectionSpec(const char* sentinel);
+    HistorySelectorSet(const char* sentinel);
 
     // "all" sentinel x single age
-    HistorySelectionSpec(const char* sentinel, const char* age);
+    HistorySelectorSet(const char* sentinel, const char* age);
 
     // "all" sentinel x multiple ages
-    HistorySelectionSpec(const char* sentinel, std::vector<std::string> ages);
+    HistorySelectorSet(const char* sentinel, std::vector<std::string> ages);
 
 private:
     static void validate_sentinel(const char* s);
-    static std::vector<HistorySelection> build_for_ages(
+    static std::vector<HistorySelector> build_for_ages(
         const std::vector<std::string>& ages);
 };
 
-struct ResolvedHistoryVector {
+struct TotalHistoryVector {
     std::string label;
     std::vector<HistoryValue> data;
-    std::vector<size_t> source_history_vectors;
+    std::vector<size_t> source_history_idxs;
 };
 
-struct ResolvedHistorySelection {
-    std::vector<ResolvedHistoryVector> history_vectors;
+struct TotalHistorySet {
+    std::vector<TotalHistoryVector> history_vectors;
     std::vector<std::string> invalid_selections;
 };
 
-ResolvedHistorySelection resolve_history_selection(
-    const HistorySelectionSpec& spec, const Histories& histories);
+TotalHistorySet create_history_set(
+    const HistorySelectorSet& spec, const Histories& histories);
 
 void print_total_status_histories(const Histories& histories,
                                   size_t days_per_group = 15,
                                   std::ostream& out = std::cout);
-void print_selected_histories(HistorySelectionSpec spec,
+void print_selected_histories(HistorySelectorSet spec,
                               const Histories& histories,
                               size_t days_per_group = 15,
                               std::ostream& out = std::cout);
-void serialize_selected_histories(HistorySelectionSpec spec,
+void serialize_selected_histories(HistorySelectorSet spec,
                                   const Histories& histories,
                                   std::filesystem::path output_path);
-void serialize_selected_histories(HistorySelectionSpec spec,
+void serialize_selected_histories(HistorySelectorSet spec,
                                   const Histories& histories,
                                   string base_fname,
                                   vector<string> path_steps = {});
-const std::vector<HistorySelection>
+const std::vector<HistorySelector>
    enumerate_history_selections(const Histories& histories);

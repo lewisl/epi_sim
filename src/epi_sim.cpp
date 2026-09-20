@@ -51,7 +51,8 @@ int main(int argc, char** argv) {
         else if (flag == "--run-case") {
           if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
           Model model = use_managed_case(val);
-          runsim(model);
+          Histories histories = runsim(model);
+          post_simulation(model, histories);
         }
 
         else if (flag == "--show-cases") {
@@ -68,7 +69,8 @@ int main(int argc, char** argv) {
         else if (flag == "--use-dir") {
           if (val.empty()) { std::fprintf(stderr, "No value for case dir provided.\n"); std::exit(EXIT_FAILURE); }
           Model model = use_dir(val);
-          runsim(model);
+          Histories history = runsim(model);
+          post_simulation(model, history);
         }
 
         else if (flag == "--r0-sim") {

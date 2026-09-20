@@ -46,8 +46,8 @@ Histories make_histories(size_t day_count, size_t variant_count = 2,
   return Histories(day_count, pop, variant_count, vax_count, ring_count);
 }
 
-const ResolvedHistoryVector& only_history(
-    const ResolvedHistorySelection& resolved) {
+const TotalHistoryVector& only_history(
+    const TotalHistorySet& resolved) {
   if (!resolved.invalid_selections.empty()) {
     fmt::println(stderr, "unexpected invalid selections: {}",
                  resolved.invalid_selections);
@@ -68,19 +68,19 @@ void test_atomic_layout_formula_and_introspection() {
   CHECK(histories.phase_width(Trait::variant) == 20);
   CHECK(histories.history_vector_count() == 160);
 
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::status, Phase::now, uint8_t(UNEXPOSED), AGE0_19, 1) == 0);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::status, Phase::now, uint8_t(DEAD), AGE80_UP, 2) == 39);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::status, Phase::new_, uint8_t(UNEXPOSED), AGE0_19, 1) == 40);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::vax, Phase::now, 1, AGE0_19, 1) == 80);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::vax, Phase::new_, 1, AGE0_19, 1) == 100);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::variant, Phase::now, 1, AGE0_19, 1) == 120);
-  CHECK(histories.history_vector_index(
+  CHECK(histories.history_vector_idx(
             Trait::variant, Phase::new_, 2, AGE80_UP, 2) == 159);
 
   for (size_t index = 0;
@@ -98,20 +98,20 @@ void test_atomic_layout_formula_and_introspection() {
         : trait == Trait::vax
             ? uint8_t(*trait_from_string<Vax>(coordinates->trait_value))
             : uint8_t(*trait_from_string<Variant>(coordinates->trait_value));
-    const auto age = age_vec_index_from_string(coordinates->age);
+    const auto age = age_history_idx_from_string(coordinates->age);
     const auto ring = ring_id_from_token(coordinates->ring);
     REQUIRE(age.has_value());
     REQUIRE(ring.has_value());
-    CHECK(histories.history_vector_index(
+    CHECK(histories.history_vector_idx(
               trait, phase, value, Agegrp{*age}, *ring) == index);
   }
   CHECK(!histories.describe_history_vector(160).has_value());
   CHECK(histories.history_column_label(159) ==
         "trait=variant|phase=new_|value=variant_2|ring=ring_2|age=age80_up");
-  CHECK(histories.explain_history_vector_index(
+  CHECK(histories.explain_history_vector_idx(
             Trait::variant, Phase::new_, 2, AGE80_UP, 2)
         .contains("column=159"));
-  CHECK(histories.explain_history_vector_index(
+  CHECK(histories.explain_history_vector_idx(
             Trait::variant, Phase::now, 0, AGE0_19, 1)
         .starts_with("invalid history coordinates"));
 
@@ -135,7 +135,7 @@ void test_layout_all_zero_one_many_cardinalities() {
         CHECK(histories.real_variant_count() == variant_count);
         CHECK(histories.real_vax_count() == vax_count);
         CHECK(histories.real_ring_count() == ring_count);
-        histories.validate_history_layout();
+        histories.validate_history_indexing();
       }
     }
   }
@@ -208,33 +208,33 @@ void test_resolver_materializes_age_ring_and_vaccine_totals() {
   histories.at(Trait::vax, Phase::now, 2, AGE20_39, 2)[1] = 5;
   histories.at(Trait::variant, Phase::new_, 2, AGE60_79, 2)[1] = 7;
 
-  auto total_status = resolve_history_selection(
-      HistorySelectionSpec{{"now", "infectious", "total"}}, histories);
+  auto total_status = create_history_set(
+      HistorySelectorSet{{"now", "infectious", "total"}}, histories);
   CHECK(only_history(total_status).data[1] == 5);
-  CHECK(only_history(total_status).source_history_vectors.size() == 10);
+  CHECK(only_history(total_status).source_history_idxs.size() == 10);
 
-  auto age_total_rings = resolve_history_selection(
-      HistorySelectionSpec{{"now", "infectious", "age0_19"}}, histories);
+  auto age_total_rings = create_history_set(
+      HistorySelectorSet{{"now", "infectious", "age0_19"}}, histories);
   CHECK(only_history(age_total_rings).data[1] == 2);
-  CHECK(only_history(age_total_rings).source_history_vectors.size() == 2);
+  CHECK(only_history(age_total_rings).source_history_idxs.size() == 2);
 
-  auto ring_total_ages = resolve_history_selection(
-      HistorySelectionSpec{{"now", "infectious", "total", "", "ring_2"}}, histories);
+  auto ring_total_ages = create_history_set(
+      HistorySelectorSet{{"now", "infectious", "total", "", "ring_2"}}, histories);
   CHECK(only_history(ring_total_ages).data[1] == 3);
-  CHECK(only_history(ring_total_ages).source_history_vectors.size() == 5);
+  CHECK(only_history(ring_total_ages).source_history_idxs.size() == 5);
 
-  auto vaccinated = resolve_history_selection(
-      HistorySelectionSpec{{"now", "vaccinated", "total"}}, histories);
+  auto vaccinated = create_history_set(
+      HistorySelectorSet{{"now", "vaccinated", "total"}}, histories);
   CHECK(only_history(vaccinated).data[1] == 9);
-  CHECK(only_history(vaccinated).source_history_vectors.size() == 20);
+  CHECK(only_history(vaccinated).source_history_idxs.size() == 20);
 
-  auto brand = resolve_history_selection(
-      HistorySelectionSpec{{"now", "vax:vax_1", "total"}}, histories);
+  auto brand = create_history_set(
+      HistorySelectorSet{{"now", "vax:vax_1", "total"}}, histories);
   CHECK(only_history(brand).data[1] == 4);
-  CHECK(only_history(brand).source_history_vectors.size() == 10);
+  CHECK(only_history(brand).source_history_idxs.size() == 10);
 
-  auto variant = resolve_history_selection(
-      HistorySelectionSpec{{"new_", "variant:variant_2", "total"}}, histories);
+  auto variant = create_history_set(
+      HistorySelectorSet{{"new_", "variant:variant_2", "total"}}, histories);
   CHECK(only_history(variant).data[1] == 7);
   CHECK(only_history(variant).label == "new_variant:variant_2:total");
 }
@@ -243,29 +243,29 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
   RuntimeNamesGuard guard;
 
   Histories no_vax = make_histories(1, 1, 0, 0);
-  auto none = resolve_history_selection(
-      HistorySelectionSpec{{"now", "vaccinated", "total"}}, no_vax);
+  auto none = create_history_set(
+      HistorySelectorSet{{"now", "vaccinated", "total"}}, no_vax);
   CHECK(only_history(none).data[1] == 0);
-  CHECK(only_history(none).source_history_vectors.empty());
+  CHECK(only_history(none).source_history_idxs.empty());
 
   Histories one_vax = make_histories(1, 1, 1, 0);
   one_vax.at(Trait::vax, Phase::now, 1, AGE0_19)[1] = 4;
-  auto one = resolve_history_selection(
-      HistorySelectionSpec{{"now", "vaccinated", "total"}}, one_vax);
+  auto one = create_history_set(
+      HistorySelectorSet{{"now", "vaccinated", "total"}}, one_vax);
   CHECK(only_history(one).data[1] == 4);
-  CHECK(only_history(one).source_history_vectors.size() == 5);
+  CHECK(only_history(one).source_history_idxs.size() == 5);
 
   Histories many_vax = make_histories(1, 1, 3, 0);
   many_vax.at(Trait::vax, Phase::now, 1, AGE0_19)[1] = 1;
   many_vax.at(Trait::vax, Phase::now, 2, AGE0_19)[1] = 2;
   many_vax.at(Trait::vax, Phase::now, 3, AGE0_19)[1] = 3;
-  auto many = resolve_history_selection(
-      HistorySelectionSpec{{"now", "vaccinated", "total"}}, many_vax);
+  auto many = create_history_set(
+      HistorySelectorSet{{"now", "vaccinated", "total"}}, many_vax);
   CHECK(only_history(many).data[1] == 6);
-  CHECK(only_history(many).source_history_vectors.size() == 15);
+  CHECK(only_history(many).source_history_idxs.size() == 15);
 
-  auto mixed = resolve_history_selection(
-      HistorySelectionSpec{{"new_", "unexposed", "total"},
+  auto mixed = create_history_set(
+      HistorySelectorSet{{"new_", "unexposed", "total"},
                            {"now", "unexposed", "total"}},
       many_vax);
   CHECK(mixed.invalid_selections ==
@@ -273,10 +273,10 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
   REQUIRE(mixed.history_vectors.size() == 1);
   CHECK(mixed.history_vectors[0].data[1] == 5);
 
-  HistorySelectionSpec all_total("all", "total");
+  HistorySelectorSet all_total("all", "total");
   CHECK(all_total.selections.size() == 17);
   CHECK(std::ranges::find(all_total.selections,
-                          HistorySelection{"new_", "unexposed", "total"})
+                          HistorySelector{"new_", "unexposed", "total"})
         == all_total.selections.end());
 }
 
@@ -288,7 +288,7 @@ void test_print_and_serialization_use_materialized_totals() {
   histories.at(Trait::vax, Phase::now, 1, AGE0_19, 1)[1] = 4;
   histories.at(Trait::vax, Phase::now, 2, AGE20_39, 2)[1] = 5;
 
-  const HistorySelectionSpec selections(std::vector<HistorySelection>{
+  const HistorySelectorSet selections(std::vector<HistorySelector>{
       {"now", "unknown_history", "total"},
       {"now", "infectious", "total"},
       {"now", "vaccinated", "total"},
@@ -371,12 +371,12 @@ void test_fixed_selection_metadata_and_validation() {
       static_cast<Trait>(3), Phase::now, 1, AGE0_19));
   CHECK(!histories.valid_history_coordinates(
       Trait::status, static_cast<Phase>(2), 1, AGE0_19));
-  CHECK(!age_vec_index_from_string("unknown").has_value());
-  CHECK(!age_vec_index_from_string("AGE0_19").has_value());
-  CHECK(!age_vec_index_from_string("age80up").has_value());
-  CHECK(age_vec_index_from_string("total") == HISTORY_AGE_TOTAL);
+  CHECK(!age_history_idx_from_string("unknown").has_value());
+  CHECK(!age_history_idx_from_string("AGE0_19").has_value());
+  CHECK(!age_history_idx_from_string("age80up").has_value());
+  CHECK(age_history_idx_from_string("total") == HISTORY_AGE_TOTAL);
 
-  const HistorySelectionSpec invalid{
+  const HistorySelectorSet invalid{
       {"now", "none", "total"},
       {"now", "INFECTIOUS", "total"},
       {"NOW", "infectious", "total"},
@@ -386,12 +386,12 @@ void test_fixed_selection_metadata_and_validation() {
       {"new_", "unexposed", "total"},
       {"now", "vax:none", "total"},
       {"now", "variant:none", "total"}};
-  const auto rejected = resolve_history_selection(invalid, histories);
+  const auto rejected = create_history_set(invalid, histories);
   CHECK(rejected.history_vectors.empty());
   CHECK(rejected.invalid_selections.size() == invalid.selections.size());
 
-  const auto valid = resolve_history_selection(
-      HistorySelectionSpec{{"new_", "dead", "total"}}, histories);
+  const auto valid = create_history_set(
+      HistorySelectorSet{{"new_", "dead", "total"}}, histories);
   CHECK(only_history(valid).label == "new_dead:total");
 }
 
