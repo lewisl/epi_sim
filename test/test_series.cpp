@@ -66,7 +66,7 @@ void test_atomic_layout_formula_and_introspection() {
   CHECK(histories.phase_width(Trait::status) == 40);
   CHECK(histories.phase_width(Trait::vax) == 20);
   CHECK(histories.phase_width(Trait::variant) == 20);
-  CHECK(histories.history_vector_count() == 160);
+  CHECK(histories.sim_history_count() == 160);
 
   CHECK(histories.history_vector_idx(
             Trait::status, Phase::now, uint8_t(UNEXPOSED), AGE0_19, 1) == 0);
@@ -84,7 +84,7 @@ void test_atomic_layout_formula_and_introspection() {
             Trait::variant, Phase::new_, 2, AGE80_UP, 2) == 159);
 
   for (size_t index = 0;
-       index < histories.history_vector_count(); ++index) {
+       index < histories.sim_history_count(); ++index) {
     const auto coordinates = histories.describe_history_vector(index);
     REQUIRE(coordinates.has_value());
     const auto parsed_trait = magic_enum::enum_cast<Trait>(coordinates->trait);
@@ -132,7 +132,7 @@ void test_layout_all_zero_one_many_cardinalities() {
         const size_t ring_lanes = std::max<size_t>(ring_count, 1);
         const size_t expected = 2 * (4 + vax_count + variant_count)
                               * ring_lanes * HISTORY_AGE_COUNT;
-        CHECK(histories.history_vector_count() == expected);
+        CHECK(histories.sim_history_count() == expected);
         CHECK(histories.real_variant_count() == variant_count);
         CHECK(histories.real_vax_count() == vax_count);
         CHECK(histories.real_ring_count() == ring_count);
@@ -146,7 +146,7 @@ void test_case_1_atomic_column_count() {
   RuntimeNamesGuard guard;
   // case-1 has six variants, vaccination disabled, and rings disabled.
   Histories histories = make_histories(1, 6, 0, 0);
-  CHECK(histories.history_vector_count() == 100);
+  CHECK(histories.sim_history_count() == 100);
   CHECK(histories.phase_width(Trait::status) == 20);
   CHECK(histories.phase_width(Trait::vax) == 0);
   CHECK(histories.phase_width(Trait::variant) == 30);
@@ -270,7 +270,6 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
                            {"now", "unexposed", "total"}},
       many_vax);
   CHECK(mixed.invalid_selections ==
-        std::vector<std::string>{"new_|unexposed|total"});
         std::vector<std::string>{"new_|unexposed|total"});
   REQUIRE(mixed.history_vectors.size() == 1);
   CHECK(mixed.history_vectors[0].data[1] == 5);
@@ -409,7 +408,7 @@ void write_series_artifacts(const test_support::TestRunOptions& options) {
   std::ostringstream summary;
   summary << "Atomic histories summary\n"
           << "========================\n\n"
-          << "columns: " << histories.history_vector_count() << "\n"
+          << "columns: " << histories.sim_history_count() << "\n"
           << "status phase width: " << histories.phase_width(Trait::status) << "\n"
           << "materialized now_infectious total: "
           << histories.aggregate_value(

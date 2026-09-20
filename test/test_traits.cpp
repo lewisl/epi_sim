@@ -133,8 +133,8 @@ void test_fixed_metadata_round_trips() {
       "none", "unexposed", "infectious", "recovered", "dead"});
   check_fixed_trait_metadata<Condition>(std::array<std::string_view, 5>{
       "uninfected", "nil", "mild", "sick", "severe"});
-  check_fixed_trait_metadata<Vaxstatus>(std::array<std::string_view, 4>{
-      "none", "first", "full", "booster"});
+  check_fixed_trait_metadata<Vaxstatus>(std::array<std::string_view, 5>{
+      "none", "first", "full", "booster", "exhausted"});
 
   constexpr std::array<std::string_view, 6> outcomes{
       "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};

@@ -9,12 +9,10 @@
 
 
 inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
-inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
 inline constexpr size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
-constexpr std::string_view age_vec_label(uint8_t age) {
 constexpr std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
     return std::string_view{Agegrp::names[age]};
@@ -22,8 +20,6 @@ constexpr std::string_view age_vec_label(uint8_t age) {
 
 inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text) {
     if (text == "total") return HISTORY_AGE_TOTAL;
-    const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
-    if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
     if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     return std::nullopt;
@@ -191,13 +187,9 @@ private:
         const size_t vax_width = phase_widths_[size_t(Trait::vax)];
         switch (trait) {   // this is a great way to do this
             case Trait::status:  // first trait within indices
-        switch (trait) {   // this is a great way to do this
-            case Trait::status:  // first trait within indices
                 return size_t(phase) * status_width;
             case Trait::vax:  // both phases of status + 0 or 1 phase of vax
-            case Trait::vax:  // both phases of status + 0 or 1 phase of vax
                 return 2 * status_width + size_t(phase) * vax_width;
-            case Trait::variant:  // didn't cache a variant_width variable because there is no re-use
             case Trait::variant:  // didn't cache a variant_width variable because there is no re-use
                 return 2 * (status_width + vax_width)
                      + size_t(phase) * phase_widths_[size_t(Trait::variant)];
@@ -205,7 +197,6 @@ private:
         std::unreachable();
     }
 
-    std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     size_t real_variant_count_{};
     size_t real_vax_count_{};

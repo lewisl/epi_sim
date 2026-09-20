@@ -53,18 +53,12 @@ struct Agegrp {
     unknown = 0, age0_19 = 1, age20_39 = 2, age40_59 = 3, age60_79 = 4, age80_up = 5
   };
 
-  enum class Enum : uint8_t {
-    unknown = 0, age0_19 = 1, age20_39 = 2, age40_59 = 3, age60_79 = 4, age80_up = 5
-  };
-
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
   static constexpr auto names = magic_enum::enum_names<Enum>();
 
   Agegrp() = default;
   constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
   constexpr Agegrp(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr explicit Agegrp(Enum value) noexcept : v(std::to_underlying(value)) {}
   constexpr explicit Agegrp(Enum value) noexcept : v(std::to_underlying(value)) {}
   Agegrp(std::string name) : v(resolve_name(std::move(name))) {}
 
@@ -72,19 +66,12 @@ struct Agegrp {
     return std::to_underlying(
         magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
             .value_or(Enum::unknown));
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::unknown));
   }
 
   std::string show() const {
     return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
   }
-  std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
-  }
   constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Agegrp&) const = default;
   constexpr bool operator==(const Agegrp&) const = default;
 };
 
@@ -109,18 +96,12 @@ struct Status {
     none = 0, unexposed = 1, infectious = 2, recovered = 3, dead = 4
   };
 
-  enum class Enum : uint8_t {
-    none = 0, unexposed = 1, infectious = 2, recovered = 3, dead = 4
-  };
-
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
   static constexpr auto names = magic_enum::enum_names<Enum>();
 
   Status() = default;
   constexpr explicit Status(uint8_t v) noexcept : v(v) {}
   constexpr Status(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr explicit Status(Enum value) noexcept : v(std::to_underlying(value)) {}
   constexpr explicit Status(Enum value) noexcept : v(std::to_underlying(value)) {}
   Status(std::string name) : v(resolve_name(std::move(name))) {}
 
@@ -128,19 +109,12 @@ struct Status {
     return std::to_underlying(
         magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
             .value_or(Enum::none));
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::none));
   }
 
   std::string show() const {
     return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
   }
-  std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
-  }
   constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Status&) const = default;
   constexpr bool operator==(const Status&) const = default;
 };
 
@@ -164,18 +138,12 @@ struct Condition {
     uninfected = 0, nil = 1, mild = 2, sick = 3, severe = 4
   };
 
-  enum class Enum : uint8_t {
-    uninfected = 0, nil = 1, mild = 2, sick = 3, severe = 4
-  };
-
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
   static constexpr auto names = magic_enum::enum_names<Enum>();
 
   Condition() = default;
   constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
   constexpr Condition(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr explicit Condition(Enum value) noexcept : v(std::to_underlying(value)) {}
   constexpr explicit Condition(Enum value) noexcept : v(std::to_underlying(value)) {}
   Condition(std::string name) : v(resolve_name(std::move(name))) {}
 
@@ -183,19 +151,12 @@ struct Condition {
     return std::to_underlying(
         magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
             .value_or(Enum::uninfected));
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::uninfected));
   }
 
   std::string show() const {
     return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
   }
-  std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
-  }
   constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Condition&) const = default;
   constexpr bool operator==(const Condition&) const = default;
 };
 
@@ -215,7 +176,7 @@ static_assert(UNINFECTED.v == 0 && NIL.v == 1 && MILD.v == 2
 // Vaxstatus: enum metadata with one-byte PopData storage.
 struct Vaxstatus {
   enum class Enum : uint8_t {
-    none = 0, first = 1, full = 2, booster = 3, exhaused = 4
+    none = 0, first = 1, full = 2, booster = 3, exhausted = 4
   };
 
   uint8_t v{};
@@ -228,7 +189,6 @@ struct Vaxstatus {
     return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
   }
   constexpr operator uint8_t() const noexcept { return v; }
-  constexpr bool operator==(const Vaxstatus&) const = default;
   constexpr bool operator==(const Vaxstatus&) const = default;
 };
 
@@ -243,7 +203,7 @@ namespace Vaxstat {
   inline constexpr Vaxstatus first{Vaxstatus::Enum::first};
   inline constexpr Vaxstatus full{Vaxstatus::Enum::full};
   inline constexpr Vaxstatus booster{Vaxstatus::Enum::booster};
-  inline constexpr Vaxstatus exhausted{Vaxstatus::Enum::exhaused};
+  inline constexpr Vaxstatus exhausted{Vaxstatus::Enum::exhausted};
 } // namespace Vaxstat
 
 static_assert(Vaxstat::none.v == 0 && Vaxstat::first.v == 1
