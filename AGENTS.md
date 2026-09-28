@@ -110,4 +110,4 @@ For C++ semantic questions ("where is this used?", overload binding, call-site a
 - Do not use git worktrees — vcpkg paths and LLVM/Clang stdlib links cannot be reconstructed in a worktree without manual setup.
 - Do not guess xmake syntax — read `xmake.lua` and acknowledge uncertainty.
 - Do not delete code unless explicitly requested.
-- Do not add features/refactors beyond what was asked.
+- Do not add features/refactors beyond what was asked. You may propose, but do not implement without explicit approval.

@@ -1,6 +1,7 @@
 #include "series.h"
 #include "parameters.h"
 #include "population.h"
+#include "traits.h"
 #include <charconv>
 #include <stdexcept>
 #include <magic_enum/magic_enum.hpp>
@@ -42,13 +43,22 @@ Histories::Histories(size_t n_days, const PopData& pop,
 
     // create and initialize outer vector container and inner vectors for histories accumulated during simulation
     // this instantiates only base history vectors updated during simulaton
-    const size_t sim_history_count =
-        magic_enum::enum_count<Phase>() * std::accumulate(phase_widths_.begin(), phase_widths_.end(), size_t(0));
-    history_vectors_.assign(        
-        sim_history_count,
-        std::vector<HistoryValue>(n_days + 1, HistoryValue(0)));
+    sim_history_count = magic_enum::enum_count<Phase>() * 
+          (((magic_enum::enum_count<Status::Enum>() - 1) * ring_lane_count_ * HISTORY_AGE_COUNT) +
+          (real_vax_count * ring_lane_count_ * HISTORY_AGE_COUNT) +
+          (real_variant_count * ring_lane_count_ * HISTORY_AGE_COUNT));
+
 
     if (n_days == 0) return;
+
+    // create sim history vectors
+    build_history_vectors(false);
+    // create total history vectors after sim_history_vectors
+    build_history_vectors(true);
+
+    // update counts
+    all_history_count = history_vectors_.size();
+    total_history_count = all_history_count - sim_history_count;
 
     // All people begin as now_unexposed. new_unexposed has physical columns
     // only to preserve the uniform phase width; simulation code never writes it.
@@ -69,13 +79,78 @@ Histories::Histories(size_t n_days, const PopData& pop,
     }
 }
 
+
+void Histories::build_history_vectors(bool as_history) {
+    size_t max_names;
+
+    for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
+      HistoryMeta hm;
+      hm.traitnum = tr_enum;
+      hm.trait = magic_enum::enum_name(tr_enum);
+      max_names = tr_enum == Trait::status ? Status::names.size() - 1 :
+                  tr_enum == Trait::vax ? real_vax_count_ : real_variant_count_;
+
+      for (auto ph_num : all_phases) {
+        hm.phase = magic_enum::enum_name(ph_num);
+        hm.phasenum = ph_num;
+
+        for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
+          switch (tr_enum) {
+            case Trait::status:
+            {
+              hm.traitval = Status::names[trval_num]; // string
+              hm.traitval_num = Status{uint8_t(trval_num)};
+              break;
+            }
+            case Trait::vax:
+              hm.traitval = Vax::names[trval_num]; // string
+              hm.traitval_num = trval_num;
+              break;
+            case Trait::variant:
+              hm.traitval = Variant::names[trval_num];
+              hm.traitval_num = trval_num;
+              break;
+          }
+
+          if (!as_history) {
+            for (auto ring_i = 1; ring_i <= ring_lane_count_; ++ring_i) { // must handle sentinel for population
+              if (real_ring_count_ == 0) {
+                hm.ring = "";
+                hm.ringnum = RING_ALL;
+              } 
+              else {
+                hm.ring = Ring::names[ring_i];
+                hm.ringnum = ring_i;
+              }
+              for (auto age_i = 1; age_i < Agegrp::names.size(); ++age_i) {
+                hm.age = Agegrp::names[age_i];
+                hm.agenum = age_i;
+                history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
+              } // age loop
+              if (real_ring_count_ == 0) break;
+            }  // ring loop
+          }
+          else {
+            hm.ring = "total";
+            hm.ringnum = RING_ALL;
+            hm.age = "total";
+            hm.agenum = HISTORY_AGE_TOTAL;
+
+            history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
+          }
+        }   // tr_val loop
+      }     // phase loop
+    }       // trait loop
+}
+
+
 void Histories::init_history_series(size_t day) {
     if (day <= 1) return;
     for (const Trait trait : all_traits) {
         const auto begin = trait_phase_base(trait, Phase::now);
         const auto end = begin + phase_width(trait);
         for (size_t history_idx = begin; history_idx < end; ++history_idx) {
-            history_vectors_[history_idx][day] = history_vectors_[history_idx][day - 1];
+            history_vectors_[history_idx].data[day] = history_vectors_[history_idx].data[day - 1];
         }
     }
 }
@@ -112,38 +187,22 @@ bool Histories::valid_history_coordinates(
 // introspection of Histories object and specific history vectors
 //
 
-// change output of this to HistorySelector
-std::optional<HistorySelector> Histories::describe_history_vector(
-    size_t history_idx) const {
+std::optional<HistorySelector> Histories::describe_history_vector(size_t history_idx) const {
     if (history_idx >= history_vectors_.size()) return std::nullopt;
 
-    for (const Trait trait : all_traits) {
-        const size_t value_stride = ring_lane_count_ * HISTORY_AGE_COUNT;
-        for (const Phase phase : all_phases) {
-            const auto base = trait_phase_base(trait, phase);
-            const auto width = phase_width(trait);
-            if (history_idx < base || history_idx >= base + width) continue;
+    const HistoryMeta & meta(history_vectors_[history_idx].meta);
 
-            const size_t within_group = history_idx - base;
-            const size_t value_ordinal = within_group / value_stride;
-            const size_t within_value = within_group % value_stride;
-            const size_t ring_ordinal = within_value / HISTORY_AGE_COUNT;
-            const size_t age_ordinal = within_value % HISTORY_AGE_COUNT;
-            return HistorySelector{
-                .phase = std::string{magic_enum::enum_name(phase)},
-                .trait_value = std::string{
-                    trait == Trait::status ? Status::names[value_ordinal + 1] :
-                    trait == Trait::vax ? Vax::names[value_ordinal + 1] :
-                                         Variant::names[value_ordinal + 1]},
-                .age = std::string{Agegrp::names[age_ordinal + 1]},
-                .trait = std::string{magic_enum::enum_name(trait)},
-                .ring = real_ring_count_ == 0
-                      ? ""
-                      : Ring::names[static_cast<size_t>(ring_ordinal+1)],
+    return HistorySelector{
+                .phase = meta.phase,
+                .trait_value = meta.traitval,
+                .age = meta.age,
+                .trait = meta.trait,
+                .ring = meta.ring
             };
-        }
-    }
-    return std::nullopt;
+}
+
+void Histories::sum_total_histories() {
+
 }
 
 std::string Histories::explain_history_vector_idx(
@@ -168,55 +227,12 @@ void Histories::dump_history_layout(std::ostream& out) const {
     }
 }
 
-void Histories::validate_history_indexing() const {
-    std::vector<bool> seen(history_vectors_.size(), false);
-    size_t visited = 0;
-    for (const Trait trait : all_traits) {
-        for (const Phase phase : all_phases) {
-            for (size_t value = 1; value <= trait_value_count(trait); ++value) {
-                for (size_t ring_ordinal = 0; ring_ordinal < ring_lane_count_; ++ring_ordinal) {
-                    const uint8_t ring = real_ring_count_ == 0
-                        ? RING_ALL
-                        : static_cast<uint8_t>(ring_ordinal + 1);
-                    for (size_t age = 1; age <= HISTORY_AGE_COUNT; ++age) {
-                        const auto history_idx = history_vector_idx(
-                            trait, phase, static_cast<uint8_t>(value),
-                            Agegrp{static_cast<uint8_t>(age)}, ring);
-                        if (history_idx >= seen.size() || seen[history_idx]) {
-                            throw std::logic_error(fmt::format(
-                                "Invalid history layout at column {}", history_idx));
-                        }
-                        seen[history_idx] = true;
-                        ++visited;
-                        const auto reverse = describe_history_vector(history_idx);
-                        const HistorySelector expected{
-                            std::string{magic_enum::enum_name(phase)},
-                            std::string{trait == Trait::status ? Status::names[value] :
-                                        trait == Trait::vax ? Vax::names[value] :
-                                                             Variant::names[value]},
-                            std::string{Agegrp::names[age]},
-                            std::string{magic_enum::enum_name(trait)},
-                            real_ring_count_ == 0 ? "" : Ring::names[static_cast<size_t>(ring)]};
-                        if (!reverse || *reverse != expected) {
-                            throw std::logic_error(fmt::format(
-                                "History layout reverse lookup failed at column {}",
-                                history_idx));
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if (visited != history_vectors_.size()
-        || std::ranges::find(seen, false) != seen.end()) {
-        throw std::logic_error("History layout does not cover every column");
-    }
-}
-
 
 const std::vector<HistorySelector> enumerate_history_selections(const Histories& histories) {
     vector<HistorySelector> vh;
-    for (auto i = 0; i < histories.sim_history_count(); ++i) {
+    // for (auto i = 0; i < histories.sim_history_count; ++i) {
+    for (auto i = 0; i < histories.all_history_count; ++i) {
+
       auto desc = histories.describe_history_vector(i);
       if (desc)
         vh.push_back(*desc);
@@ -319,7 +335,7 @@ std::vector<HistorySelector> HistorySelectorSet::build_for_ages(
             }
         }
         // Vaccinated aggregate (sums all brands)
-        out.push_back({"now", "vaccinated", age});
+        out.emplace_back("now", "vaccinated", age);  // any perf difference compared to push_back of literal?
         out.push_back({"new_", "vaccinated", age});
         // Per-brand vax: skip index 0 ("none")
         for (size_t i = 1; i < Vax::names.size(); ++i) {
@@ -526,32 +542,6 @@ std::vector<HistoryValue> materialize_history_vector(
 
 } // namespace
 
-std::optional<RingNameParse> parse_ring_suffix(std::string_view name) {
-    constexpr std::string_view tag = "@ring:";
-    auto pos = name.find(tag);
-    if (pos == std::string_view::npos) {
-        return RingNameParse{std::string(name), RING_ALL};
-    }
-    auto base   = name.substr(0, pos);
-    auto suffix = name.substr(pos + tag.size());
-    if (suffix.empty()) return std::nullopt;
-
-    // try name lookup first
-    auto it = std::find(Ring::names.begin(), Ring::names.end(), std::string(suffix));
-    if (it != Ring::names.end()) {
-        auto idx = static_cast<uint8_t>(std::distance(Ring::names.begin(), it));
-        return RingNameParse{std::string(base), idx};
-    }
-    // fall back to decimal index
-    int parsed = 0;
-    auto first = suffix.data();
-    auto last  = suffix.data() + suffix.size();
-    auto [ptr, ec] = std::from_chars(first, last, parsed);
-    if (ec != std::errc{} || ptr != last || parsed < 0 || parsed > 255) {
-        return std::nullopt;
-    }
-    return RingNameParse{std::string(base), static_cast<uint8_t>(parsed)};
-}
 
 TotalHistorySet create_history_set(
     const HistorySelectorSet & spec, const Histories& histories) {

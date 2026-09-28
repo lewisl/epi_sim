@@ -1,5 +1,181 @@
 # Session Notes
 
+## 2026-09-21: shared build_history_vectors review
+
+- Follow-up saved fix removes assign(); outer vector now starts empty and
+  atomic indices align with appended storage. Existing count formula matches
+  the atomic traversal for positive-day construction. Flag still as_history.
+  Serena diagnostics empty; no build/tests run. This resolves the blocking
+  leftover described below.
+- New private helper builds atomic vectors with false, totals with true.
+  Traversal order, active counts, metadata copying, and day allocation are
+  correct. Constructor calls it in the correct order before population seeding.
+- Blocking leftover: constructor still assign()s sim_history_count empty
+  HistoryVectors before appending. Physical layout becomes empty prefix,
+  atomic vectors, totals; numeric indexing still targets the empty prefix.
+  Day-1 population seeding therefore accesses an empty inner vector (UB).
+  Start empty instead; optional reserve does not change size. Atomic boundary
+  can be captured from size() between the two helper calls.
+- as_history is misleading: true means totals. as_total matches current logic.
+- Static review only; Serena series.cpp diagnostics empty; no build/tests run.
+  No product code changed.
+
+## 2026-09-21: emplace_back follow-up review
+
+- Latest save fixes the emplacement argument order and parentheses; Serena
+  reports no diagnostics in the total block. ih is still incremented but unused.
+- Clarified reserve takes total desired capacity. Repeated reserve(size()+1)
+  can defeat geometric growth; plain emplace_back already grows automatically.
+- Appending totals removes the need for ih and a precomputed total count;
+  derived count is history_vectors_.size() - sim_history_count.
+- Saved line 167 still fails: HistoryVector member order is data, meta, but
+  arguments are metadata, data; the outer emplace_back closing parenthesis
+  is also missing. Direct C++23 emplacement can take the day vector then hm.
+- Keep hm copied because outer-loop metadata is reused. Outer reallocation
+  preserves numeric indices and moves existing day-vector buffers. Optional
+  reserve avoids relocation; no measured reason to require that optimization.
+- Serena confirms the argument-type error. No build/tests or code changes.
+
+## 2026-09-21: total-history constructor review
+
+- Review only; no product code changed. New total creation begins at
+  src/series.cpp:131. Atomic ring loop now correctly uses ring_lane_count_.
+- Blocking defect: history_vectors_ has size sim_history_count, but total
+  writes start at that same index without resizing or appending. The first
+  metadata assignment is out of bounds for every positive-day construction.
+- Current total loop needs 2 * (4 + real_vax_count + real_variant_count)
+  extra elements, including its new_unexposed placeholder. Preserve
+  sim_history_count as the atomic boundary when allocating total storage.
+- Otherwise total enumeration and numeric age/ring sentinels match full
+  age-and-ring totals per trait/phase/value; metadata copies preserve strings.
+- Remaining integration: totals start at zero; calculation and metadata-based
+  description/selection are unfinished. Existing ring selectors use empty
+  string for all rings, whereas new metadata uses "total"; reconcile when
+  migrating selection. Existing describe_history_vector cannot describe totals.
+- Static/Serena review only; series.cpp diagnostics empty. No build/tests run.
+
+## 2026-09-20: stopping point and next session
+
+- Follow-up inspection: parse_ring_suffix is obsolete. Serena found only three
+  test calls; RingNameParse is used only by that helper. Production selection
+  uses ring_id_from_token(sel.ring). design/cli_ring_selection_prompt.md explicitly
+  rejects the old @ring: suffix convention. Candidate cleanup: helper definition,
+  declaration/result struct/comments, and suffix-specific assertions; retain
+  ring_id_from_token and its tests. Nothing removed; inspection only.
+- User is stopping for today. User drives implementation and naming; assistant
+  evaluates intermediate steps, debugs, and traces missed uses only when asked.
+  No assistant product-code changes are authorized by this handoff.
+- Chosen representation: Histories.history_vectors_ is vector<HistoryVector>;
+  each HistoryVector contains its int32 count data vector and HistoryMeta.
+  Metadata stores phase/trait names and enum IDs, shared traitval string plus
+  uint8_t traitval_num, age name/Agegrp, and ring name/Ring. Age and ring are
+  coordinates; only status/vax/variant are Trait alternatives for histories.
+- Constructor now enumerates trait -> phase -> trait value -> ring -> age.
+  i starts at 0; the correct per-trait count is selected before inner loops;
+  trait values use <= and no switch-local termination checks remain. hm is
+  copied into each column so outer-loop metadata remains available for reuse.
+- ONE REMAINING SAVED BOUND: ring loop currently uses
+  ring_i <= real_ring_count. It must use ring_lane_count_ (already max(real count,
+  1)) so disabled rings still create one population lane. Merely changing < to
+  <= fixes enabled-ring coverage but does not fix the zero-ring case.
+- Next wiring: append total columns AFTER columns modified during simulation,
+  preserving sim_history_count as that boundary and preserving existing indices.
+  Change label creation and single-column descriptions to use stored metadata.
+  Change selection of columns for serialization, plotting, and introspection to
+  use metadata; selector migration remains unfinished. Constructor complexity
+  establishes column identity once, enabling simpler downstream consumers.
+- Prior total scope remains recorded below: full age/ring totals per eligible
+  trait/phase/value, reuse existing summation logic, no repeated appending.
+- Validation: application build passed during review, BEFORE final loop edits.
+  Latest constructor has not been built or runtime-tested. Test build remains
+  blocked by sim_history_count() calls; validate_history_indexing is still
+  declared/called by a test but its definition is commented out.
+- Normal config validation already rejects days <= 0; direct zero-day Histories
+  construction still returns before metadata/data construction. Lower priority
+  contract issue, not an unhandled ordinary configuration case.
+- Earlier review entries below are historical snapshots; this entry supersedes
+  their descriptions of which constructor problems are still present.
+
+## 2026-09-20: follow-up count-bound review
+
+- Latest saved constructor copies hm and removes the early disabled-ring break;
+  both changes are correct. Active vaccine/variant/ring counts are now used.
+- Remaining bounds: status name access again precedes the termination check;
+  vaccine/variant equality breaks exclude the final valid ID and never terminate
+  a zero-count loop starting at 1; ring loop uses 1 <= i < real_ring_count,
+  omitting the final ring and doing no work for zero or one real ring.
+- Valid ranges: status 1..Status::names.size()-1, vaccines/variants 1..their
+  active counts, construction ring lanes 1..ring_lane_count_ with metadata
+  RING_ALL for the implicit population lane. Check bounds before name access.
+- Static review only this follow-up; no builds/tests or product-code edits.
+
+## 2026-09-20: second constructor review
+
+- User requests another review only. Confirmed initialized i, corrected age/ring
+  upper bounds, shared traitval/traitval_num metadata, and correct name registries.
+- Remaining: max_names guard precedes its first assignment and trait-specific
+  reassignment; switch-only breaks do not skip zero-cardinality traits; active
+  constructor counts still differ from the registry-based iteration limits.
+- Disabled-ring early break remains in saved source, despite added bottom break;
+  an empty/sentinel-only ring registry also prevents the loop from entering.
+- Verified hm is constructed once per trait, outside all phase/value/ring/age
+  loops. Move assignment per age therefore leaves reusable strings moved-from.
+- Zero-day relevance narrowed: normal build_model calls input_verify, which
+  already rejects days <= 0. Direct zero-day construction remains incomplete;
+  if passed to output, materialize_history_vector still reads empty values[0].
+- xmake build epi_sim passed again. Tests not rerun; previous test build blockers
+  unchanged. No product code changes.
+
+## 2026-09-20: first HistoryVector constructor review
+
+- User owns implementation and naming; assistant reviews/debugs only when asked.
+  Current request is review only, with selector migration explicitly unfinished.
+- HistoryVector now holds data plus HistoryMeta. Saved HistoryMeta still has
+  separate status/vax/variant fields. Existing data accessors use .data.
+- Constructor review found: uninitialized output index i; status names accessed
+  before termination check; disabled-ring branch exits before creating age
+  columns; ring/age loop limits omit last valid entries; vax/variant do not set
+  their own limits (vax also reads Status::names, variant case is empty); moving
+  reused hm leaves subsequent metadata strings moved-from; zero-day early return
+  bypasses all metadata and day-vector construction.
+- Preserve constructor count arguments as active cardinalities: runtime names
+  can remain populated while vaccines/rings are disabled, including R0/Rt uses.
+- xmake build epi_sim passed. xmake build test failed on old
+  sim_history_count() calls in test/test_series.cpp. The test also still calls
+  validate_history_indexing, whose definition is commented out. No tests ran.
+- Assistant changed no product code; only recorded review state here.
+
+## 2026-09-20: history metadata design discussion
+
+- User fixed sim_history_count shadowing and zero-ring multiplication; current
+  constructor assigns the member and uses ring_lane_count_ in all three terms.
+- User explicitly requests discussion only, no implementation, of combined
+  history objects (data + metadata) versus parallel data and metadata vectors.
+  No representation has been selected.
+- Desired uses: materialized numeric lookup for hot simulation updates, and a
+  general iterator yielding matching column indices for other operations.
+  Repeated selections may have indices collected at construction time.
+- Both representations support direct index-to-metadata access. Metadata-to-index
+  lookup/filtering is an independent choice. Existing disease updates already
+  pass numeric IDs; variant and vaccine values can remain runtime inputs.
+- Discuss exact column identity versus partial selection and aggregation;
+  preserve distinction between simulation columns and derived totals.
+
+## 2026-09-20: sim_history_count diagnosis
+
+- Investigated the zero printed in the Histories constructor; no product code
+  changed and no tests run.
+- Current constructor declares a local `const size_t sim_history_count`, hiding
+  the new public member in series.h and leaving that member uninitialized.
+  The print and allocation use the local; enumerate_history_selections uses
+  the uninitialized member.
+- The current local calculation multiplies all terms by real_ring_count,
+  which runsim intentionally passes as zero when rings are disabled. Storage
+  still needs one implicit lane: ring_lane_count_ already normalizes this to 1.
+- Suggested targeted correction: assign the member (without a local declaration)
+  using enum_count<Phase>() times the sum of phase_widths_, whose entries already
+  incorporate ring_lane_count_. This addresses both errors without conversions.
+
 ## 2026-09-17: post-simulation split; total columns next
 
 - User is stopping and will return to implement total history columns. This
