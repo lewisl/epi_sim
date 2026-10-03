@@ -5,6 +5,7 @@ compile_commands.json
 outtakes
 scratch
 test_output
+.vscode/
 
 # MacOS Cache
 .DS_Store
