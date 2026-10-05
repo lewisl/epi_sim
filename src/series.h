@@ -49,6 +49,8 @@ age, trait, and ring.
 
 Optionally, one can use the enum class values as selectors if
 the target function can, too.
+
+PROBLEM: THIS WON'T WORK FOR TOTALS
 */
 struct HistorySelector {
     std::string phase;
@@ -65,6 +67,8 @@ struct HistorySelector {
     std::optional<Agegrp> agenum;
     std::optional<Trait> traitnum;
     std::optional<Ring> ringnum;
+
+    std::optional<bool> total;
 
     bool operator==(const HistorySelector&) const = default;
     const void print() {
@@ -143,18 +147,25 @@ struct Histories {
     // returns index to Histories.history_vectors_ method uses enum value inputs
     [[clang::always_inline]] size_t history_vector_idx(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
-        uint8_t ring = RING_ALL) const {
-        // trait values are all 1-indexed; we need 0 indexed for this
-        // trait values are all 1-indexed; we need 0 indexed for this
-        const size_t value_ordinal = size_t(trait_value - 1);
-        const size_t ring_ordinal = real_ring_count_ == 0
-                                  ? 0
-                                  : size_t(ring - 1);
-        const size_t age_ordinal = size_t(age.v - 1);
-        return (trait_phase_base(trait, phase)     // this is a great way to do this
-             + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
-             + ring_ordinal * HISTORY_AGE_COUNT
-             + age_ordinal);
+        uint8_t ring = RING_ALL, bool total=false) const {
+
+        if (total) {
+          // way to calculate displace into total histories
+          return (sim_history_count + (trait - 1) + phase + trait_value);
+        }
+        else {
+          // trait values are all 1-indexed; we need 0 indexed for this
+          // trait values are all 1-indexed; we need 0 indexed for this
+          const size_t value_ordinal = size_t(trait_value - 1);
+          const size_t ring_ordinal = real_ring_count_ == 0
+                                    ? 0
+                                    : size_t(ring - 1);
+          const size_t age_ordinal = size_t(age.v - 1);
+          return (trait_phase_base(trait, phase)     // this is a great way to do this
+                + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
+                + ring_ordinal * HISTORY_AGE_COUNT
+                + age_ordinal);
+        }
     }
 
     // return a mutable vector reference using index input

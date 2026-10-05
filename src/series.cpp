@@ -202,7 +202,17 @@ std::optional<HistorySelector> Histories::describe_history_vector(size_t history
 }
 
 void Histories::sum_total_histories() {
-
+  // use aggregate_value function
+    for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
+      for (auto ph_num : all_phases) {
+         for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
+            for (auto di = 1; di <= day_cnt; ++di) {
+              HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
+              // need a way to index to a history_total
+            }
+      }
+    }
+  }
 }
 
 std::string Histories::explain_history_vector_idx(

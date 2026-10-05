@@ -1,7 +1,6 @@
 #pragma once
 
 #include "helpers.h"
-#include <magic_enum/magic_enum.hpp>
 #include <array>
 #include <cstdint>
 #include <optional>
