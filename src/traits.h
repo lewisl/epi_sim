@@ -46,14 +46,15 @@ use as:
 
 
 // Agegrp: enum metadata with one-byte PopData storage.
-// Agegrp: enum metadata with one-byte PopData storage.
 struct Agegrp {
   enum class Enum : uint8_t {
     unknown = 0, age0_19 = 1, age20_39 = 2, age40_59 = 3, age60_79 = 4, age80_up = 5
   };
 
   uint8_t v{};
+
   static constexpr auto names = magic_enum::enum_names<Enum>();
+  static constexpr auto count = magic_enum::enum_count<Enum>();
 
   Agegrp() = default;
   constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
@@ -74,6 +75,8 @@ struct Agegrp {
   constexpr bool operator==(const Agegrp&) const = default;
 };
 
+
+
 static_assert(sizeof(Agegrp) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Agegrp>);
 
@@ -89,7 +92,6 @@ static_assert(UNKNOWN.v == 0 && AGE0_19.v == 1 && AGE20_39.v == 2
               && AGE40_59.v == 3 && AGE60_79.v == 4 && AGE80_UP.v == 5);
 
 // Status: enum metadata with one-byte PopData storage.
-// Status: enum metadata with one-byte PopData storage.
 struct Status {
   enum class Enum : uint8_t {
     none = 0, unexposed = 1, infectious = 2, recovered = 3, dead = 4
@@ -97,10 +99,15 @@ struct Status {
 
   uint8_t v{};
   static constexpr auto names = magic_enum::enum_names<Enum>();
+  static constexpr auto count = magic_enum::enum_count<Enum>() - 1;
 
   Status() = default;
-  constexpr explicit Status(uint8_t v) noexcept : v(v) {}
-  constexpr Status(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  // constexpr explicit Status(uint8_t v) noexcept : v(v) {}
+  // constexpr Status(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  Status(int val) {
+    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
+    else throw std::invalid_argument("Status trait value must fit in uint8_t raw values @ <= 255");
+  };
   constexpr explicit Status(Enum value) noexcept : v(std::to_underlying(value)) {}
   Status(std::string name) : v(resolve_name(std::move(name))) {}
 
@@ -271,17 +278,29 @@ struct Duration {
 struct Ring {
   uint8_t v{};
   inline static std::vector<std::string> names;
+  inline static size_t count{0};
 
   constexpr Ring() noexcept = default;
-  explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
+  // explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
   explicit Ring(std::string_view name) {
     if (names.empty()) {
       names.emplace_back("");  // index 0 reserved as unused sentinel
     }
     assert(!name.empty() && "Ring name must not be empty");
+    if (names.size() < 255) {
+      names.emplace_back(std::string{name});
+      v = static_cast<uint8_t>(names.size() - 1);
+      count++;}
+    else throw std::invalid_argument("Ring trait value must fit in uint8_t raw values @ <= 255");
     names.emplace_back(std::string{name});
     v = static_cast<uint8_t>(names.size() - 1);
+    count++;
   }
+  Ring(int val) {
+    if (val > 0 && val <= names.size())  v = static_cast<uint8_t>(val);
+    else throw std::invalid_argument("Ring trait value exceeds number of rings.");
+    }
+  
   constexpr Ring& operator=(uint8_t value) noexcept { v = value; return *this; }
 
   std::string show() const {
@@ -379,21 +398,30 @@ struct Vaxday {
 //
 
 // Variant -- create instances at runtime
+// this trait has history vectors and history total vectors
 struct Variant {
   uint8_t v{};  // will take on values 0..number of variants:  effectively 1-indexed
   inline static std::vector<std::string> names;
+  inline static size_t count{0};
 
   Variant() = default;
-  constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
-  constexpr Variant(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  // constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
+  // constexpr Variant(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  constexpr Variant(int val) {
+    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
+    else throw std::invalid_argument("Variant trait value must fit in uint8_t raw values @ <= 255");
+  };
   explicit Variant(std::string_view name) {
     if (names.empty()) {
       assert(name == "none" && "First Variant constructed must be \"none\"");
     } else {
       assert(name != "none" && "\"none\" variant already exists");
     }
-    names.push_back(std::string{name});
-    v = static_cast<uint8_t>(names.size() - 1);
+    if (names.size() < 255) {
+      names.push_back(std::string{name});
+      v = static_cast<uint8_t>(names.size() - 1);
+      count++;}
+    else throw std::invalid_argument("Variant trait value must fit in uint8_t raw values @ <= 255");
   }
 
   std::string show() const noexcept {
@@ -404,21 +432,29 @@ struct Variant {
   constexpr bool operator==(const Variant &) const = default;
 };
 
+// this trait has history vectors and history total vectors
 struct Vax {
   uint8_t v{};
   inline static std::vector<std::string> names;
+  inline static size_t count{0};
 
   Vax() = default;
-  constexpr explicit Vax(uint8_t v) noexcept : v(v) {}
-  constexpr Vax(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  // constexpr explicit Vax(uint8_t v) noexcept : v(v) {}
+  constexpr Vax(int val) {
+    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
+    else throw std::invalid_argument("Vax trait value must fit in uint8_t raw values @ <= 255");
+  };
   explicit Vax(std::string_view name) {
     if (names.empty()) {
       assert(name == "none" && "First Vax constructed must be \"none\"");
     } else {
       assert(name != "none" && "\"none\" vax already exists");
     }
-    names.push_back(std::string{name});
-    v = static_cast<uint8_t>(names.size() - 1);
+    if (names.size() < 255) {
+      names.push_back(std::string{name});
+      v = static_cast<uint8_t>(names.size() - 1);
+      count++;}
+    else throw std::invalid_argument("Vax trait value must fit in uint8_t raw values @ <= 255");
   }
 
   std::string show() const noexcept {
@@ -654,9 +690,7 @@ struct VaxdayHist {
    Fixed wrappers use their nested Enum; ordinary enums use reflection directly.
    Runtime wrappers retain their names vector and uint8_t constructor.
    Unknown input returns std::nullopt; named zero sentinels parse successfully.
-   Fixed wrappers use their nested Enum; ordinary enums use reflection directly.
-   Runtime wrappers retain their names vector and uint8_t constructor.
-   Unknown input returns std::nullopt; named zero sentinels parse successfully.
+
    Usage:
      auto ret = trait_from_string<Agegrp>("age20_39");
      if (!ret) { // handle bad input }
@@ -680,7 +714,10 @@ std::optional<T> trait_from_string(const std::string& s) {
     std::string sl = tolower_str(s);
     auto it = std::find_if(T::names.begin(), T::names.end(),
         [&](const std::string& name) { return tolower_str(name) == sl; });
-    if (it == T::names.end()) return std::nullopt;    // use nullopt instead of nullptr--because the return object is not a pointer. we could use {} instead
-    return T{static_cast<uint8_t>(std::distance(T::names.begin(), it))};
+    if (it == T::names.end()) return std::nullopt;    // use nullopt instead of nullptr. we could use {} instead
+    T result{};
+    result.v = static_cast<uint8_t>(std::distance(T::names.begin(), it));
+    return result;
+    // return T{static_cast<uint8_t>(std::distance(T::names.begin(), it))};
   }
 }

@@ -1,5 +1,97 @@
 # Session Notes
 
+## 2026-10-11: placement of history totaling
+
+- Design discussion only: user favors calling sum_total_histories after
+  the runsim day loop, before returning Histories. This establishes complete
+  stored totals for every successful return, including headless consumers.
+  post_simulation should consume the completed data for output.
+- Serena confirms total columns are allocated in the Histories constructor;
+  runsim has a post-loop placeholder at sim.cpp:163 and one return at 169.
+  sum_total_histories has no callers and currently computes local v without
+  writing it to a stored total column (series.cpp:214); it remains unfinished.
+- Plotting and serialization still use create_history_set and
+  materialize_history_vector for selection-time sums. Reading precomputed
+  totals from selection is separate remaining integration work.
+- No product code changes or builds/tests; only this handoff updated.
+
+## 2026-10-09: PerVaxSpec definition and lookup storage
+
+- Located PerVaxSpec at src/parameters.h:287. It stores Vax vax and
+  vector<Vax> alternate; VaxSched::vaxesincluded is vector<PerVaxSpec>.
+- find_vax has two calls in load_vax_sched: resolved_vax at line 466,
+  assigned to spec.vax at 471; resolved_alt at 477, appended at 482.
+- A uint8_t ID alone is not a Vax instance. Removing numeric construction
+  while preserving these field types requires another way to obtain Vax,
+  such as copying stored registered objects. Current Vax registry stores names.
+- Read-only discussion; no product edits/tests.
+
+## 2026-10-09: narrowed Vax numeric constructor search
+
+- Fresh Serena pass: Vax(uint8_t) has two direct sites,
+  src/parameters.cpp:371 (find_vax) and test/test_support.h:168.
+  Vax(int) has 45 direct sites, all in tests.
+- find_vax is called by load_vax_sched at parameters.cpp:466/:477 for
+  the primary and alternate brands; it reconstructs an already registered
+  value from its name's index without adding a registry entry.
+- trait_from_string<Vax> also uses uint8_t construction at traits.h:696;
+  its instantiation sites are test/test_series.cpp:99 and
+  test/test_traits.cpp:273/:276 (only successful lookup constructs).
+- By-value callers examined; those pass existing Vax values or explicit
+  numeric temporaries already listed. Default/string/copy uses excluded.
+- No product changes or tests.
+
+## 2026-10-09: const trait ID discussion
+
+- Serena inspected Variant/Vax/Ring, v member references, population writes,
+  and history setters. A const uint8_t v is legal and copy construction
+  remains available, but normal copy/move assignment becomes deleted.
+- Current simulation needs assignment: disease_modeling.cpp:79,
+  vaccination.cpp:31, setup.cpp:79; history arrays also assign and shift.
+  String constructors currently assign v in their bodies, incompatible
+  with const v; initialization would need to happen in initializer lists.
+- Discussion only. No product changes or tests.
+
+## 2026-10-09: Variant non-copy/non-string constructor search
+
+- Serena pass covered default/uint8_t/int constructors, owning type,
+  trait_from_string, population/history members, and callers taking Variant
+  by value. String and copy construction excluded as requested.
+- 43 direct sites: 2 default, 1 uint8_t, 40 int. Includes implicit
+  Variant use_variant = 1 at src/r0_simulation.cpp:71.
+- Template uint8_t construction at src/traits.h:696 is instantiated by
+  src/cases.cpp:47, test/test_series.cpp:100, and
+  test/test_traits.cpp:272/:275 (only constructs after successful lookup).
+- Additional defaults: VariantHist::arr at src/traits.h:470,
+  PopData vector initialization at src/population.h:53, and standalone
+  histories at test/test_traits.cpp:249/:281/:310/:377. Defaults set v=0.
+- No product code changes or builds/tests.
+
+## 2026-10-09: Ring non-copy/non-string constructor search
+
+- Serena pass covered Ring's default and uint8_t constructors, the owning
+  type, trait_from_string, ring members, and HistoryMeta construction.
+- Numeric construction: src/population.h:54, src/setup.cpp:79, and
+  test/test_traits.cpp:78 (two calls), :235, :240. Template numeric
+  construction is src/traits.h:696 for trait_from_string<Ring>.
+- Defaults: test/test_traits.cpp:32 and HistoryMeta::ringnum at
+  src/series.h:103, initialized through src/series.cpp:85.
+- Numeric assignments use Ring::operator=(uint8_t), not a constructor.
+  String constructor calls excluded as requested. No product changes/tests.
+
+## 2026-10-09: Vax non-copy constructor search
+
+- Read-only semantic inspection using Serena: queried all four declared
+  constructors, the owning type, runtime lookup template, member references,
+  and callers of functions taking Vax by value.
+- Found explicit default, uint8_t, int, and string_view constructions in
+  src/ and test/. Additional uint8_t construction occurs in
+  trait_from_string<Vax> at src/traits.h:696 on successful lookup.
+- Default construction also occurs through VaxHist::arr, PerVaxSpec::vax,
+  and PopData's vax/vax_hist vector initialization. Empty optional<Vax>
+  and empty vector<Vax> declarations do not construct Vax elements.
+- No product code changed; no builds/tests needed for this search.
+
 ## 2026-09-21: shared build_history_vectors review
 
 - Follow-up saved fix removes assign(); outer vector now starts empty and

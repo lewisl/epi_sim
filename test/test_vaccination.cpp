@@ -11,7 +11,7 @@ constexpr std::string_view GROUP = "vaccination";
 Histories make_series(const PopData& pop, size_t day_cnt) {
   const size_t variants = Variant::names.empty() ? 0 : Variant::names.size() - 1;
   const size_t vaccines = Vax::names.empty() ? 0 : Vax::names.size() - 1;
-  return Histories(day_cnt, pop, variants, vaccines, 0);
+  return Histories(day_cnt, pop);
 }
 
 HistoryValue total(const Histories& histories, Trait trait, Phase phase,

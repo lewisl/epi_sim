@@ -31,6 +31,7 @@ inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text)
 // the single implicit whole-population storage lane.
 inline constexpr uint8_t RING_ALL = 0;
 
+// these are the traits that have history vectors and history total vectors
 enum class Trait : uint8_t {
     status = 0,
     vax = 1,
@@ -50,7 +51,7 @@ age, trait, and ring.
 Optionally, one can use the enum class values as selectors if
 the target function can, too.
 
-PROBLEM: THIS WON'T WORK FOR TOTALS
+PROBLEM: THIS WON'T WORK FOR TOTALS unless ignoring age and ring values
 */
 struct HistorySelector {
     std::string phase;
@@ -140,9 +141,7 @@ struct Histories {
 
     // constructor declaration, defined in series.cpp
     // constructor declaration, defined in series.cpp
-    Histories(size_t n_days, const PopData& pop,
-              size_t real_variant_count, size_t real_vax_count,
-              size_t real_ring_count);
+    Histories(size_t n_days, const PopData& pop);
 
     // returns index to Histories.history_vectors_ method uses enum value inputs
     [[clang::always_inline]] size_t history_vector_idx(
@@ -151,10 +150,31 @@ struct Histories {
 
         if (total) {
           // way to calculate displace into total histories
-          return (sim_history_count + (trait - 1) + phase + trait_value);
+          return (sim_history_count + (size_t(trait) - 1) + size_t(phase) + trait_value);
         }
         else {
           // trait values are all 1-indexed; we need 0 indexed for this
+          const size_t value_ordinal = size_t(trait_value - 1);
+          const size_t ring_ordinal = real_ring_count_ == 0
+                                    ? 0
+                                    : size_t(ring - 1);
+          const size_t age_ordinal = size_t(age.v - 1);
+          return (trait_phase_base(trait, phase)     // this is a great way to do this
+                + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
+                + ring_ordinal * HISTORY_AGE_COUNT
+                + age_ordinal);
+        }
+    }
+
+    [[clang::always_inline]] size_t alt_history_vector_idx(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
+        uint8_t ring = RING_ALL, bool total=false) const {
+
+        if (total) {
+          // way to calculate displace into total histories
+          return (sim_history_count + (size_t(trait) - 1) + size_t(phase) + trait_value);
+        }
+        else {
           // trait values are all 1-indexed; we need 0 indexed for this
           const size_t value_ordinal = size_t(trait_value - 1);
           const size_t ring_ordinal = real_ring_count_ == 0
@@ -185,6 +205,13 @@ struct Histories {
         return history_vectors_[history_vector_idx(
             trait, phase, trait_value, age, ring)].data;
     }
+    // return a mutable total vector
+    [[clang::always_inline]] std::vector<HistoryValue>& at(
+        Trait trait, Phase phase, uint8_t trait_value, Agegrp age) {
+        return history_vectors_[history_vector_idx(
+            trait, phase, trait_value, age)].data;
+    }    
+
     // return a const vector 
     [[clang::always_inline]] const std::vector<HistoryValue>& at(
         Trait trait, Phase phase, uint8_t trait_value, Agegrp age,

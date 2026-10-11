@@ -114,7 +114,7 @@ void test_historyplot_uses_materialized_age_and_ring_total() {
   for (size_t person = 1; person <= pop.popn; ++person) {
     pop.ring[person] = static_cast<uint8_t>((person - 1) % 2 + 1);
   }
-  Histories histories(2, pop, 1, 0, 2);
+  Histories histories(2, pop);
   histories.at(Trait::status, Phase::now,
                uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
   histories.at(Trait::status, Phase::now,

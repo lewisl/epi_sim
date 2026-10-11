@@ -198,7 +198,7 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   vector<InfectParams> & infectparams = model.mp.infectparams;  
   SocialParams & socialparams = model.mp.socialdata;
   Histories r0_histories(
-      DURATIONLIM, r0pop, Variant::names.size() - 1, 0, 0);
+      DURATIONLIM, r0pop);
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
   vector<double> age_dist = model.age_dist;
 
@@ -285,10 +285,10 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
 
   // keep track of spreaders and outcomes
   Histories rt_histories(
-      DURATIONLIM, rtpop, Variant::names.size() - 1, 0, 0);
+      DURATIONLIM, rtpop);
   // keep track of the other infected people and throw it away
   Histories throwaway_histories(
-      DURATIONLIM, rtpop, Variant::names.size() - 1, 0, 0);
+      DURATIONLIM, rtpop);
   vector<size_t> contacts(250); // reserve and set size, cleared before later usage
   vector<double> age_dist = model.age_dist;
 

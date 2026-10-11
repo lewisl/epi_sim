@@ -20,21 +20,19 @@ void ensure_parent_dir(const std::filesystem::path& output_path) {
 // ---------------------------------------------------------------
 
 // constructor for Histories collection of history vectors
-Histories::Histories(size_t n_days, const PopData& pop,
-                     size_t real_variant_count, size_t real_vax_count,
-                     size_t real_ring_count)
+Histories::Histories(size_t n_days, const PopData& pop)
     : day_cnt(n_days),
-      real_variant_count_(real_variant_count),
-      real_vax_count_(real_vax_count),
-      real_ring_count_(real_ring_count),
-      ring_lane_count_(std::max<size_t>(real_ring_count, 1)) {
-    if (real_variant_count > 255 || real_vax_count > 255
-        || real_ring_count > 255) {
-        throw std::invalid_argument(
-            "History trait and ring counts must fit in uint8_t raw values @ <= 255");
-    }
+      real_variant_count_(Variant::count),
+      real_vax_count_(Vax::count),
+      real_ring_count_(Ring::count),
+      ring_lane_count_(std::max<size_t>(real_ring_count_, 1)) {
+            // if (real_variant_count_ > 255 || real_vax_count_ > 255
+            //     || real_ring_count_ > 255) {
+            //     throw std::invalid_argument(
+            //         "History trait and ring counts must fit in uint8_t raw values @ <= 255");
+               // this invariant guarded in trait structs
     const std::array trait_value_counts{
-        Status::names.size() - 1, real_vax_count_, real_variant_count_};
+        Status::count, Vax::count, Variant::count};
     for (const Trait trait : all_traits) {
         phase_widths_[size_t(trait)] =
             trait_value_counts[size_t(trait)]
@@ -45,8 +43,8 @@ Histories::Histories(size_t n_days, const PopData& pop,
     // this instantiates only base history vectors updated during simulaton
     sim_history_count = magic_enum::enum_count<Phase>() * 
           (((magic_enum::enum_count<Status::Enum>() - 1) * ring_lane_count_ * HISTORY_AGE_COUNT) +
-          (real_vax_count * ring_lane_count_ * HISTORY_AGE_COUNT) +
-          (real_variant_count * ring_lane_count_ * HISTORY_AGE_COUNT));
+          (Vax::count * ring_lane_count_ * HISTORY_AGE_COUNT) +
+          (Variant::count * ring_lane_count_ * HISTORY_AGE_COUNT));
 
 
     if (n_days == 0) return;
@@ -87,8 +85,8 @@ void Histories::build_history_vectors(bool as_history) {
       HistoryMeta hm;
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
-      max_names = tr_enum == Trait::status ? Status::names.size() - 1 :
-                  tr_enum == Trait::vax ? real_vax_count_ : real_variant_count_;
+      max_names = tr_enum == Trait::status ? Status::count :
+                  tr_enum == Trait::vax ? Vax::count : Variant::count;
 
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
@@ -203,13 +201,19 @@ std::optional<HistorySelector> Histories::describe_history_vector(size_t history
 
 void Histories::sum_total_histories() {
   // use aggregate_value function
-    for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
-      for (auto ph_num : all_phases) {
-         for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
-            for (auto di = 1; di <= day_cnt; ++di) {
-              HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
-              // need a way to index to a history_total
-            }
+  const std::array trait_value_counts{
+        Status::count, Vax::count, Variant::count};
+  size_t trnum;
+  size_t phasenum;
+  for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
+    trnum = size_t(tr_enum);
+    for (auto ph_num : all_phases) {
+      phasenum = size_t(ph_num);
+      for (size_t trval_num = 1; trval_num <= trait_value_counts[trnum] ; ++trval_num) {
+        for (auto di = 1; di <= day_cnt; ++di) {
+          HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
+          // at(tr_enum, ph_num, trval_num)[di] = v;
+        }
       }
     }
   }
@@ -286,7 +290,7 @@ HistoryValue Histories::aggregate_value(
 void Histories::validate_variant_invariant() const {
     for (size_t day = 1; day <= day_cnt; ++day) {
         HistoryValue variant_total = 0;
-        for (size_t v = 1; v <= real_variant_count_; ++v) {
+        for (size_t v = 1; v <= Variant::count; ++v) {
             variant_total += aggregate_value(
                 Trait::variant, Phase::now, static_cast<uint8_t>(v), day);
         }

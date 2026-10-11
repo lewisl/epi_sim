@@ -43,7 +43,7 @@ Histories make_histories(size_t day_count, size_t variant_count = 2,
                          size_t vax_count = 2, size_t ring_count = 0) {
   install_names(variant_count, vax_count, ring_count);
   auto pop = make_pop(ring_count);
-  return Histories(day_count, pop, variant_count, vax_count, ring_count);
+  return Histories(day_count, pop);
 }
 
 const TotalHistoryVector& only_history(

@@ -73,10 +73,10 @@ void assign_rings(PopData& pop, const std::vector<float>& pct_of_population) {
     std::shuffle(idxs.begin(), idxs.end(), gen);
 
     size_t cursor = 0;
-    for (size_t r = 0; r < nrings; ++r) {
+    for (size_t r = 0; r < nrings; ++r) {  // nrings is the guard on rings value out of bounds
       const int cnt = counts[r];
       for (int k = 0; k < cnt; ++k) {
-        pop.ring[idxs[cursor++]] = Ring{static_cast<uint8_t>(r + 1)};  // we can use nidx(r)
+        pop.ring[idxs[cursor++]] = Ring(r + 1);  // we can use nidx(r)
       }
     }
   }

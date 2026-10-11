@@ -52,8 +52,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
                               ? 0 : Vax::names.size() - 1;
   const size_t real_ring_count = !model.do_rings || Ring::names.empty()
                                ? 0 : Ring::names.size() - 1;
-  Histories histories(model.ndays, pop, real_variant_count,
-                      real_vax_count, real_ring_count);
+  Histories histories(model.ndays, pop);
 
   // reset day counter to zero
   sim::reset_day();
@@ -157,6 +156,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
 
     // run end of day cases
+    histories.sum_total_histories();
 
 
   } // end day loop
