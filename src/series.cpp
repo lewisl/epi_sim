@@ -81,8 +81,9 @@ void Histories::build_history_vectors(bool for_totals) {
     Seltotval seltotval{};
     size_t idx_sim{0};
 
-    if (for_totals) idx_sim = sim_history_count;
-    else idx_sim = 0;
+    // initialize base index values for adding columns
+    if (for_totals) idx_sim = sim_history_count;    // for xtab totals across ring and agegrp
+    else idx_sim = 0;    // history vectors updated during simulation
 
     for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
       HistoryMeta hm;
@@ -142,7 +143,7 @@ void Histories::build_history_vectors(bool for_totals) {
                 // emplace_back a HistoryVector for simulation detail outcome
                 history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
                 sim_history_map.emplace(selval, idx_sim);
-                idx_sim++;
+                idx_sim++;  // only increment index count for new vector with new idx
               } // age loop
               if (real_ring_count_ == 0) break;
 
@@ -157,7 +158,7 @@ void Histories::build_history_vectors(bool for_totals) {
             // emplace_back a HistoryVector for a total
             history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
             sim_totals_map.emplace(seltotval, idx_sim);
-            idx_sim++;
+            idx_sim++;   // only increment index count for new vector with new idx
           }
         }   // tr_val loop
       }     // phase loop

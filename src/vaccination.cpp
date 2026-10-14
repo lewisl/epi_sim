@@ -106,10 +106,10 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
-            histories.update(Trait::vax, Phase::new_, uint8_t(choice), agent.ring().v,
-                             agent.agegrp(), today, 1);
-            histories.update(Trait::vax, Phase::now, uint8_t(choice), agent.ring().v,
-                             agent.agegrp(), today, 1);
+            sim::history_timing.start();
+            histories.update(Trait::vax, Phase::new_, uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);
+            histories.update(Trait::vax, Phase::now, uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);
+            sim::history_timing.cum();
 
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {

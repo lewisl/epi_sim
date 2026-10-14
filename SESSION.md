@@ -1,5 +1,49 @@
 # Session Notes
 
+## 2026-10-14: equality operator placement advice
+
+- Both external operator== definitions in series.h trigger clang-tidy
+  misc-definitions-in-headers because they are ordinary non-inline functions.
+- Recommended replacing each existing friend declaration with an in-struct
+  defaulted friend operator== and removing its separate manual definition.
+  All current fields participate in equality, so the field comparisons match.
+  First-declaration defaulting is implicitly inline and keeps equality local
+  to the key type. Explicit inline on existing definitions is another valid fix.
+- Advice only; user will make any source change. No builds/tests run.
+
+## 2026-10-14: map lookup timing discussion
+
+- User measured offset/map history-update seconds: case-1 .00315/.0074,
+  fast-vax .00614/.0096, case-2 .00506/.01008. Reports case-2 history
+  shares of kernels 2.7%/5.3%, and overall simulation increase of 4%.
+- Current history_vector_idx uses maps in both branches. Selval is five
+  uint8_t fields; AbslHashValue combines all five separately. A possible
+  experiment is combining one explicitly packed uint64_t instead.
+- at() is a checked lookup; operator[] inserts on misses and cannot be used
+  on the const map in this const method. find()->second is an unchecked
+  lookup alternative only under a guaranteed-present-key invariant.
+- Discussion only; no optimization implemented or builds/tests run.
+
+## 2026-10-14: history_vector_idx total argument search
+
+- Serena references and caller bodies show 14 calls: 6 in src and 8 in
+  test/test_series.cpp. Every call omits the sixth argument, total, so all
+  use its default false. No call passes true, including through at/update.
+- No product code changes or builds/tests.
+
+## 2026-10-14: Histories input-parameter search
+
+- Serena inspection of Histories, its references, owning types, and related
+  function signatures found 23 functions/overloads in src taking Histories:
+  14 take Histories& and 9 take const Histories&. Including matching header
+  declarations, there are 40 parameter locations. No value/pointer inputs.
+- runsim returns Histories but does not take it as an input.
+- Follow-up body inspection: 10 directly access Histories fields/methods
+  (4 writers, 3 layout/data readers, 3 output functions reading only day_cnt).
+  Another 12 only forward the argument. spread_and_count does not use it at
+  all. create_history_set and historyplot are among the forwarding functions.
+- No product code changes or builds/tests; read-only source search.
+
 ## 2026-10-11: placement of history totaling
 
 - Design discussion only: user favors calling sum_total_histories after
