@@ -7,6 +7,8 @@
 #include <iostream>
 #include <ostream>
 #include <utility>
+#include "absl/container/flat_hash_map.h"
+// #include "absl/hash/.h"
 
 using HistoryValue = std::int32_t;
 
@@ -78,6 +80,59 @@ struct HistorySelector {
     }
 };
 
+// maybe we never use strings as keys to the map
+struct Selstring {
+  std::string trait;
+  std::string phase;
+  std::string trval;
+  std::string ring;
+  std::string age;
+};
+
+// preferred key for histories simulation map
+struct Selval {
+  std::uint8_t trait;
+  std::uint8_t phase;
+  std::uint8_t trval;
+  std::uint8_t ring;
+  std::uint8_t age;
+
+  friend bool operator==(const Selval& lhs, const Selval& rhs);
+  template <typename H>
+  friend H AbslHashValue(H h, const Selval& sel);
+};
+
+bool operator==(const Selval& lhs, const Selval& rhs) {
+  return lhs.trait == rhs.trait && lhs.phase == rhs.phase && 
+          lhs.trval == rhs.trval && lhs.ring == rhs.ring && lhs.age == rhs.age;     
+}
+
+template <typename H>
+H AbslHashValue(H h, const Selval& sel) {
+  return H::combine(std::move(h), sel.trait, sel.phase, sel.trval, sel.ring, sel.age);
+}
+
+// prefererred key for histories total map
+struct Seltotval {
+  std::uint8_t trait;
+  std::uint8_t phase;
+  std::uint8_t trval;
+
+  friend bool operator==(const Seltotval& lhs, const Seltotval& rhs);
+  template <typename H>
+  friend H AbslHashValue(H h, const Seltotval& sel);
+
+};
+
+bool operator==(const Seltotval& lhs, const Seltotval& rhs) {
+  return lhs.trait == rhs.trait && lhs.phase == rhs.phase && 
+          lhs.trval == rhs.trval;
+}
+
+template <typename H>
+H AbslHashValue(H h, const Seltotval& sel) {
+  return H::combine(std::move(h), sel.trait, sel.phase, sel.trval);
+}
 
 
 struct HistoryMeta {
@@ -92,13 +147,7 @@ struct HistoryMeta {
   //
   std::string age;  
   Agegrp agenum; // ditto for Agegrp
-  // 
-  // std::string vax;
-  // Vax vaxnum;
-  // //
-  // std::string variant;
-  // Variant variantnum;
-  //
+
   std::string ring;
   Ring ringnum;
 };
@@ -138,6 +187,9 @@ struct Histories {
     size_t sim_history_count; // number of history vectors updated during simulation
     size_t total_history_count;
     size_t all_history_count;
+
+    absl::flat_hash_map<Selval, size_t> sim_history_map;
+    absl::flat_hash_map<Seltotval, size_t> sim_totals_map;
 
     // constructor declaration, defined in series.cpp
     // constructor declaration, defined in series.cpp
@@ -260,8 +312,8 @@ struct Histories {
     // Checks that sum(now variant values, total age) == now infectious, total age
     // for every simulated day. Throws on the first mismatch; prints OK if all pass.
     void validate_variant_invariant() const;
-
-private:
+public:
+// private:
       // returns index of the column group that will contain the desired column,
       // starting at the trait and the phase within that trait
       // returns index of the column group that will contain the desired column,
@@ -279,10 +331,10 @@ private:
                 return 2 * (status_width + vax_width)
                      + size_t(phase) * phase_widths_[size_t(Trait::variant)];
         }
-        std::unreachable();
+        // not supposed to get here ever
     }
 
-    void build_history_vectors(bool as_history);
+    void build_history_vectors(bool for_totals);
 
     std::array<size_t, magic_enum::enum_count<Trait>()> phase_widths_{};
     size_t real_variant_count_{};

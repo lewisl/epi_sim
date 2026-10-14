@@ -244,7 +244,14 @@ void dispatch_command(AppState& state, const Command& command) {
         else {
           auto selections = enumerate_history_selections(*state.result_histories);
           fmt::println("History vector selectors for {} columns.\n", selections.size());
-          for (auto sel : selections) sel.print();
+          (*state.result_histories).dump_history_layout();
+
+          // for (auto sel : selections) sel.print();
+            // auto unexp = (*state.result_histories).history_vectors_[(*state.result_histories).sim_totals_map[Seltotval{0,0,1}]].data[179];
+            // auto sick = (*state.result_histories).history_vectors_[(*state.result_histories).sim_totals_map[Seltotval{0,0,2}]].data[179];
+            // auto recov = (*state.result_histories).history_vectors_[(*state.result_histories).sim_totals_map[Seltotval{0,0,3}]].data[179];
+            // auto died = (*state.result_histories).history_vectors_[(*state.result_histories).sim_totals_map[Seltotval{0,0,4}]].data[179];
+            // fmt::println("unexp {} sick {} recov {}, died {}", unexp, sick, recov, died);
           break;
         }
       case CommandAction::Quit:

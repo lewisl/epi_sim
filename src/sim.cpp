@@ -156,12 +156,41 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
 
     // run end of day cases
-    histories.sum_total_histories();
-
+ 
 
   } // end day loop
 
   // update total history columns
+   histories.sum_total_histories();
+
+    auto unexp = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,1}]].data[180];
+    auto sick = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,2}]].data[180];
+    auto recov = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,3}]].data[180];
+    auto died = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,4}]].data[180];
+
+
+  fmt::println("size {}", histories.history_vectors_.size());
+  fmt::println("sim_history_count {} sim_total_history_count {} all_history_count {}", histories.sim_history_count, histories.total_history_count, histories.all_history_count);
+
+  // fmt::println("loop over the totals map");
+
+  // for (const auto& [key, value] : histories.sim_totals_map) {
+  //   fmt::print("select trait {} phase {} tr value {} ", key.trait, key.phase, key.trval);
+  //   fmt::print(" index: {}\n", value);
+  // }
+
+  // fmt::println("loop of the simulation map");
+
+  //   for (const auto& [key, value] : histories.sim_history_map) {
+  //   fmt::print("select trait {} phase {} tr value {} ring {} age {} ", key.trait, key.phase, key.trval, key.ring, key.age);
+  //   fmt::print(" index: {}\n", value);
+  // }
+
+    fmt::println("unexp {} sick {} recov {}, died {}", unexp, sick, recov, died);
+    
+
+    fmt::println("");
+
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
       spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());

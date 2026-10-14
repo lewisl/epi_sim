@@ -292,9 +292,6 @@ struct Ring {
       v = static_cast<uint8_t>(names.size() - 1);
       count++;}
     else throw std::invalid_argument("Ring trait value must fit in uint8_t raw values @ <= 255");
-    names.emplace_back(std::string{name});
-    v = static_cast<uint8_t>(names.size() - 1);
-    count++;
   }
   Ring(int val) {
     if (val > 0 && val <= names.size())  v = static_cast<uint8_t>(val);

@@ -85,6 +85,7 @@ GeoData load_geodata_csv(const std::string& filename) {
 std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) {
 
   Variant::names.clear();
+  Variant::count = 0;
   Variant::names = {"none"};
   vector<string> variant_names{"none"};
 
@@ -572,6 +573,7 @@ SocialParams load_social_params(string social_path) {
 RingTraits load_ring_traits(string fpath) {
   RingTraits rt{};
   Ring::names.clear();
+  Ring::count = 0;
   vector<string> ring_names{""};
   Ring::names = {""};
 

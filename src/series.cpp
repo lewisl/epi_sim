@@ -5,6 +5,7 @@
 #include <charconv>
 #include <stdexcept>
 #include <magic_enum/magic_enum.hpp>
+#include "absl/container/flat_hash_map.h"
 
 namespace {
 void ensure_parent_dir(const std::filesystem::path& output_path) {
@@ -25,12 +26,8 @@ Histories::Histories(size_t n_days, const PopData& pop)
       real_variant_count_(Variant::count),
       real_vax_count_(Vax::count),
       real_ring_count_(Ring::count),
-      ring_lane_count_(std::max<size_t>(real_ring_count_, 1)) {
-            // if (real_variant_count_ > 255 || real_vax_count_ > 255
-            //     || real_ring_count_ > 255) {
-            //     throw std::invalid_argument(
-            //         "History trait and ring counts must fit in uint8_t raw values @ <= 255");
-               // this invariant guarded in trait structs
+      ring_lane_count_(std::max<size_t>(real_ring_count_, 1)) 
+  {
     const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
     for (const Trait trait : all_traits) {
@@ -78,21 +75,36 @@ Histories::Histories(size_t n_days, const PopData& pop)
 }
 
 
-void Histories::build_history_vectors(bool as_history) {
+void Histories::build_history_vectors(bool for_totals) {
     size_t max_names;
+    Selval selval{};
+    Seltotval seltotval{};
+    size_t idx_sim{0};
+
+    if (for_totals) idx_sim = sim_history_count;
+    else idx_sim = 0;
 
     for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
       HistoryMeta hm;
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
+      selval.trait = static_cast<uint8_t>(tr_enum);
+      seltotval.trait = static_cast<uint8_t>(tr_enum);
+
       max_names = tr_enum == Trait::status ? Status::count :
                   tr_enum == Trait::vax ? Vax::count : Variant::count;
 
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
         hm.phasenum = ph_num;
+        selval.phase = static_cast<uint8_t>(ph_num);
+        seltotval.phase = static_cast<uint8_t>(ph_num);
+
 
         for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
+          // trval for map key is uint8_t, not trait class value
+          selval.trval = trval_num;
+          seltotval.trval =trval_num;
           switch (tr_enum) {
             case Trait::status:
             {
@@ -110,31 +122,42 @@ void Histories::build_history_vectors(bool as_history) {
               break;
           }
 
-          if (!as_history) {
+          // create and place detail simulation result vectors
+          if (!for_totals) {     
             for (auto ring_i = 1; ring_i <= ring_lane_count_; ++ring_i) { // must handle sentinel for population
               if (real_ring_count_ == 0) {
                 hm.ring = "";
                 hm.ringnum = RING_ALL;
+                selval.ring = RING_ALL;
               } 
               else {
                 hm.ring = Ring::names[ring_i];
                 hm.ringnum = ring_i;
+                selval.ring = ring_i;
               }
               for (auto age_i = 1; age_i < Agegrp::names.size(); ++age_i) {
                 hm.age = Agegrp::names[age_i];
                 hm.agenum = age_i;
+                selval.age = age_i;
+                // emplace_back a HistoryVector for simulation detail outcome
                 history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
+                sim_history_map.emplace(selval, idx_sim);
+                idx_sim++;
               } // age loop
               if (real_ring_count_ == 0) break;
+
             }  // ring loop
           }
-          else {
+          // create and place total vectors
+          else {      
             hm.ring = "total";
             hm.ringnum = RING_ALL;
             hm.age = "total";
             hm.agenum = HISTORY_AGE_TOTAL;
-
+            // emplace_back a HistoryVector for a total
             history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
+            sim_totals_map.emplace(seltotval, idx_sim);
+            idx_sim++;
           }
         }   // tr_val loop
       }     // phase loop
@@ -200,19 +223,25 @@ std::optional<HistorySelector> Histories::describe_history_vector(size_t history
 }
 
 void Histories::sum_total_histories() {
+
   // use aggregate_value function
   const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
   size_t trnum;
   size_t phasenum;
+  Seltotval seltotval;
   for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
     trnum = size_t(tr_enum);
+    seltotval.trait=trnum;
     for (auto ph_num : all_phases) {
       phasenum = size_t(ph_num);
+      seltotval.phase = phasenum;
       for (size_t trval_num = 1; trval_num <= trait_value_counts[trnum] ; ++trval_num) {
+        seltotval.trval=trval_num;
+        auto& destination = sim_totals_map.at(seltotval);  // this throws if the key doesn't exist
         for (auto di = 1; di <= day_cnt; ++di) {
-          HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
-          // at(tr_enum, ph_num, trval_num)[di] = v;
+          // HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
+          history_vectors_[sim_totals_map[seltotval]].data[di] = aggregate_value(tr_enum, ph_num, trval_num, di);;
         }
       }
     }
