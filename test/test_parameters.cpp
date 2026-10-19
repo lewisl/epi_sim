@@ -895,6 +895,85 @@ void test_check_rings_rejects_missing_agegrp() {
   CHECK(has_error_containing(e, "missing agegrp 'age80_up'"));
 }
 
+void test_check_variants_rejects_case_duplicate() {
+  Errors e;
+  json v = json::parse(variants_json);
+  v["Base"] = v["base"];
+  input_verify_detail::check_variants(v, e);
+  CHECK(has_error_containing(e, "duplicate variant name 'Base' (matches 'base'"));
+}
+
+void test_check_variants_rejects_reserved_none() {
+  Errors e;
+  json v = json::parse(variants_json);
+  v["None"] = v["base"];
+  input_verify_detail::check_variants(v, e);
+  CHECK(has_error_containing(e, "variant name 'None' is reserved"));
+}
+
+void test_check_vaccines_rejects_case_duplicate() {
+  Errors e;
+  json vac = json::parse(vaccines_json);
+  vac["PFIZER"] = vac["Pfizer"];
+  input_verify_detail::check_vaccines(vac, e);
+  CHECK(has_error_containing(e, "duplicate vaccine name 'PFIZER' (matches 'Pfizer'"));
+}
+
+void test_check_rings_rejects_duplicate_name() {
+  json r = json::parse(rings_json);
+  const std::string first = r["rings"][0]["name"].get<std::string>();
+  {
+    Errors e;
+    json exact = r;
+    exact["rings"][1]["name"] = first;
+    input_verify_detail::check_rings(exact, e);
+    CHECK(has_error_containing(e, fmt::format("duplicate ring name '{}'", first)));
+  }
+  {
+    Errors e;
+    json cased = r;
+    std::string upper = first;
+    for (char& c : upper) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    cased["rings"][1]["name"] = upper;
+    input_verify_detail::check_rings(cased, e);
+    CHECK(has_error_containing(e, fmt::format("duplicate ring name '{}'", upper)));
+  }
+}
+
+// Exact repeated object keys are collapsed by the JSON parser, so they can
+// only be caught while loading the file inside input_verify.
+void test_input_verify_reports_exact_duplicate_variant_key() {
+  const fs::path case_dir = fs::temp_directory_path() /
+                            test_support::unique_name("epi_sim_dup_variant_case_");
+  const fs::path input_dir = case_dir / "input";
+  fs::create_directories(case_dir);
+  fs::copy(test_support::template_params_dir(), input_dir,
+           fs::copy_options::recursive);
+
+  // Re-emit "base" under its own name a second time: {"base": X, ..., "base": X}.
+  const json variants = json::parse(variants_json);
+  std::string text = variants.dump(2);
+  text.pop_back();  // drop closing '}'
+  text += fmt::format(",\n  \"base\": {}\n}}\n", variants["base"].dump());
+  {
+    std::ofstream out(input_dir / "variants.json");
+    out << text;
+  }
+
+  const fs::path original_cwd = fs::current_path();
+  fs::current_path(case_dir);
+  expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
+  fs::current_path(original_cwd);
+
+  std::ifstream error_log(case_dir / "input-error-log.txt");
+  std::ostringstream report;
+  report << error_log.rdbuf();
+  CHECK(report.str().find("variants.json: duplicate top-level key 'base'") !=
+        std::string::npos);
+
+  fs::remove_all(case_dir);
+}
+
 }  // namespace
 
 void run_parameter_tests(const test_support::TestRunOptions& options) {
@@ -952,6 +1031,11 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_check_soc_dist_rejects_bad_contact_delta_length();
   test_check_rings_rejects_pct_bad_sum();
   test_check_rings_rejects_missing_agegrp();
+  test_check_variants_rejects_case_duplicate();
+  test_check_variants_rejects_reserved_none();
+  test_check_vaccines_rejects_case_duplicate();
+  test_check_rings_rejects_duplicate_name();
+  test_input_verify_reports_exact_duplicate_variant_key();
   if (options.write_artifacts) {
     fmt::println("parameter artifacts written under '{}'",
                  test_support::artifact_group_dir(options, GROUP).string());

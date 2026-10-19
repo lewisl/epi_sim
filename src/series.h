@@ -15,7 +15,7 @@ using HistoryValue = std::int32_t;
 inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
-inline constexpr size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
+inline const size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
 constexpr std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
@@ -90,29 +90,29 @@ struct Selstring {
 };
 
 // preferred key for histories simulation map
-struct Selval {
+struct Selsim {
   std::uint8_t trait;
   std::uint8_t phase;
   std::uint8_t trval;
   std::uint8_t ring;
   std::uint8_t age;
 
-  friend bool operator==(const Selval& lhs, const Selval& rhs) = default;
+  friend bool operator==(const Selsim& lhs, const Selsim& rhs) = default;
 
   template <typename H>
-  friend H AbslHashValue(H h, const Selval& sel);
+  friend H AbslHashValue(H h, const Selsim& sel);
 };
 
 
 // use entire struct as hash key: 20% or so slower
 // template <typename H>
-// H AbslHashValue(H h, const Selval& sel) {
+// H AbslHashValue(H h, const Selsim& sel) {
 //   return H::combine(std::move(h), sel.trait, sel.phase, sel.trval, sel.ring, sel.age);
 // }
 
 // use single uint64_t as hash key
 template <typename H>
-H AbslHashValue(H h, const Selval& sel) {
+H AbslHashValue(H h, const Selsim& sel) {
     const std::uint64_t packed =
           std::uint64_t{sel.trait}
         | (std::uint64_t{sel.phase} << 8)
@@ -124,29 +124,29 @@ H AbslHashValue(H h, const Selval& sel) {
 }
 
 // prefererred key for histories total map
-struct Seltotval {
+struct Seltot {
   std::uint8_t trait;
   std::uint8_t phase;
   std::uint8_t trval;
 
-  friend bool operator==(const Seltotval& lhs, const Seltotval& rhs) = default;
+  friend bool operator==(const Seltot& lhs, const Seltot& rhs) = default;
 
   template <typename H>
-  friend H AbslHashValue(H h, const Seltotval& sel);
+  friend H AbslHashValue(H h, const Seltot& sel);
 
 };
 
 
 // use struct as hash key: 20%+ slower
 // template <typename H>
-// H AbslHashValue(H h, const Seltotval& sel) {
+// H AbslHashValue(H h, const Seltot& sel) {
 //   return H::combine(std::move(h), sel.trait, sel.phase, sel.trval);
 // }
 
 
 // use single uint64_t as hash key
 template <typename H>
-H AbslHashValue(H h, const Seltotval& sel) {
+H AbslHashValue(H h, const Seltot& sel) {
     const std::uint64_t packed =
           std::uint64_t{sel.trait}
         | (std::uint64_t{sel.phase} << 8)
@@ -209,8 +209,8 @@ struct Histories {
     size_t total_history_count;
     size_t all_history_count;
 
-    absl::flat_hash_map<Selval, size_t> sim_history_map;
-    absl::flat_hash_map<Seltotval, size_t> sim_totals_map;
+    absl::flat_hash_map<Selsim, size_t> sim_history_map;
+    absl::flat_hash_map<Seltot, size_t> sim_totals_map;
 
     // constructor declaration, defined in series.cpp
     // constructor declaration, defined in series.cpp
@@ -226,7 +226,7 @@ struct Histories {
           // no way this can work: won't get right vector
           // return (sim_history_count + (size_t(trait) - 1) + size_t(phase) + trait_value);
 
-          return sim_totals_map.at(Seltotval{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value});
+          return sim_totals_map.at(Seltot{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value});
         }
         else {
           // trait values are all 1-indexed; we need 0 indexed for this
@@ -235,7 +235,7 @@ struct Histories {
                                     ? 0
                                     : size_t(ring - 1);
           const size_t age_ordinal = size_t(age.v - 1);
-          return sim_history_map.at(Selval{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value, ring, static_cast<uint8_t>(age)});
+          return sim_history_map.at(Selsim{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value, ring, static_cast<uint8_t>(age)});
           // return (trait_phase_base(trait, phase)     // this is a great way to do this
           //       + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
           //       + ring_ordinal * HISTORY_AGE_COUNT
@@ -243,28 +243,6 @@ struct Histories {
         }
     }
 
-    // [[clang::always_inline]] size_t alt_history_vector_idx(
-    //     Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
-    //     uint8_t ring = RING_ALL, bool total=false) const {
-
-    //     if (total) {
-    //       // way to calculate displace into total histories
-    //       // no way this can work: won't get right vector
-    //       return (sim_history_count + (size_t(trait) - 1) + size_t(phase) + trait_value);
-    //     }
-    //     else {
-    //       // trait values are all 1-indexed; we need 0 indexed for this
-    //       const size_t value_ordinal = size_t(trait_value - 1);
-    //       const size_t ring_ordinal = real_ring_count_ == 0
-    //                                 ? 0
-    //                                 : size_t(ring - 1);
-    //       const size_t age_ordinal = size_t(age.v - 1);
-    //       return (trait_phase_base(trait, phase)     // this is a great way to do this
-    //             + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
-    //             + ring_ordinal * HISTORY_AGE_COUNT
-    //             + age_ordinal);
-    //     }
-    // }
 
     // return a mutable vector reference using index input
     [[clang::always_inline]] std::vector<HistoryValue> & history_vector(size_t index) {
@@ -344,10 +322,9 @@ public:
       // starting at the trait and the phase within that trait
       // returns index of the column group that will contain the desired column,
       // starting at the trait and the phase within that trait
-    [[clang::always_inline]] size_t trait_phase_base(
-        Trait trait, Phase phase) const {
+    [[clang::always_inline]] size_t trait_phase_base(Trait trait, Phase phase) const {
         const size_t status_width = phase_widths_[size_t(Trait::status)];
-        const size_t vax_width = phase_widths_[size_t(Trait::vax)];
+        const size_t vax_width = phase_widths_[size_t(Trait::vax)];   // should ad the variant_width for consistency...
         switch (trait) {   // return column displacement for each trait
             case Trait::status:  // first trait within indices
                 return size_t(phase) * status_width;

@@ -78,7 +78,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   auto locale_idx = locale_pos - mp.geodata.fips.begin();
   float density_factor = mp.geodata.density[locale_idx];
 
-  
+  fmt::println("agegrp names: {}", Agegrp::names);
   //
   // day loop
   //
@@ -88,7 +88,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     sim::ds.day = sim::get_day();
 
     sim::history_timing.start();
-    histories.init_history_series(d_i);
+    histories.init_history_series(d_i);  // why can't we do this when we build the history_series?
     sim::history_timing.cum();
 
     // run beginning of day seed cases
@@ -163,10 +163,10 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // update total history columns
    histories.sum_total_histories();
 
-    auto unexp = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,1}]].data[180];
-    auto sick = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,2}]].data[180];
-    auto recov = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,3}]].data[180];
-    auto died = histories.history_vectors_[histories.sim_totals_map[Seltotval{0,0,4}]].data[180];
+    auto unexp = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,1}]].data[180];
+    auto sick = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,2}]].data[180];
+    auto recov = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,3}]].data[180];
+    auto died = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,4}]].data[180];
 
 
   fmt::println("size {}", histories.history_vectors_.size());

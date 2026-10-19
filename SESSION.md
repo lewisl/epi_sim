@@ -1,5 +1,24 @@
 # Session Notes
 
+## 2026-10-18: duplicate-name checks in input_verify
+
+- src/input_verify.cpp: lower_copy, check_dup_names (case-insensitive),
+  check_reserved_none (Variant/Vax index 0). Wired into check_variants,
+  check_vaccines, check_rings. try_load_json gained an opt-in parser callback
+  reporting exact duplicate top-level keys (parser silently keeps last);
+  enabled for variants.json and vaccines.json.
+- test/test_parameters.cpp: 5 new tests registered in run_parameter_tests.
+- Test fixes for user's WIP (user approved): test_traits.cpp ring.v
+  comparisons + std::ranges::equal for vector names; test_series.cpp passes
+  RING_ALL explicitly (series.h has ambiguous 4-arg at() overloads).
+- STILL BLOCKED: test link fails, Histories::validate_history_indexing()
+  declared series.h:306, never defined; called test_series.cpp:139. src WIP.
+- Repeatable case ~/epi-sim-project/dupes-1 (see its EXPECTED_ERRORS.txt):
+  `epi_sim --run-case dupes-1` -> exactly 7 duplicate/reserved errors.
+- Verified via epi_sim --use-dir on a scratch case: all 4 duplicate kinds
+  reported; clean template (dovax+rings on) still validates.
+  - user added beginning work to centralize registry for traits: struct TraitID and trait_table.  this work is preliminary to improving requests to serialize, plot or print history series including totals.
+
 ## 2026-10-14: equality operator placement advice
 
 - Both external operator== definitions in series.h trigger clang-tidy

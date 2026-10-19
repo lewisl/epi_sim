@@ -32,7 +32,7 @@ void show_help() {
   fmt::println("  --set-project-dir <path in user's home directory>");
   fmt::println("  --show-project-dir");
   fmt::println("  --init-case <case label>");
-  fmt::println("  --use-case <case label>");
+  fmt::println("  --run-case <case label>");
   fmt::println("  --show-cases");
   fmt::println("  --setup-dir <path in user's home directory>");
   fmt::println("  --use-dir <path>");

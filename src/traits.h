@@ -9,7 +9,7 @@
 #include <utility>
 #include <magic_enum/magic_enum.hpp>
 #include <array>
-#include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -33,6 +33,50 @@ The values of Traits are used in the Histories vectors for some traits important
 simulation and plot or serialize after the simulation.
 */
 
+//
+// registry of all traits by id and name
+// these are all used in PopData associated with 1 column
+// some are used for history vectors in Histories
+//
+enum class TraitID : uint8_t {
+  none = 0, 
+  status,
+  vax,
+  variant,
+  ring,
+  agegrp, 
+  condition,
+  vaxstatus,
+  duration,
+  sickday,
+  recovday,
+  deadday,
+  testday,
+  quarday,
+  vaxday,
+  sdcase,
+  varianthist,
+  vaxhist,
+  sickdayhist,
+  recovdayhist,
+  testdayhist,
+  vaxdayhist
+};
+
+// sentinels for traits that don't have count or names members
+inline const std::vector<std::string> no_names{};
+inline const uint16_t no_count = 0;
+
+// 
+// TraitEntry holds central defintions for traits that *may* be
+// used as history vectors
+//
+struct TraitEntry {
+  TraitID id;
+  const std::vector<std::string> & names = no_names;
+  const uint16_t & count = no_count;
+};
+
 
 /*
 Compile time classes for traits with values that can't be changed
@@ -44,17 +88,20 @@ use as:
   person_status = RECOVERED;   
 */
 
-
+//
 // Agegrp: enum metadata with one-byte PopData storage.
+//
 struct Agegrp {
   enum class Enum : uint8_t {
     unknown = 0, age0_19 = 1, age20_39 = 2, age40_59 = 3, age60_79 = 4, age80_up = 5
   };
 
   uint8_t v{};
-
-  static constexpr auto names = magic_enum::enum_names<Enum>();
-  static constexpr auto count = magic_enum::enum_count<Enum>();
+  static inline const std::vector<std::string> names = [] {
+      const auto& a = magic_enum::enum_names<Enum>();
+      return std::vector<std::string>(a.begin(), a.end());
+  }();
+  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
 
   Agegrp() = default;
   constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
@@ -91,15 +138,21 @@ inline constexpr Agegrp AGE80_UP{Agegrp::Enum::age80_up};
 static_assert(UNKNOWN.v == 0 && AGE0_19.v == 1 && AGE20_39.v == 2
               && AGE40_59.v == 3 && AGE60_79.v == 4 && AGE80_UP.v == 5);
 
+//
 // Status: enum metadata with one-byte PopData storage.
+//
 struct Status {
   enum class Enum : uint8_t {
     none = 0, unexposed = 1, infectious = 2, recovered = 3, dead = 4
   };
 
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
-  static constexpr auto count = magic_enum::enum_count<Enum>() - 1;
+  static inline const std::vector<std::string> names = [] {
+      const auto& a = magic_enum::enum_names<Enum>();
+      return std::vector<std::string>(a.begin(), a.end());
+  }();
+
+  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
 
   Status() = default;
   // constexpr explicit Status(uint8_t v) noexcept : v(v) {}
@@ -137,15 +190,21 @@ inline constexpr Status DEAD{Status::Enum::dead};
 static_assert(NONE.v == 0 && UNEXPOSED.v == 1 && INFECTIOUS.v == 2
               && RECOVERED.v == 3 && DEAD.v == 4);
 
+//
 // Condition: enum metadata with one-byte PopData storage.
-// Condition: enum metadata with one-byte PopData storage.
+//
 struct Condition {
   enum class Enum : uint8_t {
     uninfected = 0, nil = 1, mild = 2, sick = 3, severe = 4
   };
 
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
+  static inline const std::vector<std::string> names = [] {
+      const auto& a = magic_enum::enum_names<Enum>();
+      return std::vector<std::string>(a.begin(), a.end());
+  }();
+  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
+
 
   Condition() = default;
   constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
@@ -179,14 +238,20 @@ inline constexpr Condition SEVERE{Condition::Enum::severe};
 static_assert(UNINFECTED.v == 0 && NIL.v == 1 && MILD.v == 2
               && SICK.v == 3 && SEVERE.v == 4);
 
+//
 // Vaxstatus: enum metadata with one-byte PopData storage.
+//
 struct Vaxstatus {
   enum class Enum : uint8_t {
     none = 0, first = 1, full = 2, booster = 3, exhausted = 4
   };
 
   uint8_t v{};
-  static constexpr auto names = magic_enum::enum_names<Enum>();
+  static inline const std::vector<std::string> names = [] {
+      const auto& a = magic_enum::enum_names<Enum>();
+      return std::vector<std::string>(a.begin(), a.end());
+  }();
+  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
 
   constexpr explicit Vaxstatus(uint8_t v) noexcept : v(v) {}
   constexpr explicit Vaxstatus(Enum value) noexcept : v(std::to_underlying(value)) {}
@@ -215,7 +280,10 @@ namespace Vaxstat {
 static_assert(Vaxstat::none.v == 0 && Vaxstat::first.v == 1
               && Vaxstat::full.v == 2 && Vaxstat::booster.v == 3);
 
+//
 // All six progression outcomes are valid zero-based parameter indices.
+// Note:  not used in PopData; not associated with any Histories vector
+// Not compliant with the Trait concept
 enum class Progressionmap : uint8_t {
   ToRecover = 0, ToNil = 1, ToMild = 2, ToSick = 3, ToSevere = 4, ToDead = 5
 };
@@ -237,7 +305,9 @@ static_assert(std::to_underlying(Progressmap::ToSick) == SICK.v);
 static_assert(std::to_underlying(Progressmap::ToSevere) == SEVERE.v);
 static_assert(std::to_underlying(Progressmap::ToDead) == 5);
 
+//
 // length of time being infected, per each infection incidence
+// has no string representation
 struct Duration {
   uint8_t v{};
 
@@ -275,10 +345,13 @@ struct Duration {
   }
 };
 
+//
+// Ring
+//
 struct Ring {
   uint8_t v{};
   inline static std::vector<std::string> names;
-  inline static size_t count{0};
+  inline static uint16_t count{0};
 
   constexpr Ring() noexcept = default;
   // explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
@@ -312,6 +385,9 @@ struct Ring {
   constexpr auto operator<=>(const Ring&) const noexcept = default;
 };
 
+//
+// Sickday
+//
 struct Sickday {
   int16_t v{};
 
@@ -325,6 +401,9 @@ struct Sickday {
   constexpr auto operator<=>(const Sickday&) const noexcept = default;
 };
 
+// 
+// Recovday
+//
 struct Recovday {
   int16_t v{};
 
@@ -338,6 +417,9 @@ struct Recovday {
   constexpr auto operator<=>(const Recovday&) const noexcept = default;
 };
 
+// 
+// Deadday
+//
 struct Deadday {
   int16_t v{};
 
@@ -351,6 +433,9 @@ struct Deadday {
   constexpr auto operator<=>(const Deadday&) const noexcept = default;
 };
 
+//
+// Testday
+//
 struct Testday {
   int16_t v{};
 
@@ -364,6 +449,9 @@ struct Testday {
   constexpr auto operator<=>(const Testday&) const noexcept = default;
 };
 
+//
+// Quarday
+//
 struct Quarday {
   int16_t v{};
 
@@ -377,6 +465,9 @@ struct Quarday {
   constexpr auto operator<=>(const Quarday&) const noexcept = default;
 };
 
+//
+// Vaxday
+//
 struct Vaxday {
   int16_t v{};
 
@@ -394,12 +485,14 @@ struct Vaxday {
 // runtime building of trait classes
 //
 
+//
 // Variant -- create instances at runtime
 // this trait has history vectors and history total vectors
+//
 struct Variant {
   uint8_t v{};  // will take on values 0..number of variants:  effectively 1-indexed
   inline static std::vector<std::string> names;
-  inline static size_t count{0};
+  inline static uint16_t count{0};
 
   Variant() = default;
   // constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
@@ -429,11 +522,13 @@ struct Variant {
   constexpr bool operator==(const Variant &) const = default;
 };
 
+//
 // this trait has history vectors and history total vectors
+//
 struct Vax {
   uint8_t v{};
   inline static std::vector<std::string> names;
-  inline static size_t count{0};
+  inline static uint16_t count{0};
 
   Vax() = default;
   // constexpr explicit Vax(uint8_t v) noexcept : v(v) {}
@@ -462,6 +557,9 @@ struct Vax {
   constexpr bool operator==(const Vax &) const = default;
 };
 
+//
+// SDCase
+//
 struct SDCase {
   uint8_t v{};
   inline static std::vector<std::string> names;
@@ -487,9 +585,12 @@ struct SDCase {
   constexpr bool operator==(const SDCase &) const = default;
 };
 
+//
+// VariantHist
+//
 struct VariantHist {
   std::array<Variant, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(Variant variant) {
     if (count < arr.size()) {
@@ -523,9 +624,12 @@ struct VariantHist {
   }
 };
 
+//
+// VaxHist
+//
 struct VaxHist {
   std::array<Vax, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(Vax vax) {
     if (count < arr.size()) {
@@ -559,9 +663,12 @@ struct VaxHist {
   }
 };
 
+//
+// SickdayHist
+//
 struct SickdayHist {
   std::array<int16_t, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(int16_t day) {
     if (count < arr.size()) {
@@ -590,9 +697,12 @@ struct SickdayHist {
   }
 };
 
+//
+// RecovdayHist
+//
 struct RecovdayHist {
   std::array<int16_t, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(int16_t day) {
     if (count < arr.size()) {
@@ -621,9 +731,12 @@ struct RecovdayHist {
   }
 };
 
+//
+// TestdayHist
+//
 struct TestdayHist {
   std::array<int16_t, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(int16_t day) {
     if (count < arr.size()) {
@@ -652,9 +765,12 @@ struct TestdayHist {
   }
 };
 
+//
+// VaxdayHist
+//
 struct VaxdayHist {
   std::array<int16_t, 16> arr{};
-  uint8_t count{};
+  uint16_t count{};
 
   void set(int16_t day) {
     if (count < arr.size()) {

@@ -26,7 +26,8 @@ Histories::Histories(size_t n_days, const PopData& pop)
       real_variant_count_(Variant::count),
       real_vax_count_(Vax::count),
       real_ring_count_(Ring::count),
-      ring_lane_count_(std::max<size_t>(real_ring_count_, 1)) 
+      ring_lane_count_(std::max<size_t>(real_ring_count_, 1))  
+      // 1 ring for "population" when 0 named separated rings
   {
     const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
@@ -77,8 +78,8 @@ Histories::Histories(size_t n_days, const PopData& pop)
 
 void Histories::build_history_vectors(bool for_totals) {
     size_t max_names;
-    Selval selval{};
-    Seltotval seltotval{};
+    Selsim selsim{};
+    Seltot seltot{};
     size_t idx_sim{0};
 
     // initialize base index values for adding columns
@@ -89,8 +90,8 @@ void Histories::build_history_vectors(bool for_totals) {
       HistoryMeta hm;
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
-      selval.trait = static_cast<uint8_t>(tr_enum);
-      seltotval.trait = static_cast<uint8_t>(tr_enum);
+      selsim.trait = static_cast<uint8_t>(tr_enum);
+      seltot.trait = static_cast<uint8_t>(tr_enum);
 
       max_names = tr_enum == Trait::status ? Status::count :
                   tr_enum == Trait::vax ? Vax::count : Variant::count;
@@ -98,14 +99,14 @@ void Histories::build_history_vectors(bool for_totals) {
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
         hm.phasenum = ph_num;
-        selval.phase = static_cast<uint8_t>(ph_num);
-        seltotval.phase = static_cast<uint8_t>(ph_num);
+        selsim.phase = static_cast<uint8_t>(ph_num);
+        seltot.phase = static_cast<uint8_t>(ph_num);
 
 
         for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
           // trval for map key is uint8_t, not trait class value
-          selval.trval = trval_num;
-          seltotval.trval =trval_num;
+          selsim.trval = trval_num;
+          seltot.trval = trval_num;
           switch (tr_enum) {
             case Trait::status:
             {
@@ -129,20 +130,20 @@ void Histories::build_history_vectors(bool for_totals) {
               if (real_ring_count_ == 0) {
                 hm.ring = "";
                 hm.ringnum = RING_ALL;
-                selval.ring = RING_ALL;
+                selsim.ring = RING_ALL;
               } 
               else {
                 hm.ring = Ring::names[ring_i];
                 hm.ringnum = ring_i;
-                selval.ring = ring_i;
+                selsim.ring = ring_i;
               }
               for (auto age_i = 1; age_i < Agegrp::names.size(); ++age_i) {
                 hm.age = Agegrp::names[age_i];
                 hm.agenum = age_i;
-                selval.age = age_i;
+                selsim.age = age_i;
                 // emplace_back a HistoryVector for simulation detail outcome
                 history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
-                sim_history_map.emplace(selval, idx_sim);
+                sim_history_map.emplace(selsim, idx_sim);
                 idx_sim++;  // only increment index count for new vector with new idx
               } // age loop
               if (real_ring_count_ == 0) break;
@@ -157,7 +158,7 @@ void Histories::build_history_vectors(bool for_totals) {
             hm.agenum = HISTORY_AGE_TOTAL;
             // emplace_back a HistoryVector for a total
             history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
-            sim_totals_map.emplace(seltotval, idx_sim);
+            sim_totals_map.emplace(seltot, idx_sim);
             idx_sim++;   // only increment index count for new vector with new idx
           }
         }   // tr_val loop
@@ -165,7 +166,10 @@ void Histories::build_history_vectors(bool for_totals) {
     }       // trait loop
 }
 
-
+// for simulation updated history vectors; not applicable to total history vectors
+// performed 1 day at a time for the current day in the day loop
+// for phase == 'now', each day's history begins with final count of preceding day
+// not applicable to phase == 'new_'
 void Histories::init_history_series(size_t day) {
     if (day <= 1) return;
     for (const Trait trait : all_traits) {
@@ -230,19 +234,19 @@ void Histories::sum_total_histories() {
         Status::count, Vax::count, Variant::count};
   size_t trnum;
   size_t phasenum;
-  Seltotval seltotval;
+  Seltot seltot;
   for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
     trnum = size_t(tr_enum);
-    seltotval.trait=trnum;
+    seltot.trait=trnum;
     for (auto ph_num : all_phases) {
       phasenum = size_t(ph_num);
-      seltotval.phase = phasenum;
+      seltot.phase = phasenum;
       for (size_t trval_num = 1; trval_num <= trait_value_counts[trnum] ; ++trval_num) {
-        seltotval.trval=trval_num;
-        auto& destination = sim_totals_map.at(seltotval);  // this throws if the key doesn't exist
+        seltot.trval=trval_num;
+        auto& destination = sim_totals_map.at(seltot);  // this throws if the key doesn't exist
         for (auto di = 1; di <= day_cnt; ++di) {
           // HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
-          history_vectors_[sim_totals_map[seltotval]].data[di] = aggregate_value(tr_enum, ph_num, trval_num, di);;
+          history_vectors_[sim_totals_map[seltot]].data[di] = aggregate_value(tr_enum, ph_num, trval_num, di);;
         }
       }
     }
@@ -304,11 +308,10 @@ std::string Histories::history_column_label(size_t history_idx) const {
 HistoryValue Histories::aggregate_value(
     Trait trait, Phase phase, uint8_t trait_value, size_t day) const {
     HistoryValue result = 0;
-    for (size_t ring_ordinal = 0;
-         ring_ordinal < ring_lane_count_; ++ring_ordinal) {
+    for (size_t ring_ordinal = 0; ring_ordinal < ring_lane_count_; ++ring_ordinal) {
         const uint8_t ring = real_ring_count_ == 0
             ? RING_ALL
-            : static_cast<uint8_t>(ring_ordinal + 1);
+            : static_cast<uint8_t>(ring_ordinal + 1);  // count up for named separated rings
         for (size_t age = 1; age <= HISTORY_AGE_COUNT; ++age) {
             result += at(trait, phase, trait_value,
                          Agegrp{static_cast<uint8_t>(age)}, ring)[day];
@@ -733,14 +736,14 @@ void serialize_selected_histories(HistorySelectorSet spec,
     return;
   }
 
-  auto total_histories = create_history_set(spec, histories);
+  auto total_histories = create_history_set(spec, histories);  // don't create: check existence
   const auto& history_vectors = total_histories.history_vectors;
 
   if (!total_histories.invalid_selections.empty()) {
     fmt::println("\nSkipping unknown history selections: {}",
                  total_histories.invalid_selections);
   }
-  if (history_vectors.empty()) {
+  if (history_vectors.empty()) {      // as reference to existing total history vectors
     fmt::println("\nNo valid history selected.");
     return;
   }

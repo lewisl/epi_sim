@@ -3,11 +3,14 @@
 #include <fmt/format.h>
 
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -85,16 +88,57 @@ void need_object(const json& j, const char* key, std::string_view ctx, Errors& e
     e.add(fmt::format("{}: key '{}' must be an object.", ctx, key));
 }
 
+// Lowercased copy; runtime name lookup (trait_from_string) compares lowercased.
+std::string lower_copy(std::string_view s) {
+  std::string out{s};
+  for (char& c : out) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return out;
+}
+
+// Records names that collide case-insensitively with an earlier name.
+void check_dup_names(const std::vector<std::string>& names, std::string_view what,
+                     std::string_view ctx, Errors& e) {
+  std::unordered_map<std::string, std::string> seen;  // lowercased -> first spelling
+  for (const auto& name : names) {
+    const auto [it, inserted] = seen.try_emplace(lower_copy(name), name);
+    if (!inserted && name == it->second)
+      e.add(fmt::format("{}: duplicate {} name '{}'.", ctx, what, name));
+    else if (!inserted)
+      e.add(fmt::format("{}: duplicate {} name '{}' (matches '{}' case-insensitively).",
+                        ctx, what, name, it->second));
+  }
+}
+
+// "none" is registered at index 0 of the Variant and Vax name registries.
+void check_reserved_none(const std::vector<std::string>& names, std::string_view what,
+                         std::string_view ctx, Errors& e) {
+  for (const auto& name : names)
+    if (lower_copy(name) == "none")
+      e.add(fmt::format("{}: {} name '{}' is reserved.", ctx, what, name));
+}
+
 // Safe local JSON load: on open/parse failure, records an error and returns
 // nullopt instead of throwing, so verify never itself throws on bad input.
-std::optional<json> try_load_json(const fs::path& p, std::string_view label, Errors& e) {
+// When check_top_level_dup_keys is set, exact repeated top-level keys are
+// reported; the DOM parser would otherwise silently keep only the last one.
+std::optional<json> try_load_json(const fs::path& p, std::string_view label, Errors& e,
+                                  bool check_top_level_dup_keys = false) {
   std::ifstream in(p);
   if (!in) {
     e.add(fmt::format("{}: cannot open file '{}'.", label, p.string()));
     return std::nullopt;
   }
   try {
-    return json::parse(in, nullptr, true, true);  // allow_exceptions, ignore_comments
+    if (!check_top_level_dup_keys)
+      return json::parse(in, nullptr, true, true);  // allow_exceptions, ignore_comments
+    std::unordered_set<std::string> top_keys;
+    json::parser_callback_t cb = [&](int depth, json::parse_event_t event, json& parsed) {
+      if (event == json::parse_event_t::key && depth == 1 &&
+          !top_keys.insert(parsed.get<std::string>()).second)
+        e.add(fmt::format("{}: duplicate top-level key '{}'.", label, parsed.get<std::string>()));
+      return true;
+    };
+    return json::parse(in, cb, true, true);
   } catch (const std::exception& ex) {
     e.add(fmt::format("{}: '{}' is not valid JSON ({}).", label, p.string(), ex.what()));
     return std::nullopt;
@@ -210,6 +254,11 @@ void check_variants(const json& j, Errors& e) {
   if (first != "base")
     e.add(fmt::format("{}: the first variant must be named 'base' (got '{}').", ctx, first));
 
+  std::vector<std::string> names;
+  for (const auto& [name, body] : j.items()) names.push_back(name);
+  check_dup_names(names, "variant", ctx, e);
+  check_reserved_none(names, "variant", ctx, e);
+
   for (const auto& [name, body] : j.items()) {
     const std::string vctx = fmt::format("variants.json variant '{}'", name);
     if (!body.is_object()) {
@@ -271,6 +320,11 @@ void check_vaccines(const json& j, Errors& e) {
     e.add(fmt::format("{}: expected a non-empty object of vaccines.", ctx));
     return;
   }
+  std::vector<std::string> names;
+  for (const auto& [name, body] : j.items()) names.push_back(name);
+  check_dup_names(names, "vaccine", ctx, e);
+  check_reserved_none(names, "vaccine", ctx, e);
+
   for (const auto& [name, body] : j.items()) {
     const std::string vctx = fmt::format("vaccines.json vaccine '{}'", name);
     if (!body.is_object()) {
@@ -465,6 +519,7 @@ void check_rings(const json& j, Errors& e) {
   }
   double pct_sum = 0.0;
   bool all_pct_num = true;
+  std::vector<std::string> names;
   for (size_t i = 0; i < arr.size(); ++i) {
     const auto& r = arr[i];
     const std::string rctx = fmt::format("rings.json ring [{}]", i);
@@ -474,6 +529,7 @@ void check_rings(const json& j, Errors& e) {
       continue;
     }
     need_string(r, "name", rctx, e);
+    if (r.contains("name") && r["name"].is_string()) names.push_back(r["name"].get<std::string>());
     need_number(r, "pct_of_population", rctx, e);
     if (r.contains("pct_of_population") && r["pct_of_population"].is_number())
       pct_sum += r["pct_of_population"].get<double>();
@@ -488,6 +544,7 @@ void check_rings(const json& j, Errors& e) {
   }
   if (all_pct_num && !near_one(pct_sum))
     e.add(fmt::format("{}: 'pct_of_population' values must sum to 1.0 (got {}).", ctx, pct_sum));
+  check_dup_names(names, "ring", ctx, e);
 }
 
 
@@ -584,14 +641,15 @@ void input_verify(const fs::path& input_dir) {
       };
 
       auto verify_json_file = [&](const char* key, std::string_view label,
-                                  void (*checker)(const json&, Errors&)) -> std::optional<json> {
+                                  void (*checker)(const json&, Errors&),
+                                  bool check_top_level_dup_keys = false) -> std::optional<json> {
         const auto p = resolve(key);
         if (!p) return std::nullopt;
         if (!fs::exists(*p)) {
           err.add(fmt::format("{}: file '{}' does not exist.", label, p->string()));
           return std::nullopt;
         }
-        const auto j = try_load_json(*p, label, err);
+        const auto j = try_load_json(*p, label, err, check_top_level_dup_keys);
         if (j) checker(*j, err);
         return j;
       };
@@ -601,7 +659,7 @@ void input_verify(const fs::path& input_dir) {
   //
 
       verify_json_file("seed", "seed.json", check_seed);
-      const auto variants = verify_json_file("variants", "variants.json", check_variants);
+      const auto variants = verify_json_file("variants", "variants.json", check_variants, true);
       verify_json_file("social_params", "socialparams.json", check_socialparams);
 
       if (const auto geo = resolve("geodata")) {
@@ -612,7 +670,7 @@ void input_verify(const fs::path& input_dir) {
       }
 
       if (dovax) {
-        const auto vaccines = verify_json_file("vaccines", "vaccines.json", check_vaccines);
+        const auto vaccines = verify_json_file("vaccines", "vaccines.json", check_vaccines, true);
         if (variants && vaccines)
           check_vaccine_variant_alignment(*variants, *vaccines, err);
         if (const auto dir = resolve("vax_sched_dir")) {

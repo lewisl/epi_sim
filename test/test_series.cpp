@@ -187,16 +187,16 @@ void test_atomic_update_and_stock_carry_forward() {
                    RING_ALL, AGE20_39, 1, 3);
 
   CHECK(histories.at(Trait::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE20_39)[1] == 2);
+                     AGE20_39, RING_ALL)[1] == 2);
   CHECK(histories.at(Trait::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE0_19)[1] == 0);
+                     AGE0_19, RING_ALL)[1] == 0);
   histories.init_history_series(2);
   CHECK(histories.at(Trait::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE20_39)[2] == 2);
-  CHECK(histories.at(Trait::vax, Phase::now, 1, AGE20_39)[2] == 3);
+                     AGE20_39, RING_ALL)[2] == 2);
+  CHECK(histories.at(Trait::vax, Phase::now, 1, AGE20_39, RING_ALL)[2] == 3);
   CHECK(histories.at(Trait::status, Phase::new_, uint8_t(INFECTIOUS),
-                     AGE20_39)[2] == 0);
-  CHECK(histories.at(Trait::vax, Phase::new_, 1, AGE20_39)[2] == 0);
+                     AGE20_39, RING_ALL)[2] == 0);
+  CHECK(histories.at(Trait::vax, Phase::new_, 1, AGE20_39, RING_ALL)[2] == 0);
 }
 
 void test_resolver_materializes_age_ring_and_vaccine_totals() {
@@ -250,16 +250,16 @@ void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
   CHECK(only_history(none).source_history_idxs.empty());
 
   Histories one_vax = make_histories(1, 1, 1, 0);
-  one_vax.at(Trait::vax, Phase::now, 1, AGE0_19)[1] = 4;
+  one_vax.at(Trait::vax, Phase::now, 1, AGE0_19, RING_ALL)[1] = 4;
   auto one = create_history_set(
       HistorySelectorSet{{"now", "vaccinated", "total"}}, one_vax);
   CHECK(only_history(one).data[1] == 4);
   CHECK(only_history(one).source_history_idxs.size() == 5);
 
   Histories many_vax = make_histories(1, 1, 3, 0);
-  many_vax.at(Trait::vax, Phase::now, 1, AGE0_19)[1] = 1;
-  many_vax.at(Trait::vax, Phase::now, 2, AGE0_19)[1] = 2;
-  many_vax.at(Trait::vax, Phase::now, 3, AGE0_19)[1] = 3;
+  many_vax.at(Trait::vax, Phase::now, 1, AGE0_19, RING_ALL)[1] = 1;
+  many_vax.at(Trait::vax, Phase::now, 2, AGE0_19, RING_ALL)[1] = 2;
+  many_vax.at(Trait::vax, Phase::now, 3, AGE0_19, RING_ALL)[1] = 3;
   auto many = create_history_set(
       HistorySelectorSet{{"now", "vaccinated", "total"}}, many_vax);
   CHECK(only_history(many).data[1] == 6);

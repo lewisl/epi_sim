@@ -38,7 +38,7 @@ void test_primitive_wrappers() {
   Vaxday vaxday;
 
   CHECK(duration == 0);
-  CHECK(ring == 0);
+  CHECK(ring.v == 0);
   CHECK(sickday == 0);
 
   duration = 5;
@@ -60,7 +60,7 @@ void test_primitive_wrappers() {
   CHECK(vaxday.show() == "17");
 
   CHECK(duration < 6);
-  CHECK(ring < 4);
+  CHECK(ring.v < 4);
   CHECK(4 < duration);
   Duration next = duration + 2;
   CHECK(next == 7);
@@ -109,7 +109,7 @@ void check_fixed_trait_metadata(const std::array<std::string_view, N>& expected)
   static_assert(sizeof(T) == sizeof(uint8_t));
   static_assert(std::is_trivially_copyable_v<T>);
   static_assert(magic_enum::enum_count<typename T::Enum>() == N);
-  CHECK(T::names == expected);
+  CHECK(std::ranges::equal(T::names, expected));
   for (size_t i = 0; i < N; ++i) {
     const auto value = magic_enum::enum_values<typename T::Enum>()[i];
     CHECK(std::to_underlying(value) == i);
