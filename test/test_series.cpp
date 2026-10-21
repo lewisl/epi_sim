@@ -2,6 +2,24 @@
 
 #include "../src/series.h"
 
+// used in several series tests:  can't be in anonymous namespace
+void Histories::validate_variant_invariant() const {
+    for (size_t day = 1; day <= day_cnt; ++day) {
+        HistoryValue variant_total = 0;
+        for (size_t v = 1; v <= Variant::count; ++v) {
+            variant_total += aggregate_value(
+                Trait::variant, Phase::now, static_cast<uint8_t>(v), day);
+        }
+        const HistoryValue infectious = aggregate_value(
+            Trait::status, Phase::now, uint8_t(INFECTIOUS), day);
+        if (variant_total != infectious)
+            throw std::runtime_error(fmt::format(
+                "Variant invariant failed on day {}: sum(now_variant)={} != now_infectious={}",
+                day, variant_total, infectious));
+    }
+    fmt::println("Variant invariant OK: sum(now_variant) == now_infectious for all {} days.", day_cnt);
+}
+
 namespace {
 
 constexpr std::string_view GROUP = "series";
@@ -56,6 +74,7 @@ const TotalHistoryVector& only_history(
   REQUIRE(resolved.history_vectors.size() == 1);
   return resolved.history_vectors.front();
 }
+
 
 void test_atomic_layout_formula_and_introspection() {
   RuntimeNamesGuard guard;

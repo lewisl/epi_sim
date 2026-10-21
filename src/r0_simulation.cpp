@@ -360,7 +360,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
     } // end persons loop
 
     rt_infected += rt_histories.aggregate_value(
-        Trait::status, Phase::new_, uint8_t(INFECTIOUS), d);
+        TraitID::status, Phase::new_, uint8_t(INFECTIOUS), d);
 
   }   // end day loop
 

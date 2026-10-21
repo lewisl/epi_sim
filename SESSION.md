@@ -1,5 +1,92 @@
 # Session Notes
 
+## 2026-10-20: trait registry and history-index selection checkpoint
+
+- User owns the implementation and naming. Assistant traced code, diagnosed
+  failures, built the application, and used LLDB; no assistant product-code
+  edits were authorized or made. This update changes SESSION.md only.
+- User confirms both sentinel selections and textual coordinate selections
+  now choose the correct history-vector indices. New selection is being tested
+  separately; integration into printing, CSV serialization, and plotting is
+  the next session's task. Debugging-code cleanup was planned before stopping;
+  do not assume all diagnostic prints have already been removed.
+
+### Authoritative identity and count definitions
+
+- TraitID is the single authority for trait names <-> uint8_t identifiers:
+  none=0, status=1, vax=2, variant=3, followed by other population traits.
+  The legacy three-value Trait enum used status=0/vax=1/variant=2; mixing its
+  numbering with TraitID caused missing map keys. Do not restore that parallel
+  numbering system or renumber TraitID to accommodate old calculations.
+- Trait values are defined by the trait classes in traits.h, independently of
+  trait identifiers. trait_table in traits.cpp maps TraitID to their names and
+  counts; TraitEntry stores references, so runtime loader updates remain visible.
+  User adopted an extern const std::array<TraitEntry,
+  magic_enum::enum_count<TraitID>()> declaration after TraitEntry in traits.h,
+  with the single initialized const definition near the top of traits.cpp.
+  No forward declarations of individual trait classes are needed for that
+  header declaration; the .cpp initializer sees the complete included header.
+- Tracked_Traits in series.h is an inline constexpr array<TraitID, 3> containing
+  status, vax, variant. It documents and controls the subset with histories.
+  Use that subset for history-specific loops, not enum_values<TraitID>() or
+  all_traits, which also enumerate none and untracked traits.
+- A three-element array {Status::count, Vax::count, Variant::count} is indexed
+  0..2, NOT by TraitID 1..3. This shifted counts and caused out-of-bounds reads.
+  sum_total_histories now obtains its loop bound from trait_table[trnum].count.
+  Do not recreate independent count arrays indexed directly by trait IDs.
+- Preserve 1-based people and simulation days; outer history-vector indices
+  remain 0-based. Real history trait values generally occupy 1..count, with
+  sentinel names at 0 and count excluding that sentinel. Preserve each trait's
+  documented zero-value semantics rather than imposing a blanket rule.
+  With rings disabled, ring=RING_ALL=0 is the implicit population lane.
+  Phase remains now=0/new_=1. Sentinel redesign is explicitly deferred.
+
+### Storage, selection, and failures resolved
+
+- Histories stores atomic data plus appended total columns. Selsim keys contain
+  trait/phase/trait-value/ring/age; Seltot keys contain trait/phase/trait-value.
+  For case-1, Selsim{1,0,3,0,2} is recovered/now/population/age20_39 at index 11.
+  Debugger runs showed 100 atomic columns, 20 total columns, 120 overall;
+  case-1 has six variants, no active vaccine brands, and one population lane.
+- Stored totals sum across BOTH all rings and all age groups per tracked
+  trait/phase/value. They are filled by sum_total_histories after the runsim
+  day loop. The new selector supports "all" and "total" plus explicit
+  coordinate selection. Separate per-ring or per-age aggregates are outside
+  this integration's scope and can be added later.
+- Legacy create_history_set/materialize_history_vector still serves output:
+  one atomic source is copied, multiple sources are summed into an owned vector,
+  and each print/serialize/plot request assembles a fresh set. TotalHistorySet
+  misleadingly contains both kinds. The new approach selects existing stored
+  column indices; output consumers still need to be wired to use them.
+- Abseil's exact raw_hash_map<>::at exception means a requested key is missing.
+  operator[] instead inserts a missing key with a zero-initialized size_t value,
+  which previously hid bad keys as index 0. Seed-day output alone does not
+  locate the exception: totals are calculated later, after the day loop.
+- LLDB reproduced the total lookup failure. Initially the whole-enum loop
+  requested none=0; after restricting the loop, the old three-element count
+  array gave vax=2 the variant count (6), requesting nonexistent vaccine keys.
+  The diagnostic print did execute; user subsequently confirmed seeing it.
+  Another whole-enum loop in init_history_series passed none into the
+  three-case trait_phase_base switch; that loop was restricted to tracked traits.
+
+### Validation and next work
+
+- xmake build epi_sim passed during diagnosis. LLDB runs intentionally stopped
+  on exceptions before the user's final fixes. User subsequently reports the
+  application works and sentinel/text selections return the correct indices.
+  No automated test groups were run in this session; do not treat historical
+  test totals below as validation of the current transition. The earlier test
+  linker issue involving validate_history_indexing was not revisited.
+- User reports timings remain approximately at prior levels, with ordinary
+  run-to-run OS noise; no controlled performance comparison was performed.
+- Next: wire the new index selection into printing, serialization, and plotting
+  to consume stored columns. Preserve the user's staged migration; do not
+  remove legacy code, redesign sentinels, add aggregate dimensions, or undertake
+  refactoring without a new request. User will direct further changes.
+- This checkpoint supersedes older descriptions of current storage, trait
+  numbering, total generation, blockers, and next steps below. Older entries
+  are retained as history.
+
 ## 2026-10-18: duplicate-name checks in input_verify
 
 - src/input_verify.cpp: lower_copy, check_dup_names (case-insensitive),
@@ -436,7 +523,10 @@
   attributing failures to magic_enum.
 - Aggregate-column appending remains subsequent work; it was not implemented.
 
-## Current State
+## Historical baseline: atomic-history redesign before stored totals
+
+The following baseline and its validation results predate the ongoing history
+redesign. See the latest dated checkpoint above for current state and next work.
 
 The atomic-history redesign is implemented and validated.
 

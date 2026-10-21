@@ -6,6 +6,9 @@
 #include <stdexcept>
 #include <magic_enum/magic_enum.hpp>
 #include "absl/container/flat_hash_map.h"
+#include <fmt/format.h>
+#include <fmt/base.h>
+
 
 namespace {
 void ensure_parent_dir(const std::filesystem::path& output_path) {
@@ -31,7 +34,7 @@ Histories::Histories(size_t n_days, const PopData& pop)
   {
     const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
-    for (const Trait trait : all_traits) {
+    for (const TraitID trait : all_traits) {
         phase_widths_[size_t(trait)] =
             trait_value_counts[size_t(trait)]
           * ring_lane_count_ * HISTORY_AGE_COUNT;
@@ -70,7 +73,7 @@ Histories::Histories(size_t n_days, const PopData& pop)
                 "Cannot seed history for person {}: age={} ring={}",
                 person, age.v, ring));
         }
-        update(Trait::status, Phase::now, uint8_t(UNEXPOSED),
+        update(TraitID::status, Phase::now, uint8_t(UNEXPOSED),
                ring, age, 1, 1);
     }
 }
@@ -86,15 +89,15 @@ void Histories::build_history_vectors(bool for_totals) {
     if (for_totals) idx_sim = sim_history_count;    // for xtab totals across ring and agegrp
     else idx_sim = 0;    // history vectors updated during simulation
 
-    for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
+    for (auto tr_enum : Tracked_Traits ) { 
       HistoryMeta hm;
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
       selsim.trait = static_cast<uint8_t>(tr_enum);
       seltot.trait = static_cast<uint8_t>(tr_enum);
 
-      max_names = tr_enum == Trait::status ? Status::count :
-                  tr_enum == Trait::vax ? Vax::count : Variant::count;
+      max_names = tr_enum == TraitID::status ? Status::count :
+                  tr_enum == TraitID::vax ? Vax::count : Variant::count;
 
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
@@ -108,20 +111,23 @@ void Histories::build_history_vectors(bool for_totals) {
           selsim.trval = trval_num;
           seltot.trval = trval_num;
           switch (tr_enum) {
-            case Trait::status:
+            case TraitID::status:
             {
               hm.traitval = Status::names[trval_num]; // string
               hm.traitval_num = Status{uint8_t(trval_num)};
               break;
             }
-            case Trait::vax:
+            case TraitID::vax:
               hm.traitval = Vax::names[trval_num]; // string
               hm.traitval_num = trval_num;
               break;
-            case Trait::variant:
+            case TraitID::variant:
               hm.traitval = Variant::names[trval_num];
               hm.traitval_num = trval_num;
               break;
+            default:
+              throw std::range_error("Only status, vax, and variant allowed in history building switch.");
+
           }
 
           // create and place detail simulation result vectors
@@ -164,6 +170,21 @@ void Histories::build_history_vectors(bool for_totals) {
         }   // tr_val loop
       }     // phase loop
     }       // trait loop
+
+          //===============================
+          // diagnostics for building history vectors and maps
+          //===============================
+            // fmt::println("completed building history vectors and maps");
+            // fmt::println("size of history_vectors: {}", history_vectors_.size());
+            // fmt::println("size of sim_totals_map: {}", sim_totals_map.size());
+            // fmt::println("size of sim_history_map: {}", sim_history_map.size());
+            // for (auto [k,v] : sim_history_map) {
+            //   fmt::println("k: {} v: {}", k, v);
+            // }
+            // for (auto [k,v] : sim_totals_map) {
+            //   fmt::println("k: {} v: {}", k, v);
+            // }
+          //=========================================
 }
 
 // for simulation updated history vectors; not applicable to total history vectors
@@ -172,7 +193,7 @@ void Histories::build_history_vectors(bool for_totals) {
 // not applicable to phase == 'new_'
 void Histories::init_history_series(size_t day) {
     if (day <= 1) return;
-    for (const Trait trait : all_traits) {
+    for (const TraitID trait : Tracked_Traits ) {
         const auto begin = trait_phase_base(trait, Phase::now);
         const auto end = begin + phase_width(trait);
         for (size_t history_idx = begin; history_idx < end; ++history_idx) {
@@ -181,23 +202,62 @@ void Histories::init_history_series(size_t day) {
     }
 }
 
-size_t Histories::trait_value_count(Trait trait) const {
-    switch (trait) {
-        case Trait::status: 
-          return Status::names.size() - 1;
-        case Trait::vax: 
-          return real_vax_count_;
-        case Trait::variant: 
-          return real_variant_count_;
+//=============================================================================
+// do over on serialization, printing, plotting using histories
+//=============================================================================
+
+std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::string grab_bag) {
+  vector<size_t> idxs{};
+
+  if (grab_bag == "all") idxs = std::views::iota(0uz, history_vectors_.size()) | 
+    std::ranges::to<std::vector>();  // all the indices in sequence into the vector
+  else if (grab_bag == "total") idxs = std::views::iota(sim_history_count + 1uz, history_vectors_.size()) | 
+    std::ranges::to<std::vector>();  // indices of all total history vectors
+  else {
+    for (auto & s : sel.selections) {
+      auto traitnum = trait_lookup(s.trait);
+      auto phasenum = s.phase == "now" ? uint8_t{0} : uint8_t{1};
+      auto tr_val = tr_val_to_id(traitnum, s.trait_value);
+      if (s.age == "" && s.ring == "") {
+        Seltot seltot{traitnum, phasenum, tr_val};
+        // fmt::println("in select_indices totals {}", seltot);
+        idxs.push_back(sim_totals_map.at(seltot));
+      }
+      else {
+        auto ringnum = tr_val_to_id(TraitID::ring, s.ring);
+        auto agenum = tr_val_to_id(TraitID::agegrp, s.age);
+        Selsim selsim{traitnum, phasenum,tr_val,ringnum, agenum};
+        // fmt::println("in select_indices history {}", selsim);
+        idxs.push_back(sim_history_map.at(selsim));
+      }
     }
-    throw std::runtime_error("Invalid trait value for histories.");
+  }
+
+  return idxs;
+}
+
+//=============================================================================
+//=============================================================================
+
+
+size_t Histories::trait_value_count(TraitID trait) const {
+    switch (trait) {
+        case TraitID::status: 
+          return Status::names.size() - 1;
+        case TraitID::vax: 
+          return real_vax_count_;
+        case TraitID::variant: 
+          return real_variant_count_;
+        default:
+          throw std::runtime_error("Invalid trait value for histories.");
+    }
 
 }
 
 bool Histories::valid_history_coordinates(
-    Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
+    TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
     uint8_t ring) const {
-    if (size_t(trait) >= magic_enum::enum_count<Trait>()
+    if (size_t(trait) >= magic_enum::enum_count<TraitID>()
         || size_t(phase) >= magic_enum::enum_count<Phase>()
         || trait_value == 0
         || size_t(trait_value) > trait_value_count(trait)
@@ -232,17 +292,20 @@ void Histories::sum_total_histories() {
   // use aggregate_value function
   const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
+  fmt::println("vax count {} trait_value_counts[2] {}", Vax::count, trait_value_counts[2]);
   size_t trnum;
   size_t phasenum;
   Seltot seltot;
-  for (auto tr_enum : magic_enum::enum_values<Trait>() ) {
+  for (auto tr_enum : Tracked_Traits ) {
     trnum = size_t(tr_enum);
-    seltot.trait=trnum;
+    seltot.trait= std::to_underlying(tr_enum);
+    // fmt::println("tr_enum underlying {}", std::to_underlying(tr_enum));
     for (auto ph_num : all_phases) {
       phasenum = size_t(ph_num);
       seltot.phase = phasenum;
-      for (size_t trval_num = 1; trval_num <= trait_value_counts[trnum] ; ++trval_num) {
+      for (size_t trval_num = 1; trval_num <= trait_table[trnum].count ; ++trval_num) {
         seltot.trval=trval_num;
+        // fmt::println("sum_total_histories: seltot {}", seltot);
         auto& destination = sim_totals_map.at(seltot);  // this throws if the key doesn't exist
         for (auto di = 1; di <= day_cnt; ++di) {
           // HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
@@ -254,7 +317,7 @@ void Histories::sum_total_histories() {
 }
 
 std::string Histories::explain_history_vector_idx(
-    Trait trait, Phase phase, uint8_t trait_value, Agegrp age,
+    TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
     uint8_t ring) const {
     if (!valid_history_coordinates(trait, phase, trait_value, age, ring)) {
         return fmt::format(
@@ -306,7 +369,7 @@ std::string Histories::history_column_label(size_t history_idx) const {
 // calculate total at one history element position
 //   as the total across agegrps and rings
 HistoryValue Histories::aggregate_value(
-    Trait trait, Phase phase, uint8_t trait_value, size_t day) const {
+    TraitID trait, Phase phase, uint8_t trait_value, size_t day) const {
     HistoryValue result = 0;
     for (size_t ring_ordinal = 0; ring_ordinal < ring_lane_count_; ++ring_ordinal) {
         const uint8_t ring = real_ring_count_ == 0
@@ -320,22 +383,23 @@ HistoryValue Histories::aggregate_value(
     return result;
 }
 
-void Histories::validate_variant_invariant() const {
-    for (size_t day = 1; day <= day_cnt; ++day) {
-        HistoryValue variant_total = 0;
-        for (size_t v = 1; v <= Variant::count; ++v) {
-            variant_total += aggregate_value(
-                Trait::variant, Phase::now, static_cast<uint8_t>(v), day);
-        }
-        const HistoryValue infectious = aggregate_value(
-            Trait::status, Phase::now, uint8_t(INFECTIOUS), day);
-        if (variant_total != infectious)
-            throw std::runtime_error(fmt::format(
-                "Variant invariant failed on day {}: sum(now_variant)={} != now_infectious={}",
-                day, variant_total, infectious));
-    }
-    fmt::println("Variant invariant OK: sum(now_variant) == now_infectious for all {} days.", day_cnt);
-}
+// only used by test_series.cpp
+// void Histories::validate_variant_invariant() const {
+//     for (size_t day = 1; day <= day_cnt; ++day) {
+//         HistoryValue variant_total = 0;
+//         for (size_t v = 1; v <= Variant::count; ++v) {
+//             variant_total += aggregate_value(
+//                 Trait::variant, Phase::now, static_cast<uint8_t>(v), day);
+//         }
+//         const HistoryValue infectious = aggregate_value(
+//             Trait::status, Phase::now, uint8_t(INFECTIOUS), day);
+//         if (variant_total != infectious)
+//             throw std::runtime_error(fmt::format(
+//                 "Variant invariant failed on day {}: sum(now_variant)={} != now_infectious={}",
+//                 day, variant_total, infectious));
+//     }
+//     fmt::println("Variant invariant OK: sum(now_variant) == now_infectious for all {} days.", day_cnt);
+// }
 
 // ---------------------------------------------------------------
 // HistorySelectorSet constructors and build_for_ages
@@ -428,7 +492,7 @@ namespace {
 
 struct TraitSelectionView {
     std::string_view selector_prefix;
-    Trait trait;
+    TraitID trait;
     std::span<const std::string> trait_value_names;
 };
 
@@ -477,7 +541,7 @@ std::optional<TotalHistorySource> resolve_history_source(
     }
 
     const auto append_atomic_sources = [&histories, phase, &rings, &ages](
-        TotalHistorySource& source, Trait trait,
+        TotalHistorySource& source, TraitID trait,
         std::span<const uint8_t> trait_values) {
         source.source_history_idxs.reserve(
             trait_values.size() * rings.size() * ages.size());
@@ -502,16 +566,16 @@ std::optional<TotalHistorySource> resolve_history_source(
              trait_value <= histories.real_vax_count(); ++trait_value) {
             trait_values.push_back(static_cast<uint8_t>(trait_value));
         }
-        append_atomic_sources(source, Trait::vax, trait_values);
+        append_atomic_sources(source, TraitID::vax, trait_values);
         return source;
     }
 
     const std::array traits{
         TraitSelectionView{
-            "vax:", Trait::vax,
+            "vax:", TraitID::vax,
             std::span<const std::string>{Vax::names.data(), Vax::names.size()}},
         TraitSelectionView{
-            "variant:", Trait::variant,
+            "variant:", TraitID::variant,
             std::span<const std::string>{Variant::names.data(), Variant::names.size()}},
     };
 
@@ -548,7 +612,7 @@ std::optional<TotalHistorySource> resolve_history_source(
     TotalHistorySource source{
         fmt::format("{}_{}", display_phase, magic_enum::enum_name(*status)), {}};
     const std::array trait_values{std::to_underlying(*status)};
-    append_atomic_sources(source, Trait::status, trait_values);
+    append_atomic_sources(source, TraitID::status, trait_values);
     return source;
 }
 
@@ -577,7 +641,7 @@ std::vector<HistoryValue> materialize_history_vector(
         return histories.history_vector(source.source_history_idxs.front());
     }
 
-    std::vector<HistoryValue> result(histories.day_cnt + 1, 0);
+    std::vector<HistoryValue> result(histories.day_cnt + 1, 0);  // virtual 1-indexing
     for (const size_t history_idx : source.source_history_idxs) {
         const auto& values = histories.history_vector(history_idx);
         for (size_t day = 0; day <= histories.day_cnt; ++day) {
@@ -612,7 +676,7 @@ TotalHistorySet create_history_set(
     auto label = canonical_selection_label(*source, *age, *ring);
     auto data = materialize_history_vector(histories, *source);
     total_histories.history_vectors.push_back({
-        std::move(label), std::move(data),
+        std::move(label), std::move(data),        // move consumes vector, so have to create again for another use
         std::move(source->source_history_idxs)});
   }
 

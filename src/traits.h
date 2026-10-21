@@ -1,5 +1,6 @@
 #pragma once
 
+#include "traits.h"
 #include "helpers.h"
 #include <array>
 #include <cstdint>
@@ -63,10 +64,11 @@ enum class TraitID : uint8_t {
   vaxdayhist
 };
 
+
+
 // sentinels for traits that don't have count or names members
 inline const std::vector<std::string> no_names{};
 inline const uint16_t no_count = 0;
-
 // 
 // TraitEntry holds central defintions for traits that *may* be
 // used as history vectors
@@ -76,6 +78,26 @@ struct TraitEntry {
   const std::vector<std::string> & names = no_names;
   const uint16_t & count = no_count;
 };
+
+/*
+array trait_table is map to names and count lookup for all Trait classes in PopData columns to centralize access to names, count, and reverse lookups
+The definition is near the top of traits.cpp.
+*/
+extern const std::array<
+    TraitEntry, magic_enum::enum_count<TraitID>()> trait_table;
+
+
+
+// lookups via the TraitID enum
+std::string trait_lookup(TraitID id);
+std::string trait_lookup(uint8_t id);
+uint8_t trait_lookup(std::string str);
+
+// lookups for trait values
+std::string_view tr_val_to_string(TraitID id, uint8_t v);
+uint8_t tr_val_to_id(TraitID id, std::string_view name);
+uint8_t tr_val_to_id(uint8_t id, std::string_view name);
+
 
 
 /*
@@ -143,8 +165,7 @@ static_assert(UNKNOWN.v == 0 && AGE0_19.v == 1 && AGE20_39.v == 2
 //
 struct Status {
   enum class Enum : uint8_t {
-    none = 0, unexposed = 1, infectious = 2, recovered = 3, dead = 4
-  };
+    none = 0, unexposed, infectious, recovered, dead};
 
   uint8_t v{};
   static inline const std::vector<std::string> names = [] {
@@ -152,7 +173,7 @@ struct Status {
       return std::vector<std::string>(a.begin(), a.end());
   }();
 
-  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
+  static constexpr uint16_t count = magic_enum::enum_count<Enum>() - 1;
 
   Status() = default;
   // constexpr explicit Status(uint8_t v) noexcept : v(v) {}
@@ -357,7 +378,7 @@ struct Ring {
   // explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
   explicit Ring(std::string_view name) {
     if (names.empty()) {
-      names.emplace_back("");  // index 0 reserved as unused sentinel
+      names.emplace_back("");  // index 0 reserved as sentinel for population
     }
     assert(!name.empty() && "Ring name must not be empty");
     if (names.size() < 255) {
@@ -809,6 +830,7 @@ struct VaxdayHist {
      if (!ret) { // handle bad input }
      Agegrp ag = *ret;
 */
+// only used in tests and cases.cpp--so, not for series
 template<typename T>
 std::optional<T> trait_from_string(const std::string& s) {
   if constexpr (std::is_enum_v<T>) {

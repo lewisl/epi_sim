@@ -4,6 +4,7 @@
 #include "sim.h"
 #include "random.h"
 #include "helpers.h"
+#include "traits.h"
 #include <stdexcept>
 #include "disease_modeling.h"
 
@@ -58,17 +59,17 @@ void AgentView::make_sick(Variant var, Histories& histories,
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
-  histories.update(Trait::status, Phase::new_, INFECTIOUS, r, this_age, today, 1);
-  histories.update(Trait::status, Phase::now, INFECTIOUS, r, this_age, today, 1);
-  histories.update(Trait::variant, Phase::now, var, r, this_age, today, 1);
-  histories.update(Trait::variant, Phase::new_, var, r, this_age, today, 1);
+  histories.update(TraitID::status, Phase::new_, INFECTIOUS, r, this_age, today, 1);
+  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, today, 1);
+  histories.update(TraitID::variant, Phase::now, var, r, this_age, today, 1);
+  histories.update(TraitID::variant, Phase::new_, var, r, this_age, today, 1);
 
   if (status() == RECOVERED) {
-    histories.update(Trait::status, Phase::now, RECOVERED,
+    histories.update(TraitID::status, Phase::now, RECOVERED,
                      r, this_age, today, -1);
   } else {
     if (status() == UNEXPOSED) {
-      histories.update(Trait::status, Phase::now, UNEXPOSED,
+      histories.update(TraitID::status, Phase::now, UNEXPOSED,
                        r, this_age, today, -1);
     }
   }
@@ -107,10 +108,10 @@ void AgentView::make_well(Histories& histories) {    // the object is person--th
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
-  histories.update(Trait::status, Phase::now, RECOVERED, r, this_age, today, 1);
-  histories.update(Trait::status, Phase::new_, RECOVERED, r, this_age, today, 1);
-  histories.update(Trait::status, Phase::now, INFECTIOUS, r, this_age, today, -1);
-  histories.update(Trait::variant, Phase::now, variant(), r, this_age, today, -1);
+  histories.update(TraitID::status, Phase::now, RECOVERED, r, this_age, today, 1);
+  histories.update(TraitID::status, Phase::new_, RECOVERED, r, this_age, today, 1);
+  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, today, -1);
+  histories.update(TraitID::variant, Phase::now, variant(), r, this_age, today, -1);
   sim::history_timing.cum();
 
   cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
@@ -136,11 +137,11 @@ void AgentView::make_dead(Histories& histories) {
     auto this_age = agegrp();
     auto r = ring().v;
     sim::history_timing.start();
-    histories.update(Trait::status, Phase::now, DEAD, r, this_age, today, 1);
-    histories.update(Trait::status, Phase::new_, DEAD, r, this_age, today, 1);
-    histories.update(Trait::status, Phase::now, INFECTIOUS,
+    histories.update(TraitID::status, Phase::now, DEAD, r, this_age, today, 1);
+    histories.update(TraitID::status, Phase::new_, DEAD, r, this_age, today, 1);
+    histories.update(TraitID::status, Phase::now, INFECTIOUS,
                      r, this_age, today, -1);
-    histories.update(Trait::variant, Phase::now, variant(),
+    histories.update(TraitID::variant, Phase::now, variant(),
                      r, this_age, today, -1);
     sim::history_timing.cum();
 

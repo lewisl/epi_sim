@@ -15,6 +15,8 @@
 #include "vaccination.h"
 #include "r0_simulation.h"
 
+#include "traits.h"
+
 // forward declarations
 SummaryData print_summary(PopData & pop);
 
@@ -78,7 +80,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   auto locale_idx = locale_pos - mp.geodata.fips.begin();
   float density_factor = mp.geodata.density[locale_idx];
 
-  fmt::println("agegrp names: {}", Agegrp::names);
+
   //
   // day loop
   //
@@ -169,28 +171,28 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     auto died = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,4}]].data[180];
 
 
-  fmt::println("size {}", histories.history_vectors_.size());
-  fmt::println("sim_history_count {} sim_total_history_count {} all_history_count {}", histories.sim_history_count, histories.total_history_count, histories.all_history_count);
+  //================================================
+  // diagnostics to be removed when no longer needed
+  //================================================
 
-  // fmt::println("loop over the totals map");
 
-  // for (const auto& [key, value] : histories.sim_totals_map) {
-  //   fmt::print("select trait {} phase {} tr value {} ", key.trait, key.phase, key.trval);
-  //   fmt::print(" index: {}\n", value);
-  // }
+  // fmt::println("size {}", histories.history_vectors_.size());
+  // fmt::println("sim_history_count {} sim_total_history_count {} all_history_count {}", histories.sim_history_count, histories.total_history_count, histories.all_history_count);
 
-  // fmt::println("loop of the simulation map");
+  // fmt::println("unexp {} sick {} recov {}, died {}", unexp, sick, recov, died);
+  // fmt::println("");
 
-  //   for (const auto& [key, value] : histories.sim_history_map) {
-  //   fmt::print("select trait {} phase {} tr value {} ring {} age {} ", key.trait, key.phase, key.trval, key.ring, key.age);
-  //   fmt::print(" index: {}\n", value);
-  // }
+  // fmt::println("tr_val_id for status unexposed is {}", tr_val_to_id(TraitID::status,"unexposed"));
+  // fmt::println("tr_val name for status id 1 is {}",
+  //   tr_val_to_string(TraitID::status, 1));
 
-    fmt::println("unexp {} sick {} recov {}, died {}", unexp, sick, recov, died);
-    
-
-    fmt::println("");
-
+  // auto idxs = histories.select_indices({{"now","recovered","age20_39","status",""}, 
+  //   {"now", "dead", "age60_79", "status", ""}}, "");
+  // fmt::println("the indices chosen: {}", idxs);
+ 
+  //===================
+  // end of diagnostics
+  //==================
 
   fmt::println("Spread time: {} Progression time: {} History time: {} Vaccination time: {}", 
       spread_timing.show(), progression_timing.show(), sim::history_timing.show(), vax_timing.show());
