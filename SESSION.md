@@ -1,5 +1,576 @@
 # Session Notes
 
+## 2026-10-27: latest one-ring pasted aliases all map correctly
+
+- Latest attachment has no vaccine columns: 20 trait/phase/value groups,
+  100 simulation vectors, 20 full-total vectors, 120 columns total.
+- Verified all 140 distinct totals-map keys against listed column metadata:
+  20 (ring=0,age=0), 100 (ring=0,age=1..5), 20 (ring=1,age=0).
+  No missing/extra keys or incorrect indices; vector indices consecutive
+  0..119 with no duplicate coordinates. Both now/unexposed total aliases
+  correctly map to column 100; age aliases map to columns 0..4.
+- Attachment review only; no product edits/build/tests or numeric data checks.
+
+## 2026-10-27: one-ring alias-key edits and copy scope confirmed
+
+- Saved series.cpp:182 now sets destination Seltot ring=0; :185 looks up
+  source Selsim with Ring{1}. Correct separation of retrieval sentinel and
+  physical ring. Ring{1} binds Ring(int), then converts to uint8_t for the
+  enum-input Selsim constructor. Serena diagnostics empty for changed block.
+- Saved same-map insertion now copies it->second to const size_t col_idx
+  before emplacing. Copy needed there, not at :188: the latter reads
+  sim_history_map while modifying the separate sim_totals_map.
+- Clarified rehash preserves stored key/value associations but invalidates
+  iterators/references/pointers. Copy preserves the forwarded scalar value;
+  it does not prevent rehash. Selector's unconditional age parse remains
+  outside the ring-total if braces in the saved file.
+- Review only; no product edits/build/tests or new runtime output check.
+
+## 2026-10-27: one-ring split-total aliases reviewed
+
+- Parsed case-1 attachment: 156 vectors (130 atomic + 26 full totals), 182
+  distinct totals-map keys (26 * (1 full + 5 concrete ages + 1 ring total)).
+  Of 182 mappings, 181 match their intended existing columns. Exception:
+  Seltot{1,0,1,1,0} maps to 0, but should alias full-total column 130.
+- Likely cause at series.cpp:201: emplace(seltot, it->second) forwards a
+  reference into the same flat_hash_map being extended. Installed Abseil
+  EmplaceDecomposable prepares insertion before constructing the value;
+  rehash invalidates references. Recommend copying it->second to size_t local
+  before emplacing. Cause not independently runtime-reproduced.
+- One-ring concrete-age alias keys use ring=1; select_indices still uses
+  RING_ALL=0 for ring="total", so it cannot find them. For uniform sentinel
+  requests, alias key needs ring=0 while source Selsim lookup uses real ring=1,
+  or selector must explicitly normalize one-ring requests to 1.
+- Also observed in reviewed selector: agenum assignment at line 298 lies
+  outside the ring-total if block, parsing age="total" in age-total requests.
+  No product edits or builds/tests. Static source plus attachment checks only.
+
+## 2026-10-27: revised pasted history layout complete
+
+- Parsed revised attachment: all 468 expected coordinates present exactly
+  once, with consecutive indices 0..467. Atomic 260; full totals 26; all-age
+  totals per ring 52; all-ring totals per age 130. Totals sum to 208.
+- Printed vector/map counts agree: 260 simulation keys and 208 totals keys.
+  The previously missing 78 age-specific ring totals are now present.
+- Attachment/layout review only; no product edits/build/tests or verification
+  of numeric vector contents.
+
+## 2026-10-27: pasted history layout missing three age-specific ring totals
+
+- Parsed user's attached Pasted text.txt: 390 unique coordinates with
+  consecutive indices 0..389. 26 trait/phase/value groups, two rings, five ages.
+- Atomic 260, full totals 26, age totals per ring 52 are complete. Ring totals
+  per age have only 52 of expected 130: age40_59/age60_79/age80_up are absent
+  for all 26 groups (78 missing). Complete layout would contain 468 vectors.
+- Serena/source confirms series.cpp:218 bounds the age_i loop by Ring::count
+  instead of Agegrp::count. Recommend changing that loop bound only.
+- Review only; no product edits/build/tests. Attachment analysis checks layout,
+  not numeric contents of history vectors.
+
+## 2026-10-27: diagnostic at() failure is a key argument-position error
+
+- Current sim.cpp:164-167 places tr_val_to_id(status, name) in Seltot's
+  first (trait identifier) argument instead of its third (trait value).
+  infectious therefore requests trait=2/vax rather than trait=1/status;
+  unexposed happens to work because both IDs equal 1.
+- Seltot defaults ring=RING_ALL=0 and age=HISTORY_AGE_TOTAL=0 exactly match
+  the full-total insertion. Correct diagnostic form is Seltot{TraitID::status,
+  Phase::now, tr_val_to_id(TraitID::status, name)} for all four statuses.
+- Static Serena/source review only; no product edits, builds or tests.
+
+## 2026-10-27: common trait name-to-number helper confirmed
+
+- Existing tr_val_to_id(TraitID, string_view) returns uint8_t and forwards
+  to the numeric-TraitID overload, searching trait_table's referenced names.
+  This handles enum-backed categorical names and loader-populated Variant,
+  Vax and Ring names consistently. select_indices already uses both overloads.
+- tr_val_to_string is the opposite direction. Review only; no product edits,
+  build or tests.
+
+## 2026-10-27: trait-zero totals keys originate in runsim diagnostics
+
+- Diagnosis only; no product edits. Tracked_Traits contains status/vax/variant
+  (IDs 1/2/3), and build_history_vectors sets trait before every insertion.
+- runsim at sim.cpp:164-167 actively evaluates four sim_totals_map[Seltot{0,0,n}]
+  lookups (n=1..4). Raw-number Seltot constructor preserves trait=0; map
+  operator[] inserts missing keys with mapped size_t=0. They persist in the
+  returned Histories and appear in the TUI listing. Commented print statements
+  do not disable those active diagnostic initializers.
+- Recommend correct TraitID::status/Phase::now keys and at() for lookup-only
+  diagnostics. Static Serena/source trace only; no build/tests run.
+
+## 2026-10-27: map structured binding and misleading key label
+
+- Explanation only; no product edits. Serena diagnostics confirm invalid
+  typed bracket syntax at tui_commands.cpp:255. Structured bindings require
+  auto (e.g. const auto& [key, value]), not per-element type declarations.
+- Histories::sim_totals_map is flat_hash_map<Seltot, size_t>; auto preserves
+  that key type. Seltot's hidden-friend format_as instead prints "Selsim",
+  explaining a misleading output label; it also omits ring and age fields.
+- Source/semantic inspection only; no build or tests run.
+
+## 2026-10-26: Seltot constructor explanation
+
+- User asks for explanation only; no product edits authorized or made.
+- Serena type/constructor references, caller bodies, argument types and
+  diagnostics confirm two separate effects of the new TraitID/Phase constructor:
+  it suppresses the implicit default constructor and removes aggregate status.
+- Seltot() = default restores zero-argument construction, but raw uint8_t
+  member initialization needs its own parameterized constructor. Keeping both
+  input forms plus zero-argument construction requires three constructors.
+- Existing select_indices raw-ID calls fail because uint8_t does not implicitly
+  convert to enum class TraitID/Phase. No build/tests run; static review only.
+
+## 2026-10-24: history column lookup performance discussion
+
+- User reports simulation working again after progression fixes; no independent
+  runtime verification in this discussion. Ring changes considered useful;
+  uniform Condition numbering exposed extra domain-specific translations.
+- Reviewed make_sick/make_well/make_dead, update/history_vector_idx, map key
+  packing, column construction and callers via Serena. Valid infection writes
+  normally do five lookups; recovery and death do four each. Variant is another
+  variable coordinate beyond ring and age. Selsim already groups five uint8_t
+  coordinates, with hashing packed into one uint64_t; map value is size_t.
+- Assessment: retain existing maps pending representative large-model timing.
+  Direct numeric arrays of cached indices could handle variable coordinates
+  without searching and could be shared across transitions, but add derived
+  lookup storage/initialization. No performance gain established. Grouping
+  update arguments is an API choice, not inherently a lookup optimization.
+- Abseil primary docs consulted: flat_hash_map stores entries inline, maximum
+  load factor 87.5%; Swiss Tables use metadata filtering. Small existing table
+  makes low lookup cost plausible, not measured. Column counts depend on ring,
+  variant and vaccine counts rather than population size.
+- Discussion/source review only. No product/test changes, build, tests or
+  benchmarks; no caching/refactor implementation authorized.
+
+## 2026-10-24: reported row-offset edits not yet present on disk
+
+- User reports applying loader and progression offsets, but direct disk reads
+  and Serena still show parameters.cpp:300 names[cond_idx+1] and
+  progression.cpp:93 zidx(person.cond()). Neither saved site has NIL.v yet.
+- xmake build epi_sim succeeds immediately without recompiling (0.014s).
+  Unchanged saved loader explains the repeated uninfected-row error; unsaved
+  editor buffers or edits to another file are possibilities, not verified.
+- No product edits or simulation/tests run. User should save intended files
+  and rebuild/run; six destination probabilities are already the right width.
+
+## 2026-10-24: follow-up review of four condition rows / six outcomes
+
+- User owns fixes; asks for another review, no product edits authorized.
+  Current PROGRESSION_CONDITION_COUNT = Condition::count - 1 gives four rows;
+  each OutcomeProbabilities remains six floats. Both helper signatures use
+  array<float, 6>, matching the local probvec type.
+- Saved Condition IDs remain uninfected=1, nil=2, mild=3, sick=4, severe=5.
+  Loader still uses names[cond_idx+1], requesting uninfected/nil/mild/sick;
+  lookup still uses zidx(cond), producing 1..4 for infected IDs 2..5.
+  Four packed rows require names[cond_idx+NIL.v] and cond.v-NIL.v (0..3).
+  Previous subtract-2 recommendation remains correct with these saved IDs;
+  deriving the offset from NIL.v expresses the domain boundary more clearly.
+- Remaining saved defects: redistribute_probability still uses zidx for the
+  recover/nil/mild destination writes; do_progression now samples 0..5
+  correctly but assigns outcome-1 as Condition, instead of outcome+1 for
+  infected destination outcomes 1..4. Printer and terminal-validator condition
+  labels still have the old +1 offset as well.
+- Confirmed make_well resets cond to UNINFECTED (disease_modeling.cpp:119);
+  make_dead preserves the last condition. Thus condition is not solely initial
+  population data and retained condition does not independently imply infection.
+- Static Serena/source review only; no product/test changes or tests run.
+
+## 2026-10-24: serializer linker failure and progression indexing diagnosed
+
+- Reproduced exact arm64 undefined serializer symbol with xmake build epi_sim.
+  series.h declares serialize_histories_new_way(Histories, ...), while
+  series.cpp defines serialize_histories_new_way(const Histories&, ...).
+  Both post_simulation calls bind to the undefined by-value declaration.
+  Header should match the const-reference definition. Independent of age counts
+  and of Condition being excluded from Tracked_Traits.
+- Current Progressionmap remains six zero-based values 0..5;
+  PROGRESSION_OUTCOME_COUNT derives from enum_count<Progressionmap>() and
+  OutcomeProbabilities therefore has six floats. Loader enforces that width.
+  Could not establish the source of the earlier reported seven-element width
+  from the current saved source.
+- Remaining progression defects in saved user edits: redistribute_probability
+  applies zidx to already-zero-based outcome IDs, including ToRecover=0
+  (out-of-bounds index); do_progression adds 1 to categorical_fast before
+  comparing with zero-based Progressionmap, making recovery unreachable.
+  Current Condition nil..severe IDs are 2..5, so zero-based outcome IDs 1..4
+  must be mapped by +1 only when assigning the resulting Condition.
+- Condition::count is now 5 including uninfected=1. Loader iterates names
+  [1..5], hence asks for an uninfected probability row in addition to the
+  four infected conditions. Current-person row indexing also uses cond-1;
+  coordinate these if restoring four infected-condition rows.
+- Diagnosis only; no product/test edits. Build fails at the reported link;
+  automated tests not run. Preserve user's ongoing trait/index migrations.
+
+## 2026-10-23: diagnostic output selects first registered ring
+
+- User confirms post_simulation selection is temporary testing/diagnostic code
+  and agrees it should not hardcode a ring name.
+- Replaced its count-based string branch with
+  const std::string ring = Ring::names[1] in src/sim.cpp.
+  The registry expression is evaluated, not stored as a quoted literal.
+- xmake build epi_sim passed. Tests not rerun; known Trait compilation
+  blockers from the preceding check remain.
+
+## 2026-10-23: seven history sites aligned with positive Ring IDs
+
+- User confirms Ring 0 is error, fallback population is ring 1, configured
+  names begin at 1 instead of retaining population, and ring_lane_count is gone.
+- Assistant corrected seven history functions in src/series.cpp and series.h:
+  Histories constructor seeding/validation, build_history_vectors's dead
+  zero-count break, valid_history_coordinates, explain_history_vector_idx,
+  aggregate_value, legacy resolve_history_source, and history_vector_idx's
+  leftover ordinal calculation. Atomic coordinates consistently use 1..count.
+- RING_ALL=0 remains the existing aggregation marker, never an atomic ring.
+  Legacy resolver expands it into positive IDs, including fallback ring 1.
+- xmake build epi_sim passed; Serena error diagnostics empty for both files.
+  xmake run test series and xmake run test cannot compile the test binary:
+  test/test_disease_modeling.cpp and test/test_vaccination.cpp still use
+  removed Trait (first errors at lines 18 and 17 respectively).
+  No test migration, simulation rerun, or unrelated source cleanup performed.
+- Separate remaining issue noted, not edited: post_simulation's temporary
+  demo chooses "population" for count==1 and "ring_1" otherwise. A single
+  configured ring need not be population; the first name is Ring::names[1].
+- Ring-related fixtures still assume the old zero-ring convention and need
+  migration along with other test remnants before they can validate this work.
+
+## 2026-10-23: ring names in history labels traced (diagnosis only)
+
+- User clarified the label member is hm.output_label, not update_label.
+- Saved build_history_vectors assigns hm.ring = Ring::names[ring_i] before
+  formatting atomic output_label; serialize_histories_new_way reads that label.
+- Existing latest selected_series CSVs confirm names are present:
+  case-1 20261023T162939 has now_infectious:population:age20_39;
+  case-2 20261023T163449 has now_infectious:ring_1:age20_39.
+- all_series still calls legacy serialize_selected_histories/create_history_set,
+  which rebuilds labels with canonical_selection_label rather than metadata.
+  Empty ring selectors resolve to RING_ALL; that formatter deliberately omits
+  the ring segment. Same-run all_series files have now_infectious:age20_39.
+- No evidence of empty Ring::names causing these outputs. Migrating the
+  remaining output consumers is still separate user-owned work.
+- Source/Serena tracing and existing CSV header inspection only. No product
+  edits, builds, simulation reruns, or automated tests.
+
+## 2026-10-23: user implementing direct Ring registry and population fallback
+
+- User owns edits. Ring loader now writes static Ring::names/count directly;
+  install_runtime_trait_names no longer assigns Ring::names from ModelParams.
+  Other trait registry cleanup remains the user's planned subsequent work.
+- Intended contract: names[0]="error" is unused, valid rings are 1..count.
+  Disabled rings register "population" at 1/count=1; enabled rings register
+  input names at 1..count. User reports named-ring result count=2/names.size=3.
+- String Ring constructor appends the name, assigns instance v, and increments
+  static count. Discarding the local registered instance preserves static data.
+  Manual static emplace plus string construction duplicates the name. Local
+  ring_names emplacement formerly wrote a separate vector. A temporary copy
+  to rt.ring_names fixed overwriting; user is removing that redundant path.
+- User fixed existing approx_equal assertion argument mismatch. No assistant
+  source edits/build/tests performed for this follow-up discussion.
+- User added find/end checks to select_indices, skipping absent map keys.
+  Text conversion can still throw before those checks: tr_val_to_id(ring, "")
+  now fails because names[0] is "error". Error "unknown name  for trait value 4"
+  means empty ring name/TraitID::ring=4, not Status::dead=4.
+- Current saved post_simulation test selections now specify "population".
+  Static tracing shows this maps to ring 1 and matches construction with
+  Ring::count=1; existing ring_lane_count_=max(count,1) also equals 1, so does
+  not block this selection. No rerun yet to verify subsequent output/errors.
+- User proposes removing ring_lane_count_ under guaranteed count>=1. It is
+  redundant under that invariant; remaining uses include widths/column count,
+  construction, aggregation, and legacy resolver reserve. Zero-ring branches
+  and old tests still encode previous implicit ring-0 population semantics.
+  No removal or broader migration implemented by assistant.
+- A hardcoded "population" selection applies to the fallback case; named-ring
+  case-2 requires a configured ring name or an explicit aggregation request.
+
+## 2026-10-23: case-2 map exception located with LLDB (diagnosis only)
+
+- Reproduced `--run-case case-2`, breaking at `__cxa_throw`. Simulation and
+  sum_total_histories finish; exception is in post-simulation output selection.
+- Symbolized stack: main (src/epi_sim.cpp:55) -> post_simulation
+  (src/sim.cpp:220) -> Histories::select_indices (src/series.cpp:240) ->
+  sim_history_map.at(selsim) -> Abseil ThrowStdOutOfRange.
+- LLDB shows missing Selsim{trait=1, phase=0, trval=1, ring=0, age=2},
+  meaning now/unexposed/age20_39 with empty ring; Ring::count is 2.
+  post_simulation's new selection list supplies empty ring for every request.
+  tr_val_to_id resolves empty ring to 0, while build_history_vectors creates
+  atomic keys for rings 1 and 2. select_indices does not aggregate rings.
+- This failure is the new output request/selector mismatch, not evidence
+  that replacing real_ring_count_ with Ring::count broke simulation updates.
+  Explicit ring_1/ring_2 requests select atomic columns; an all-ring total
+  at a concrete age needs aggregation or the planned stored aggregate columns.
+  Existing stored totals collapse both age and ring.
+- No product or test source edits. No automated tests run; case-2 reproduced
+  with existing release binary and a symbol-enabled build, stopped at throw.
+- Plain debug build failed on existing population.h:114 assertion calling
+  approx_equal with 2 arguments (declaration requires 3). Built epi_sim with
+  `xmake f -m debug --cxflags=-DNDEBUG` then `xmake build epi_sim`, retaining
+  release assertion behavior and existing fastest optimization. Debug binary
+  remains at build/macosx/arm64/debug/epi_sim for further investigation.
+- Restored original xmake.conf after diagnosis, including release mode,
+  LLVM toolchain/SDK paths, and removal of temporary cxflags.
+
+## 2026-10-22: Serena global-home override removed and verified
+
+- User removed the entire [mcp_servers.serena.env] block from
+  ~/.codex/config.toml: both SERENA_HOME and XDG_CACHE_HOME formerly pointed
+  inside epi_sim/.serena. Confirmed neither override remains.
+- Those overrides had made the project's .serena serve as Serena's global
+  home, explaining other projects' registrations and Go/TypeScript server
+  downloads there. epi_sim itself enables only cpp.
+- Exact configured MCP startup now succeeds using default global locations;
+  initialization, tool listing, project activation, and Ring/constructor
+  symbol lookup passed. Required an approved unsandboxed smoke check because
+  the sandbox blocks normal log writes to ~/.serena/logs. Temporary client
+  exited successfully. Native tools still require client reconnection.
+- User confirms Syncthing is no longer used; transfers use Git/Wipstream:
+  save/commit on one machine, pull on the next. Keeping project.yml tracked
+  is acceptable; no untracking/deletion requested or performed.
+
+## 2026-10-22: Serena startup repaired
+
+- User requested diagnosis/fix of unavailable Serena. Recent project MCP
+  logs consistently show fatal KeyError: 'languages' during project loading.
+  Installed Serena 1.5.3 reads languages; project.yml had language_servers.
+- Changed only language_servers -> languages in .serena/project.yml, retaining
+  cpp and all other existing configuration/dirty edits. No application changes.
+- Serena project health-check reported all tools working: clangd startup,
+  symbol overview, definition lookup, reference lookup, and pattern search.
+  Sandbox prevented clangd writing external-header cache shards under ~/.cache;
+  semantic operations passed despite those cache-write diagnostics.
+- A separate MCP smoke check used the exact command/args/env from Codex's
+  config (including SERENA_HOME pointing at this project's .serena), completed
+  initialization/list_tools, read initial_instructions, and successfully found
+  Ring plus its three constructors in src/traits.h. Project activated at startup.
+- Native Serena tools remain absent from this already-running chat; reconnect
+  the MCP server/start a fresh session to load them. Direct MCP is verified.
+- No project .stignore exists; /Users/lewislevin/code/.stignore currently
+  excludes epi_sim entirely. Historical Syncthing involvement is unproven.
+- .serena/project.yml, .serena/.gitignore, and memory_maintenance.md remain
+  tracked by Git despite the root .gitignore entry. No tracking changes made.
+
+## 2026-10-22: stopping checkpoint — history cleanup remains primary
+
+- User is done for now. User owns implementation and naming; no product
+  changes were requested in this discussion.
+- User reports removing 9 struct members and 6 methods today. The history
+  column scheme works, but cleanup is unfinished; user anticipates roughly
+  400 lines and 5–8 methods going away by completion. These are user
+  reports/estimates, not independently verified diffs or test results.
+- Resume with the user's ongoing history-column cleanup as the primary work.
+  Do not restart the design or treat the proven scheme as unresolved.
+- Default population Ring and uniform categorical numbering/count remain
+  proposals, not accepted implementation decisions. User will think about
+  them; they can be addressed separately from the remaining column cleanup.
+- Discussed uniform contract: legitimate categorical IDs 1..count, invalid
+  slot 0 excluded, including legitimate "none" states at positive IDs.
+  count would govern iteration/validation; names.size() would be a storage
+  consistency detail. Numeric values and event histories need not share this
+  contract. No renumbering, new histories, or invariant audit authorized.
+- Assistant changed SESSION.md only. No builds or tests run.
+
+## 2026-10-22: uniform categorical count contract discussion
+
+- User asks for a coherent uniform count convention and clarifies that a
+  history counting people by categorical value should include every permitted
+  value, including legitimate "none" states. Earlier distinction between
+  state cardinality and history cardinality described current storage policy,
+  not a necessary design rule. Parameter records have separate domain needs.
+- Two uniform encodings are possible: valid values 0..count-1 with no reserved
+  names slot, or valid values 1..count with reserved invalid names[0]. The
+  latter matches the proposed Ring change and current one-based history loops.
+  Any legitimate "none"/"uninfected" state must then get a positive ID.
+- Consequences to discuss before implementation: zero configured vaccines
+  would still mean one permitted "none" state/history; Variant none=1/base=2
+  would change the existing required base=1 contract; explicit population
+  defaults and parameter/progression consumers would need migration.
+- No global renumbering or additional history columns authorized. Serena
+  unavailable; source inspection only. SESSION.md updated; no builds/tests.
+
+## 2026-10-22: categorical zero semantics clarification (review only)
+
+- User clarifies Ring names[0] remains an unused slot (e.g. "none"/"error");
+  proposed default population ring is id 1 and count excludes slot 0.
+  Constructor and loader should coordinate registration. No implementation
+  requested; universal categorical renumbering is only being considered.
+- Reviewed current PopData initialization and disease/vaccination/SDCase paths:
+  legitimate zero population states include Condition::uninfected, Vaxstatus
+  none, Vax none before vaccination, Variant none before first infection,
+  and SDCase none. Variant remains assigned after recovery; do not describe
+  zero as the value of every currently uninfected person's variant.
+- Agegrp normal population construction assigns the five concrete ages from
+  apportioned counts; Histories constructor explicitly rejects age 0 or >5.
+  Agegrp constructors can still create 0: invariant is not enforced by type
+  or its count member. This was a targeted inspection, not a full invariant audit.
+- count conventions currently differ: Status excludes slot 0, while Agegrp,
+  Condition, and Vaxstatus include it. count metadata does not enforce values.
+- Assessment: retain domain-specific valid zero states; reserving zero across
+  every categorical trait is possible but unnecessary for the Ring proposal
+  and would require migrating enum IDs, parameter indexing, and consumers.
+  Numeric/event empty-value display policy is separate from storage validity.
+- Serena unavailable; direct source inspection. SESSION.md only updated;
+  no product changes, builds, or tests.
+
+## 2026-10-22: default population ring proposal (review only)
+
+- User proposes Ring default v=1/name="population", replaced by the first
+  configured ring at id 1; Ring::count always >=1, replacing ring_lane_count.
+  Proposal is under discussion, not authorization to implement.
+- Assessment: sound representation of an exhaustive population grouping.
+  Atomic agent/history ring IDs would always be 1..Ring::count; aggregate
+  selection remains distinct from the concrete default population ring.
+- Migration is broader than Ring's constructor: setup clears names, loader
+  resets count to 0, runtime installation restores RingTraits::ring_names,
+  and history construction/seeding/validation/aggregation/legacy selection
+  explicitly branch on count==0. Keep registry names/count consistent when
+  switching models. PopData already fills its ring column with Ring{}.
+- Keep contact-rule enablement independent of positive registry count:
+  spread uses empty ring_members for global mixing; default population
+  membership need not allocate ring contact tables or trigger ring assignment.
+- First-entry replacement should use registration position/state, not test
+  whether the name is "population" (input may legitimately use that name).
+- do_rings=true with missing input, or an empty rings array, currently fails
+  validation/loading. Allowing the proposed fallback is a separate deliberate
+  input-policy change; malformed supplied data should still report errors.
+- Serena tools unavailable; reviewed definitions and consumers directly.
+  No product/test changes, builds, or tests. SESSION.md only updated.
+
+## 2026-10-22: disabled versus single-ring history selection (review only)
+
+- User asks which ring string selects the population lane/all rings, and
+  distinguishes disabled rings (raw 0, empty name) from one named ring (raw 1).
+  Both have one set of five atomic age columns per tracked phase/trait value;
+  build_history_vectors already preserves that distinction in keys/metadata.
+- Normal runsim installs RingTraits::ring_names before constructing Histories;
+  default RingTraits supplies {""}, so disabled rings have the empty sentinel
+  name available at index 0. The named-ring loader also reserves index 0.
+- New select_indices uses tr_val_to_id, not ring_id_from_token. With a concrete
+  age, empty ring resolves to 0 and directly looks up that atomic key. It works
+  for disabled rings but misses with one named ring, whose key is 1. The input
+  ring name selects 1 successfully. Neither "all" nor "population" is a special
+  ring string in this path. Both empty age and ring select the combined total.
+- Legacy ring_id_from_token accepts "" and "0" as RING_ALL; its resolver
+  expands 0 to the implicit lane or all named lanes. Thus with one named ring,
+  an all-rings request and that ring's name have the same atomic sources.
+  New selector does not yet perform this normalization/aggregation.
+- history_column_label displays empty ring as population; the new CSV writer
+  instead uses meta.output_label, which currently omits an empty ring segment.
+- Serena unavailable; traced source definitions and callers directly. No
+  product/test code changes, builds, or tests. SESSION.md only updated.
+
+## 2026-10-21: confirmed fix and next history work (authoritative handoff)
+
+- User confirms the remaining apparent discrepancies were interpretation:
+  new means new occurrences, not net change. Recoveries and deaths offset
+  new infections in now infectious/base. The latest infection plot also
+  passes the user's visual check. The phase-width bug is fixed; no further
+  history-count defect was established. This resolves the uncertainty in
+  the preceding verification checkpoint below.
+- User plans to implement the next changes tomorrow. This request authorizes
+  updating SESSION.md only; no product-code implementation was requested.
+  User continues to own implementation and naming.
+
+### Column identity and carry-forward
+
+- Treat Histories as a canonical table, analogous to PopData. Column identity
+  and numeric indices persist once the collection is built for a simulation.
+  Groups of columns need not be contiguous or depend on physical ordering.
+- Next: collect/cache the indices of atomic Phase::now columns during history
+  construction, then have init_history_newday copy yesterday's values using
+  that group. Exclude new_ columns and derived totals. This removes the
+  carry-forward dependency on trait_phase_base/phase_width and storage order.
+- This fits the existing direction of using column maps to resolve the columns
+  updated by make_sick, make_well, and make_dead, and retaining indices where
+  useful. Do not assume all transition calls already cache resolved indices.
+- Strides are valid for regular multidimensional layouts, but history groups
+  vary by trait cardinality and enabled dimensions. Cached groups express
+  membership directly without reconstructing that layout.
+- Histories stores four-byte counts over simulation days, rather than rows
+  scaling with population size. User accepts additional columns/storage to
+  make the table and its consumers simpler; preserve PopData's direct access
+  and its performance rationale.
+
+### Selector coordinates and aggregate columns
+
+- Clean up sentinel semantics for serialization, printing, and plotting.
+  The broad "all"/"total" selection has already been separated into its own
+  argument, but age and ring coordinates still need an unambiguous way to
+  express concrete values versus aggregation across each dimension.
+- Current stored totals collapse BOTH age and ring. Restore the distinctions
+  supported by the earlier on-demand totaling through stored columns for:
+  (1) all ages within each concrete ring; (2) all rings within each concrete
+  age group; (3) all ages and all rings together. Atomic columns remain the
+  concrete age/ring combinations (or implicit population lane without rings).
+- Coordinate spelling/types and exact API remain to be decided by the user;
+  do not impose a new sentinel scheme or implement the expansion from these
+  notes alone. Coordinate semantics should distinguish selecting multiple
+  columns from selecting one aggregated column.
+- Continue the staged migration so printing, serialization, and plotting
+  consume selected stored column indices. New serialization is currently
+  exercised separately; legacy consumers still exist.
+- This handoff supersedes older deferrals of sentinel cleanup and additional
+  aggregate dimensions as next-work priorities. Neither is implemented yet.
+
+- Validation for this update: documentation only; no build or tests run.
+
+## 2026-10-21: user applied width fix; latest histories independently agree
+
+- User applied the Tracked_Traits/trait_table phase-width initialization and
+  reported remaining small discrepancies in new infectious/base histories.
+  Saved source confirms the fix; no assistant product-code edits made.
+- Analyzed the latest saved case-1 run, timestamp 20261021T212459. Both
+  new_infectious and new_variant:base match infection event counts reconstructed
+  from final population sickday_hist on all 180 days, for age20_39 and total.
+  Now infectious equals now base on all days, as do both new columns.
+- Expanded independent reconstruction to all five ages, all 180 days, and nine
+  histories: now/new infectious, now/new base, now/new dead, new recovered,
+  now unexposed, now recovered. All 8100 comparisons pass. Reconstruction uses
+  population infection/recovery/death dates and population sizes, not history
+  indexing code. Maximum infection history length is 5; no 16-slot truncation.
+- Daily infectious balance holds: delta(now infectious) = new infectious -
+  new recovered - new dead. Small differences versus delta(now) can therefore
+  be expected: age20_39 day20 has new=6, delta(now)=5, new recovered=1;
+  day30 has new=33, delta(now)=31, new recovered=2. The user's exact comparison
+  and expected values are still unspecified; do not assume another code bug
+  from the report alone. Need a specific day/column/expected value if their
+  comparison is different.
+- No simulation rerun, build, or C++ tests; verification read existing artifacts.
+  SESSION.md only updated.
+
+## 2026-10-21: history carry-forward corruption diagnosed (review only)
+
+- User requested diagnosis of cumulative new_infectious and incorrect base
+  variant histories. No product/test code changes were authorized or made.
+  Serena tools were unavailable; source/overload tracing used direct reads.
+- Root cause: Histories constructor, src/series.cpp:35-40, still indexes
+  three-element {Status::count, Vax::count, Variant::count} with TraitID and
+  loops all_traits. TraitID is 1..3 for tracked traits; variant and later
+  reads are out of bounds. init_history_newday uses these corrupted widths,
+  while simulation updates and both serializers use correctly built maps.
+- Current case-1 registers six variants; only base causes infections. With
+  Vax::count=0 and one population lane, status_width becomes 0 (should be 20),
+  vax_width becomes 30 (should be 0). The vax/now carry-forward copies indices
+  0..29: all now statuses, new_unexposed, and new_infectious. New recovered/dead
+  at 30..39 stay daily. Variant/now carry-forward begins at 60 instead of 40,
+  omitting base now at 40..44. Variant width itself is undefined due to the
+  constructor's out-of-bounds read; do not assume any stable value for it.
+- Proposed targeted fix (not applied): initialize phase_widths_ by looping
+  Tracked_Traits and using trait_table[size_t(trait)].count, as totaling already
+  does. Keep trait_phase_base and disease transition updates unchanged.
+- Independently checked existing case-1 artifacts with timestamp
+  20261021T194056 using Python, without rerunning or modifying outputs.
+  For all 180 days at age20_39, new_base equals delta(new_infectious), and
+  now_base equals delta(now_infectious). New_base also exactly matches the
+  final population sickday_hist event counts for all 180 days, both total
+  and age20_39: 109150 and 35422 infection episodes, respectively. All recorded
+  episodes are base, maximum history length is 5, and final now statuses
+  match population counts. Thus new_base is correct in these artifacts.
+- tr_val_to_id(TraitID, name) delegates the unchanged underlying trait ID to
+  its uint8_t overload correctly. Neither it nor tr_val_to_string is called
+  by init_history_newday. Separate observed issue: tr_val_to_string rejects
+  v > count-1 although tracked counts exclude the sentinel; not this cause.
+- No build or automated C++ tests run; validation was source tracing and
+  independent analysis of existing CSV/population data. SESSION.md only updated.
+
 ## 2026-10-20: trait registry and history-index selection checkpoint
 
 - User owns the implementation and naming. Assistant traced code, diagnosed

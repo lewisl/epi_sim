@@ -243,8 +243,18 @@ void dispatch_command(AppState& state, const Command& command) {
         }
         else {
           auto selections = enumerate_history_selections(*state.result_histories);
+          fmt::println("All history vectors: {}, Simulation tracked vectors: {}, Totals history vectors: {}",
+              state.result_histories->all_history_count, 
+              state.result_histories->sim_history_count, 
+              state.result_histories->total_history_count);
+          fmt::println("Map keys for simulation tracked vectors: {}, Map keys for totals: {}",
+              state.result_histories->sim_history_map.size(), state.result_histories->sim_totals_map.size());
           fmt::println("History vector selectors for {} columns.\n", selections.size());
           (*state.result_histories).dump_history_layout();
+          fmt::println("\nsim_totals_map keys:\n");
+          for ( auto [key, value] : state.result_histories->sim_totals_map) {
+            fmt::println("key {}  value {}", key, value);
+          }
 
           // for (auto sel : selections) sel.print();
             // auto unexp = (*state.result_histories).history_vectors_[(*state.result_histories).sim_totals_map[Seltot{0,0,1}]].data[179];

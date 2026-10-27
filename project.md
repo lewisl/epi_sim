@@ -1,11 +1,14 @@
 ## TODO
+- purge materialize_history_vector and everything associated with on-the-fly history totals.
+    - Includes all of the resolve_history_source, etc. functions
+    - remove usage from serialization, printing and plotting
+- make all traits 1-indexed:  0 will be "error". names[1] will be the first valid value of a trait.
 - distribution packaging
 - revise readme for credibility
 - user documentation
+
 - should we ahve more consistency of structure for json files? should we have the category as the top key?  should we have a name descriptor?
 - 2nd shot/booster should probabilistically substitute an alternate brand when the person's own brand is out of stock, instead of just skipping them that day (check Julia code for correct behavior)
-- would we ever want history series for shots delivered?
-- should their inputs for the series history to be serialized or just we always just serialize everything?
 - fix cumbersome seedcase code?
 - use comments in json files!
 - test and trace
@@ -16,13 +19,23 @@
 - maybe add contruction time guards to trait structs as in:
     >constexpr explicit Agegrp(uint8_t v) noexcept : v(v < 6 ? v : 0) {}
     constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
-- guided user interface in webview: projected by c++ code, gets user inputs, responds appropriately
 - port to Windows?  port to Linux?
+- model viral load
 
 ## immediately previous session
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- replace trait_phase_base calculation based on trait-phase strides calculated.  GET RID OF IT.  create index list of Tracked_Traits cumulative columns (phase == now) using the sim_history_map
+- simplified ring.  ring 0 is error, ring 1 is default for population with do_rings == false; 1 is real ring input for do_rings == true.
+- minor: csv/serialization labels omit "population" as a ring label when there is 1 (e.g., none) ring for the entire population
+- guided user interface in webview: projected by c++ code, gets user inputs, responds appropriately
+- would we ever want history series for shots delivered? NO:  too hard to create a distribution across all agents.  We have the per agent history that can be queried.
+- should their inputs for the series history to be serialized or just we always just serialize everything? Ans: serialize everything.  It's not that big and simplifies code.
+- maybe add contruction time guards to trait structs as in:
+    >constexpr explicit Agegrp(uint8_t v) noexcept : v(v < 6 ? v : 0) {}
+    constexpr explicit Agegrp(int val) noexcept : v(val >= 0 && val < 6 ? static_cast<uint8_t>(val) : 0) {}
+    ans: somewhat done for compile time traits based on enums. guard to align names and v for runtime loaded traits.
 - refactor tui into app behavior (tui_app.cpp) and user relevant commands (tui_commands.cpp)
 - should init_case overwrite an existing case?  No--it shouldn't and it doesn't right now...
 - add int rt_sim_interval to config.json and wire it in: update the templates, too

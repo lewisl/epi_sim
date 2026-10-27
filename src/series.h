@@ -6,7 +6,7 @@
 #include <initializer_list>
 #include <iostream>
 #include <ostream>
-#include <stdexcept>
+// #include <stdexcept>
 #include <utility>
 #include "absl/container/flat_hash_map.h"
 #include <fmt/format.h>
@@ -20,13 +20,13 @@ Tracked_Traits are recorded during the simulation for each agent who experiences
 inline constexpr array<TraitID, 3> Tracked_Traits{TraitID::status, TraitID::vax, TraitID::variant};
 
 inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
+inline constexpr uint8_t RING_ALL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
-inline const size_t HISTORY_AGE_COUNT = Agegrp::names.size() - 1;
 
 constexpr std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
-    return std::string_view{Agegrp::names[age]};
+    else return std::string_view{Agegrp::names[age]};
 }
 
 inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text) {
@@ -35,18 +35,6 @@ inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text)
     if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
     return std::nullopt;
 }
-
-// Query selector for all rings. When rings are disabled, raw ring 0 also names
-// the single implicit whole-population storage lane.
-inline constexpr uint8_t RING_ALL = 0;
-
-// these are the traits that have history vectors and history total vectors
-// TODO replace with TraitID after fixing uses relying on 0 for status
-// enum class Trait : uint8_t {
-//     status = 0,
-//     vax = 1,
-//     variant = 2
-// };
 
 enum class Phase : uint8_t {
     now = 0,
@@ -60,8 +48,6 @@ age, trait, and ring.
 
 Optionally, one can use the enum class values as selectors if
 the target function can, too.
-
-PROBLEM: THIS WON'T WORK FOR TOTALS unless ignoring age and ring values
 */
 struct HistorySelector {
     std::string phase;
@@ -77,14 +63,6 @@ struct HistorySelector {
     }
 };
 
-// maybe we never use strings as keys to the map
-struct Selstring {
-  std::string trait;
-  std::string phase;
-  std::string trval;
-  std::string ring;
-  std::string age;
-};
 
 // preferred key for histories simulation map
 struct Selsim {
@@ -93,6 +71,16 @@ struct Selsim {
   std::uint8_t trval;
   std::uint8_t ring;
   std::uint8_t age;
+
+  Selsim() = default;
+
+  // use uint8_t inputs for all
+  Selsim(uint8_t trait, uint8_t phase, uint8_t trval, uint8_t ring=RING_ALL, uint8_t age=HISTORY_AGE_TOTAL) :
+      trait(trait), phase(phase), trval(trval), ring(ring), age(age) {}
+
+  // use enum classes for TraitID and Phase
+  Selsim(TraitID trait, Phase phase, std::uint8_t trval, std::uint8_t ring=RING_ALL, std::uint8_t age=HISTORY_AGE_TOTAL) :
+    trait(std::to_underlying(trait)), phase(std::to_underlying(phase)), trval(trval), ring(ring), age(age) {}
 
   friend bool operator==(const Selsim& lhs, const Selsim& rhs) = default;
 
@@ -129,6 +117,18 @@ struct Seltot {
   std::uint8_t trait;
   std::uint8_t phase;
   std::uint8_t trval;
+  std::uint8_t ring=RING_ALL; // not sure we need the default values here
+  std::uint8_t age=HISTORY_AGE_TOTAL;
+
+  Seltot() = default;
+
+  // use uint8_t inputs for all
+  Seltot(uint8_t trait, uint8_t phase, uint8_t trval, uint8_t ring=RING_ALL, uint8_t age=HISTORY_AGE_TOTAL) :
+      trait(trait), phase(phase), trval(trval), ring(ring), age(age) {}
+
+  // use enum classes for TraitID and Phase
+  Seltot(TraitID trait, Phase phase, std::uint8_t trval, std::uint8_t ring=RING_ALL, std::uint8_t age=HISTORY_AGE_TOTAL) :
+    trait(std::to_underlying(trait)), phase(std::to_underlying(phase)), trval(trval), ring(ring), age(age) {}
 
   friend bool operator==(const Seltot& lhs, const Seltot& rhs) = default;
 
@@ -136,8 +136,8 @@ struct Seltot {
   friend H AbslHashValue(H h, const Seltot& sel);
 
   friend std::string format_as(const Seltot& s) {
-    return fmt::format("Selsim{{trait={}, phase={}, trval={}}}",
-                       s.trait, s.phase, s.trval);
+    return fmt::format("Seltot{{trait={}, phase={}, trval={}, ring={}, age={}}}",
+                       s.trait, s.phase, s.trval, s.ring, s.age);
   };
 
 
@@ -162,22 +162,27 @@ H AbslHashValue(H h, const Seltot& sel) {
     return H::combine(std::move(h), packed);
 }
 
-
+/*
+Each history_vector contains the data as a vector and the metadata that describes that data using struct HistoryMeta
+*/
 struct HistoryMeta {
   std::string phase;
   Phase phasenum;
   //
-  std::string trait; // for status, vax, variant
+  std::string trait; 
   TraitID traitnum;
   //
   std::string traitval;  
-  uint8_t traitval_num;  // this is one one of the Trait vals, but we reuse existing Status trait struct
+  uint8_t traitval_num;  
   //
   std::string age;  
   Agegrp agenum; // ditto for Agegrp
 
   std::string ring;
   Ring ringnum;
+
+  std::string output_label;
+
 };
 
 struct HistoryVector {
@@ -221,50 +226,30 @@ struct Histories {
 
     absl::flat_hash_map<Selsim, size_t> sim_history_map;
     absl::flat_hash_map<Seltot, size_t> sim_totals_map;
-
-    std::array<size_t, magic_enum::enum_count<TraitID>()> phase_widths_{};
-    size_t real_variant_count_{};
-    size_t real_vax_count_{};
-    size_t real_ring_count_{};
-    size_t ring_lane_count_{};
+    std::vector<size_t> cumulative_columns{};
+    std::vector<size_t> new_columns{};
 
     // constructor declaration, defined in series.cpp
     Histories(size_t n_days, const PopData& pop);
   
     void build_history_vectors(bool for_totals);
 
-    //=======================================================
-    // start over functions, structs, variables
-    //=======================================================
     std::vector<size_t> select_indices(HistorySelectorSet sel, std::string grab_bag="");
 
-    //=====================================================================
-    //=====================================================================
 
     // returns index to Histories.history_vectors_ method uses enum value inputs
     [[clang::always_inline]] size_t history_vector_idx(
-        TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
-        uint8_t ring = RING_ALL, bool total=false) const {
-
+            TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
+            uint8_t ring = RING_ALL, bool total=false) const {
         if (total) {
-          // way to calculate displace into total histories
-          // no way this can work: won't get right vector
-          // return (sim_history_count + (size_t(trait) - 1) + size_t(phase) + trait_value);
-
-          return sim_totals_map.at(Seltot{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value});
+          return sim_totals_map.at(Seltot{trait, phase, trait_value, age, ring});
         }
         else {
           // trait values are all 1-indexed; we need 0 indexed for this
           const size_t value_ordinal = size_t(trait_value - 1);
-          const size_t ring_ordinal = real_ring_count_ == 0
-                                    ? 0
-                                    : size_t(ring - 1);
+          const size_t ring_ordinal = size_t(ring - 1);
           const size_t age_ordinal = size_t(age.v - 1);
           return sim_history_map.at(Selsim{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value, ring, static_cast<uint8_t>(age)});
-          // return (trait_phase_base(trait, phase)     // this is a great way to do this
-          //       + value_ordinal * ring_lane_count_ * HISTORY_AGE_COUNT
-          //       + ring_ordinal * HISTORY_AGE_COUNT
-          //       + age_ordinal);
         }
     }
 
@@ -309,14 +294,6 @@ struct Histories {
     }
 
     size_t trait_value_count(TraitID trait) const;
-    size_t phase_width(TraitID trait) const {
-        return phase_widths_[size_t(trait)];
-    }
-    size_t real_variant_count() const { return real_variant_count_; }
-    size_t real_vax_count() const { return real_vax_count_; }
-    size_t real_ring_count() const { return real_ring_count_; }
-    size_t ring_lane_count() const { return ring_lane_count_; }
-    // size_t sim_history_count() const { return history_vectors_.size(); }
     bool valid_history_coordinates(
         TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
         uint8_t ring = RING_ALL) const;
@@ -336,33 +313,11 @@ struct Histories {
     HistoryValue aggregate_value(TraitID trait, Phase phase,
                                  uint8_t trait_value, size_t day) const;
 
-    void init_history_series(size_t day);
+    void init_history_newday(size_t day);
 
     // Checks that sum(now variant values, total age) == now infectious, total age
     // for every simulated day. Throws on the first mismatch; prints OK if all pass.
     void validate_variant_invariant() const;
-
-private:
-      // returns index of the column group that will contain the desired column,
-      // starting at the trait and the phase within that trait
-    [[clang::always_inline]] size_t trait_phase_base(TraitID trait, Phase phase) const {
-        const size_t status_width = phase_widths_[size_t(TraitID::status)];
-        const size_t vax_width = phase_widths_[size_t(TraitID::vax)];   // should ad the variant_width for consistency...
-        switch (trait) {   // return column displacement for each trait
-            case TraitID::status:  // first trait within indices
-                return size_t(phase) * status_width;
-            case TraitID::vax:  // both phases of status + 0 or 1 phase of vax
-                return 2 * status_width + size_t(phase) * vax_width;
-            case TraitID::variant:  // didn't cache a variant_width variable because there is no re-use
-                return 2 * (status_width + vax_width)
-                     + size_t(phase) * phase_widths_[size_t(TraitID::variant)];
-            default:
-              throw std::range_error("Only status, vax, and variant allowed in switch in function trait_phase_base.");
-        }
-        // not supposed to get here ever
-    }
-
-
 
 };
 
@@ -395,13 +350,13 @@ struct HistorySelectorSet {
         : selections(v) {}
 
     // "all" sentinel -> all trait values x all selectable ages
-    HistorySelectorSet(const char* sentinel);
+    // HistorySelectorSet(const char* sentinel);
 
     // "all" sentinel x single age -- we don't have the vectors
-    HistorySelectorSet(const char* sentinel, const char* age);
+    // HistorySelectorSet(const char* sentinel, const char* age);
 
     // "all" sentinel x multiple ages -- we don't have the vectors
-    HistorySelectorSet(const char* sentinel, std::vector<std::string> ages);
+    // HistorySelectorSet(const char* sentinel, std::vector<std::string> ages);
 
 private:
     static void validate_sentinel(const char* s);
@@ -433,6 +388,9 @@ void print_selected_histories(HistorySelectorSet spec,
 void serialize_selected_histories(HistorySelectorSet spec,
                                   const Histories& histories,
                                   std::filesystem::path output_path);
+void serialize_histories_new_way(const Histories& histories, 
+              std::vector<size_t> idxs,
+              std::filesystem::path output_path);
 void serialize_selected_histories(HistorySelectorSet spec,
                                   const Histories& histories,
                                   string base_fname,

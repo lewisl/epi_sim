@@ -12,11 +12,14 @@ namespace {
   vaccination, recovery from prior infection and the variant of the patient.
   The point here is that partial immunity should also reduce disease severity.
   If no partial immunity then nothing should change.
+
+  probvec is 0-indexed 0..5
   */
   void redistribute_probability(array<float, 6> &probvec, float riskfactor, uint8_t duration) {
       float tot_excess = 0.0f;
+      //                           4                  5                   6
       for (auto to_idx : {Progressmap::ToSick, Progressmap::ToSevere, Progressmap::ToDead}) {
-          float excess = probvec[std::to_underlying(to_idx)] * (1.0f - riskfactor);
+          float excess = probvec[(std::to_underlying(to_idx))] * (1.0f - riskfactor);
           probvec[std::to_underlying(to_idx)] -= excess;
           tot_excess += excess;
       }
@@ -25,8 +28,9 @@ namespace {
         probvec[std::to_underlying(Progressmap::ToRecover)] += tot_excess;  // on the last day, do we want to skew towards survival?
       } else {
         tot_excess /= 3.0f;
+        //                           1                     2                   3
         for (auto to_idx : {Progressmap::ToRecover, Progressmap::ToNil, Progressmap::ToMild}) {
-            probvec[std::to_underlying(to_idx)] += tot_excess;
+            probvec[(std::to_underlying(to_idx))] += tot_excess;
         }
       }
   }
@@ -41,18 +45,18 @@ namespace {
   void do_progression(AgentView person, Histories& histories,
                       const array<float, 6>& probvec, size_t today) {
 
-    uint8_t outcome = xo::categorical_fast(probvec);  // range is 0..5
+    uint8_t outcome = xo::categorical_fast(probvec);  // adjust range to 1-indexing
 
-    if (outcome == std::to_underlying(Progressmap::ToDead)) {  // for outcome == 5
+    if (outcome == std::to_underlying(Progressmap::ToDead)) {  
 
       person.make_dead(histories);
 
-    } else if (outcome == std::to_underlying(Progressmap::ToRecover)) {     // for outcome == 0
+    } else if (outcome == std::to_underlying(Progressmap::ToRecover)) {     
 
         person.make_well(histories);
         
-    } else {
-        person.cond() = static_cast<Condition>(outcome);  // this ONLY works because conds are 1..4 in Progressmap
+    } else {   // valid outcomes are 1..6. we need 2..5 mapped to 1..4
+        person.cond() = static_cast<Condition>(outcome) + uint8_t{1};  // this ONLY works because conds are 1..4 in Progressmap
         ++person.duration(); 
     }
   }
@@ -84,9 +88,10 @@ void progression(AgentView person, Histories& histories, const ProgressionSet& p
     const int16_t entry_idx =
         tree.entry_index[zidx(person.agegrp())][static_cast<size_t>(duration)];
     if (entry_idx != NO_PROGRESSION_ENTRY) {
-      // The source table remains immutable; this person's protection adjustments
-      // are applied to a local, allocation-free copy of the six outcomes.
-      auto probvec = tree.entries[static_cast<size_t>(entry_idx)][zidx(person.cond())];
+      // Transition rows represent the current infected condition: nil through severe.
+      // Condition IDs 0 (error) and 1 (uninfected) have no rows.
+      // Subtract 2 to map condition IDs 2..5 to matrix rows 0..3.
+      auto probvec = tree.entries[static_cast<size_t>(entry_idx)][person.cond() - uint8_t{2}];
 
       const float recoveff = recoveffect(person, today, p_variant, infectparams);
       float vaxeff = 1.0f;

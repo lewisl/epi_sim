@@ -27,12 +27,12 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
 
   RingTraits ringtraits{};
   Ring::names.clear();
-  if (do_rings) {
+  // if (do_rings) {       // TODO we should always load rings to handle special case of 1 is "population"
     if (rings_path.empty()) {
       throw std::runtime_error("do_rings is true but rings is not configured.");
     }
-    ringtraits = load_ring_traits(rings_path);
-  }
+    ringtraits = load_ring_traits(rings_path, do_rings);
+  // }
   
   // note the curly braces: this is initialization, NOT a call to the default constructor
   return ModelParams{
@@ -76,7 +76,7 @@ void assign_rings(PopData& pop, const std::vector<float>& pct_of_population) {
     for (size_t r = 0; r < nrings; ++r) {  // nrings is the guard on rings value out of bounds
       const int cnt = counts[r];
       for (int k = 0; k < cnt; ++k) {
-        pop.ring[idxs[cursor++]] = Ring(r + 1);  // we can use nidx(r)
+        pop.ring[idxs[cursor++]] = Ring(r + 1);  // we can use nidx(r).    TODO. this will be Ring(r) when all is fixed
       }
     }
   }
@@ -168,8 +168,7 @@ Model setup_sim(Config config)
       std::string case_label = config.case_label;
       fs::path seed = config.seed;
       fs::path social_dist = config.social_dist;
-
-      
+    
     ModelParams mp = setup_model_params(dovax,
         do_rings,
         config.geodata,  // convert filesystem::path objects to string
@@ -239,7 +238,6 @@ Model setup_sim(Config config)
 void install_runtime_trait_names(const Model& model) {
   Variant::names = model.mp.variant_names;
   Vax::names = model.mp.vaxset.names;
-  Ring::names = model.mp.ringtraits.ring_names;
 
   SDCase::names = {"none"};
   for (const auto& sd_case : model.sd_cases)

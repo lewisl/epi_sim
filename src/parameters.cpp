@@ -188,7 +188,7 @@ uint8_t parse_progression_day(std::string_view text, std::string_view variant,
 
 void validate_terminal_progression(const ProgressionTree& tree,
                                    std::string_view variant) {
-  for (size_t age_idx = 0; age_idx < PROGRESSION_AGE_COUNT; ++age_idx) {
+  for (size_t age_idx = 0; age_idx < Agegrp::count; ++age_idx) {
     const int16_t terminal_entry = tree.entry_index[age_idx][DURATIONLIM];
     if (terminal_entry == NO_PROGRESSION_ENTRY) {
       throw std::runtime_error(fmt::format(
@@ -264,7 +264,7 @@ ProgressionSet load_progression_set(json jdata) {
         }
       }
     } else {
-      array<bool, PROGRESSION_AGE_COUNT> seen_ages{};
+      array<bool, Agegrp::count> seen_ages{};
       size_t breakday_count = 0;
       for (const auto& [age, body_age] : jsontree.items()) {
         breakday_count += body_age.size();
@@ -297,7 +297,8 @@ ProgressionSet load_progression_set(json jdata) {
           OutcomesByCurrentCondition condition_rows{};
           for (size_t cond_idx = 0; cond_idx < PROGRESSION_CONDITION_COUNT;
                ++cond_idx) {
-            const auto key = Condition::names[cond_idx + 1];
+            // weird shift because conditions are virtual 1 indexed and we added "uninfected" as a valid condition
+            const auto key = Condition::names[cond_idx + 2]; 
             const auto& json_row = body_duration[key];
             if (!json_row.is_array() || json_row.size() != PROGRESSION_OUTCOME_COUNT) {
               throw std::runtime_error(fmt::format(
@@ -570,12 +571,17 @@ SocialParams load_social_params(string social_path) {
 //
 // ring traits
 //
-RingTraits load_ring_traits(string fpath) {
+RingTraits load_ring_traits(string fpath, bool do_rings) {
   RingTraits rt{};
   Ring::names.clear();
   Ring::count = 0;
-  vector<string> ring_names{""};
-  Ring::names = {""};
+  Ring::names = {"error"};
+
+  // setup instance v = 1 with names[1] = "population"q
+  if (!do_rings) {
+    Ring registered{std::string_view{"population"}};
+    return rt;
+  }
 
   json data = load_json_params(fpath);
   if (!data.contains("rings")) {
@@ -605,7 +611,6 @@ RingTraits load_ring_traits(string fpath) {
     if (std::find(Ring::names.begin(), Ring::names.end(), name) != Ring::names.end()) {
       throw std::runtime_error(fmt::format("rings: duplicate ring name '{}'.", name));
     }
-    ring_names.emplace_back(name);
 
     Ring registered{std::string_view{name}};
     if (static_cast<size_t>(registered.v) != n) {
@@ -659,7 +664,7 @@ RingTraits load_ring_traits(string fpath) {
     throw std::runtime_error(fmt::format(
         "rings: pct_of_population values must sum to 1.0 (got {}).", pct_sum));
   }
-  rt.ring_names = ring_names;
+  
   return rt;
 }
 

@@ -8,7 +8,7 @@
 #include <fmt/format.h> // only get what I use: about 12k in the executable!
 #include <fmt/ranges.h> // for printing containers like vector
 #include <fmt/ostream.h> // to use ostream file handles and << >> operators
-
+#include "absl/container/flat_hash_map.h"
 
 #include "helpers.h"
 
@@ -151,4 +151,11 @@ std::string make_timestamp_token() {
 std::string make_timestamped_filename(std::string basename) {
 
     return fmt::format("{}_{}", basename, make_timestamp_token());
+}
+
+template <typename K, typename V>
+V safe_at(absl::flat_hash_map<K,V> mp, K key) {
+  auto it = mp.find(key);
+  if (it != mp.end()) return it->second;
+  else throw std::range_error(fmt::format("Key {} not found.", key));
 }

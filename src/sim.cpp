@@ -42,6 +42,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   vector<SocialDistancing> & sd_cases = model.sd_cases;
   vector<double> & age_dist = model.age_dist;
   install_runtime_trait_names(model);   // set names vectors for compile time traits
+
   // override dovax=true if any vax parameters within ModelParameters instance mp are empty
   if ((Vax::names.size() <= 1) | (mp.vaxset.size() == 0) | (mp.vaxschedset.size() == 0))
         model.dovax = false;
@@ -49,12 +50,8 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // seed the random number generator
   xo::seed(99999);  // have used 12345
 
-  const size_t real_variant_count = Variant::names.size() - 1;
-  const size_t real_vax_count = !model.dovax || Vax::names.empty()
-                              ? 0 : Vax::names.size() - 1;
-  const size_t real_ring_count = !model.do_rings || Ring::names.empty()
-                               ? 0 : Ring::names.size() - 1;
   Histories histories(model.ndays, pop);
+
 
   // reset day counter to zero
   sim::reset_day();
@@ -90,7 +87,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     sim::ds.day = sim::get_day();
 
     sim::history_timing.start();
-    histories.init_history_series(d_i);  // why can't we do this when we build the history_series?
+    histories.init_history_newday(d_i); 
     sim::history_timing.cum();
 
     // run beginning of day seed cases
@@ -165,10 +162,10 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   // update total history columns
    histories.sum_total_histories();
 
-    auto unexp = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,1}]].data[180];
-    auto sick = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,2}]].data[180];
-    auto recov = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,3}]].data[180];
-    auto died = histories.history_vectors_[histories.sim_totals_map[Seltot{0,0,4}]].data[180];
+    auto unexp = histories.history_vectors_[histories.sim_totals_map.at(Seltot{TraitID::status, Phase::now, tr_val_to_id(TraitID::status,"unexposed")})].data[model.ndays];
+    auto sick = histories.history_vectors_[histories.sim_totals_map.at(Seltot{TraitID::status, Phase::now, tr_val_to_id(TraitID::status,"infectious")})].data[model.ndays];
+    auto recov = histories.history_vectors_[histories.sim_totals_map.at(Seltot{TraitID::status, Phase::now, tr_val_to_id(TraitID::status,"recovered")})].data[model.ndays];
+    auto died = histories.history_vectors_[histories.sim_totals_map.at(Seltot{TraitID::status, Phase::now, tr_val_to_id(TraitID::status,"dead")})].data[model.ndays];
 
 
   //================================================
@@ -209,29 +206,55 @@ void post_simulation(Model & model, Histories  & histories) {
 
   // write series + PopData columns to csv (skipped in headless runs)
   const std::string output_timestamp = model.headless ? std::string{} : make_timestamp_token();
+
   if (!model.headless) {
     if (model.output_dir.empty()) {
       throw std::runtime_error("Model output_dir is not configured.");
     }
     std::filesystem::create_directories(model.output_dir);
 
+
+    // test the new way of serializing
+    const std::string ring = Ring::names[1];
+    auto history_idxs = histories.select_indices(
+       {{"now", "unexposed", "age20_39", "status", ring},
+        {"new_", "unexposed", "age20_39", "status", ring},
+        {"now", "infectious", "age20_39", "status", ring}, 
+        {"new_", "infectious", "age20_39", "status", ring},
+        {"now", "dead",      "age20_39", "status", ring},
+        {"new_", "dead",       "age20_39", "status", ring},
+        {"now", "recovered", "age20_39", "status", ring},
+        {"new_", "recovered", "age20_39", "status", ring},
+        {"now", "base", "age20_39",    "variant", ring},
+        {"new_", "base", "age20_39",    "variant", ring}}
+      );
+
+    serialize_histories_new_way(histories, history_idxs,
+      case_artifact_path(model, "selected_series", output_timestamp, "csv"));
+
     // total values for status selected with string literals
-    serialize_selected_histories(
-        {{"now", "infectious", "total"}, 
-        {"new_", "infectious", "total"},
-        {"new_", "dead",       "total"},
-        {"now", "dead",       "total"}},
-      histories, case_artifact_path(model, "series", output_timestamp, "csv"));
+    // serialize_selected_histories(
+    //     {{"now", "infectious", "total"}, 
+    //     {"new_", "infectious", "total"},
+    //     {"new_", "dead",       "total"},
+    //     {"now", "dead",       "total"}},
+    //   histories, case_artifact_path(model, "series", output_timestamp, "csv"));
+
+    // serialize all using the new way
+    history_idxs = histories.select_indices({}, "all");
+    serialize_histories_new_way(histories, history_idxs,
+      case_artifact_path(model, "all_series", output_timestamp, "csv"));
+
 
     // all series columns with materialized totals
-    serialize_selected_histories(
-        HistorySelectorSet("all"),
-      histories, case_artifact_path(model, "all_series", output_timestamp, "csv"));
+    // serialize_selected_histories(
+    //     HistorySelectorSet("all"),
+    //   histories, case_artifact_path(model, "all_series", output_timestamp, "csv"));
 
-    // all series columns, totals only
-    serialize_selected_histories(
-        HistorySelectorSet("all", "total"),
-      histories, case_artifact_path(model, "all_total_series", output_timestamp, "csv"));
+    // all series columns, totals only -> no longer working with sentinel overrides commented out
+    // serialize_selected_histories(
+    //     HistorySelectorSet("all", "total"),
+    //   histories, case_artifact_path(model, "all_total_series", output_timestamp, "csv"));
 
 
     pop_to_csv(pop, pop.all_idx, "all",
@@ -239,6 +262,23 @@ void post_simulation(Model & model, Histories  & histories) {
   }
 
   SummaryData sumstruct = print_summary(pop); fmt::println("");
+
+
+  //==========================================================
+  // series output diagnostics
+  //==========================================================
+
+  // look at whatis in histories.history_vectors_[].meta
+  // size_t n = 30;
+  // size_t o = 270;
+  // fmt::println("history meta output label {}: \n {}", n,
+  //   histories.history_vectors_[n].meta.output_label);
+  // fmt::println("history meta output label {}: \n {}", o,
+  //   histories.history_vectors_[o].meta.output_label);
+
+  //==========================================================
+  //==========================================================
+
 
   //
   // create and output plots

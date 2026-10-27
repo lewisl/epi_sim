@@ -72,7 +72,6 @@ struct GeoData {
 };
 
 
-
 struct InfectParams {
   vector<float> sendrisk{};
   vector<float> recvrisk{};
@@ -80,7 +79,6 @@ struct InfectParams {
   float basemultiplier{1.0};
   int immunehalflife {0};
 };
-
 
 
 struct ProgressionFactors {  // for one variant
@@ -120,8 +118,6 @@ struct ProgressionFactors {  // for one variant
   }
 };
 
-// inline const size_t PROGRESSION_AGE_COUNT = Agegrp::names.size() - 1;
-inline constexpr size_t PROGRESSION_AGE_COUNT = Agegrp::count - 1;
 // inline const size_t PROGRESSION_CONDITION_COUNT = Condition::names.size() - 1;
 inline const size_t PROGRESSION_CONDITION_COUNT = Condition::count - 1;
 inline constexpr size_t PROGRESSION_OUTCOME_COUNT = magic_enum::enum_count<Progressionmap>();
@@ -134,7 +130,7 @@ using OutcomesByCurrentCondition =
 
 struct ProgressionTree {
   // Direct [zero-based age][duration] lookup into packed entries. Day 0 is unused.
-  array<array<int16_t, PROGRESSION_DAY_COUNT>, PROGRESSION_AGE_COUNT> entry_index{};
+  array<array<int16_t, PROGRESSION_DAY_COUNT>, Agegrp::count> entry_index{};
   vector<OutcomesByCurrentCondition> entries{};
 
   ProgressionTree() {
@@ -159,7 +155,7 @@ struct Progression { // for one variant
       return;
     }
 
-    for (size_t age_idx = 0; age_idx < PROGRESSION_AGE_COUNT; ++age_idx) {
+    for (size_t age_idx = 0; age_idx < Agegrp::count; ++age_idx) {
       fmt::println("    Age group: {}", Agegrp::names[age_idx + 1]);
       bool has_breakday = false;
 
@@ -314,7 +310,6 @@ struct PerVaxSpec {
     }
   }
 };
-
 
 
 struct VaxSched {
@@ -535,7 +530,7 @@ VaxSchedSet load_vax_sched_set(const string &dirpath);
 
 SocialParams load_social_params(string social_path);
 
-RingTraits load_ring_traits(string fpath);
+RingTraits load_ring_traits(string fpath, bool do_rings);
 
 // Helper function to print infectparams
 void print_infectparams(const vector<InfectParams>& infectparams, const vector<Variant>& variants);

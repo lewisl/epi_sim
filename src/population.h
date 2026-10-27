@@ -51,7 +51,7 @@ class PopData {
             agegrp(age_distribution(n, agegrp_parts)), // assign realized age buckets from apportioned counts
             cond(n+1, UNINFECTED), duration(n+1, Duration{0}),
             variant(n+1), variant_hist(n+1), sickday(n+1, Sickday{0}), sickday_hist(n+1),
-            recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, Ring{}),
+            recovday(n+1, Recovday{0}), recovday_hist(n+1), deadday(n+1, Deadday{0}), ring(n+1, Ring{1}), // Ring is 1 to default to "population" when multiple segregated rings are NOT being used
             sdcase(n+1), testday(n+1, Testday{0}), testday_hist(n+1), quar(n+1, 0), quarday(n+1, Quarday{0}),
             vaxstatus(n+1, Vaxstat::none), vax(n+1), vax_hist(n+1), vaxday(n+1, Vaxday{0}), vaxday_hist(n+1) 
           {
@@ -111,7 +111,7 @@ class PopData {
     vector<int> apportion(int n, vector<float> splits) {
       assert(n > 0);
       assert(splits.size() > 0);
-      assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0), 1.0));
+      assert(approx_equal(std::accumulate(splits.begin(), splits.end(), 0.0), 1.0, 1e-6));
 
       // std::cout << "\n=== APPORTION DEBUG (n=" << n << ") ===\n";
 

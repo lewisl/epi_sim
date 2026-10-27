@@ -108,6 +108,7 @@ void AgentView::make_well(Histories& histories) {    // the object is person--th
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
+  // should we use the Status enum values?
   histories.update(TraitID::status, Phase::now, RECOVERED, r, this_age, today, 1);
   histories.update(TraitID::status, Phase::new_, RECOVERED, r, this_age, today, 1);
   histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, today, -1);

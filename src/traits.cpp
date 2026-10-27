@@ -51,7 +51,7 @@ inline constexpr std::array trait_table{
 std::string_view tr_val_to_string(TraitID id, uint8_t v) {
   auto tbl_idx = std::to_underlying(id);
   if (tbl_idx < 1 || tbl_idx > trait_table.size() - 1) 
-    throw std::out_of_range("trait id out of range");
+    throw std::out_of_range("trait id out of range to string");
   const auto& e = trait_table[std::to_underlying(id)];
   if (v < 1 || v > e.count - 1) throw std::out_of_range("index to trait value out of range");
   return e.names[v];
@@ -64,7 +64,7 @@ uint8_t tr_val_to_id(TraitID id, std::string_view name) {
 
 uint8_t tr_val_to_id(uint8_t id, std::string_view name) {
   if (id < 1 || id > trait_table.size() - 1) 
-    throw std::out_of_range("trait id out of range");
+    throw std::out_of_range("trait id out of range to id");
   const auto& e = trait_table[id];
   for (uint8_t i = 0; i <= e.count; ++i)
     if (e.names[i] == name) return i;
