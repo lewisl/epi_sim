@@ -1,5 +1,148 @@
 # Session Notes
 
+## 2026-10-28: stopping checkpoint and priorities
+
+- User is done for now. Finish simulation accounting before starting new
+  pathogen-behavior kernels or distribution packaging.
+- History evidence this session: case-2 full and split totals matched atomic
+  sources for all 850 days (176800 comparisons); one-ring attachment's 182
+  totals-map keys all referenced the intended existing columns. Duplicate
+  split-total CSV labels were traced to output_label not being regenerated
+  in both builder loops. Do not infer every accounting issue is resolved.
+- Next scoped implementation remains deferred: follow
+  design/vaccine_loader_case_reset_plan.md to move dovax handling inside
+  vaccine initialization paths and reset names/count before early return.
+  Preserve registries for subsequent inspection of the active model.
+  Until then, quit and restart between cases.
+- User favors eventual distribution as a downloadable directory containing
+  everything needed. They have setup recommendations from external chats,
+  not supplied here. Packaging details are undecided; no packaging or kernel
+  implementation requested or performed.
+- This stopping update changes SESSION.md only; no builds or tests run.
+
+## 2026-10-28: vaccine loader reset work deferred to next week
+
+- User requests a Markdown handoff only; no implementation now. Plan saved
+  in design/vaccine_loader_case_reset_plan.md. Interim workaround: quit and
+  restart between cases; user considers that inexpensive.
+- Preferred scoped fix supersedes the broad reset proposal below: call both
+  vaccine initialization paths every setup, passing dovax into the loaders.
+  Initialize static names/count before returning empty data when disabled;
+  skip vaccine JSON and schedule directory access. Reset count on enabled
+  reloads too. Local result objects were already recreated; statics were not.
+- Preserve runtime registries for the active model and subsequent inspection
+  commands. R0 retained-model registry restoration is a separate follow-up.
+- Documentation only; no product or test changes, builds, simulation runs,
+  commits or pushes.
+
+## 2026-10-28: TUI case independence discussion
+
+- run_case and run_dir already destroy active_model and result_histories
+  before constructing a fresh model. Persistent static/thread-local globals
+  survive those resets: trait registries/counts, simulation state and RNG.
+- Recommend complete initialization at a shared model/setup boundary before
+  loaders, including disabled optional features; synchronize registry names
+  and counts and reset loader counts before re-registering entries.
+- runsim reseeds RNG after model construction; PopData and assign_rings use
+  the same generator during setup, so reproducible case independence also
+  requires a deliberate seed policy before those draws, not only in runsim.
+- Fresh subprocess per case gives process-memory isolation but would need
+  integration for the TUI's retained in-memory model/histories. Model-owned
+  runtime registries are the longer-term route for multiple retained models.
+- Proposed validation: compare standalone case-1/case-2 with TUI sequences
+  case-2 -> case-1 -> case-2 and repeated identical cases. Discussion only;
+  no product changes or tests. Serena native tools unavailable; source review.
+
+## 2026-10-28: one-ring attachment aliases correct; disabled-vaccine counts stale
+
+- Parsed latest attachment bbdabeb8 Pasted text.txt: 156 consecutive physical
+  columns, 130 atomic and 26 full totals. Trait counts: status 40+8, vaccine
+  30+6, variant 60+12. No split-total physical columns in the listing.
+- All 182 distinct totals-map keys point to the correct listed columns:
+  26 full-total keys, 130 age-specific aliases to atomic columns, 26
+  single-ring aliases to the full totals. Zero mapping mismatches.
+- Current case-1/input/config.json has dovax=false and do_rings=false.
+  Without vaccine histories, intended counts are 100 atomic + 20 full =120
+  physical columns and 140 totals-map keys, not 130+20=150.
+- Source shows a cross-run registry defect: load_vax_data clears names but
+  never resets Vax::count; setup_model_params skips that loader when dovax
+  is false; install_runtime_trait_names updates Vax::names but not count.
+  Histories counts/builds vaccine columns from Vax::count regardless of
+  model.dovax. A previous vaccinated run can therefore leave count=3 in the
+  next unvaccinated run; after names becomes {none}, builder can also index
+  names out of bounds. Exact runtime state not independently reproduced.
+- Review only. Serena native tools unavailable; direct caller/type/loader
+  trace and attachment validation. No product edits, builds or test runs.
+
+## 2026-10-28: case-2 split totals verified; duplicate CSV labels hide them
+
+- Reviewed supplied case-2_all_series_20261028T114317.csv read-only: 850 days,
+  468 physical columns = 260 atomic + 26 full totals + 130 all-ring totals
+  per age + 52 all-age totals per ring. 26 trait/phase/value groups.
+- All 208 total columns match independently summed atomic sources on all
+  850 days: 176800 exact comparisons, zero mismatches. Mapped total-column
+  meaning from current build_history_vectors physical insertion order.
+- CSV labels for each group's eight total columns all say total|total.
+  build_history_vectors sets hm.output_label for the full total, then changes
+  hm.age/hm.ring for the two multi-ring split loops without regenerating
+  that string before copying HistoryMeta into the new columns (src/series.cpp
+  lines 207-227). serialize_histories_new_way prints meta.output_label verbatim.
+- Current sum_total_histories has both source filters and writes totals_idx;
+  the supplied file supports correct full and split summation.
+- Suggested targeted correction: regenerate hm.output_label after setting
+  split metadata and before emplace_back in each of the two multi-ring loops.
+  User owns implementation. No product/CSV edits, builds, tests, or simulation
+  reruns. Serena native tools still absent; direct source and Node CSV checks.
+
+## 2026-10-28: Serena configuration repaired and removed from Git tracking
+
+- Today's native MCP startup log failed with KeyError: 'languages'. Installed
+  Serena 1.6.1 requires languages, but .serena/project.yml had language_servers.
+  Changed that key to languages, retaining cpp and the existing settings.
+- Configured clangd exists; workspace is the project root, with no additional
+  workspace folders. No missing-directory cause established. Global Codex
+  configuration has no SERENA_HOME or XDG_CACHE_HOME override.
+- .gitignore already had .serena; clarified it as .serena/. Ran
+  git rm -r --cached -- .serena with approval: all three tracked files are
+  staged for removal from Git, while local files remain present and ignored.
+- serena project health-check . passed (symbols, lookup, references, pattern
+  search). Initial sandbox run blocked external clangd cache writes; approved
+  rerun passed without those errors. Log: /private/tmp/epi-serena-health-check.log.
+- Current chat still exposes no native Serena tools; reconnect the MCP server
+  or restart Codex to load the repaired server. No global config changes,
+  application changes, builds, simulation runs, commits or pushes.
+
+## 2026-10-28: revised totals loop reviewed
+
+- User owns implementation; review only. Current sum_total_histories loops
+  sim_totals_map destinations, then days and positive source ages/rings.
+- Full totals correctly sum all atomic columns for matching trait/phase/value.
+  Multi-ring split totals currently get the same full sum because source
+  loops never restrict the concrete age or ring specified by the destination.
+- For each source dimension, sentinel 0 means include all; a concrete
+  destination age/ring means include only that coordinate. One common source
+  loop can handle all three destination shapes by enforcing those restrictions.
+- Existing outer condition correctly skips one-ring alias keys, preserving
+  atomic columns and avoiding duplicate calculation of the full-total alias.
+- Destination mapped index is already available as structured-binding value.
+  Serena unavailable; direct source/type/caller review. No product edits,
+  builds, tests, or simulation runs.
+
+## 2026-10-28: current totals calculation reaches a missing atomic map key
+
+- Inspection only; user reports an Abseil map at() error without runtime output.
+- src/series.cpp:448 calls the five-argument Histories::at overload from
+  sum_total_histories with ring=0 and age=0. That overload calls
+  history_vector_idx with total defaulting to false, reaching
+  sim_history_map.at at src/series.h:252. Atomic keys are built only for
+  positive ring/age IDs, so this lookup cannot succeed in a normal run.
+- The preceding sim_totals_map.find checks a different map and does not
+  validate that atomic lookup. Source summation needs concrete ring/age
+  coordinates; switching this read to a total would read its destination.
+- Serena unavailable in this session; direct source/constructor/overload trace.
+  No runtime reproduction, product edits, builds, or tests. Original reported
+  runtime location remains unconfirmed without the command/output or backtrace.
+
 ## 2026-10-27: latest one-ring pasted aliases all map correctly
 
 - Latest attachment has no vaccine columns: 20 trait/phase/value groups,

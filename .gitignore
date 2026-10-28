@@ -15,5 +15,6 @@ tempCode*
 .codegraph
 .kilo
 .claude
-.serena
+# Serena configuration and caches are local to each machine.
+.serena/
 .pi

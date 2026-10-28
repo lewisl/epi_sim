@@ -1,12 +1,12 @@
 ## TODO
+- update sum_total_histories to sum split totals and revise/simpify overall approach.  must complete
+     before getting rid of the old crap
 - purge materialize_history_vector and everything associated with on-the-fly history totals.
     - Includes all of the resolve_history_source, etc. functions
     - remove usage from serialization, printing and plotting
-- make all traits 1-indexed:  0 will be "error". names[1] will be the first valid value of a trait.
 - distribution packaging
 - revise readme for credibility
 - user documentation
-
 - should we ahve more consistency of structure for json files? should we have the category as the top key?  should we have a name descriptor?
 - 2nd shot/booster should probabilistically substitute an alternate brand when the person's own brand is out of stock, instead of just skipping them that day (check Julia code for correct behavior)
 - fix cumbersome seedcase code?
@@ -26,6 +26,8 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- build all history vectors including full totals and split totals
+- make all traits 1-indexed:  0 will be "error". names[1] will be the first valid value of a trait.
 - replace trait_phase_base calculation based on trait-phase strides calculated.  GET RID OF IT.  create index list of Tracked_Traits cumulative columns (phase == now) using the sim_history_map
 - simplified ring.  ring 0 is error, ring 1 is default for population with do_rings == false; 1 is real ring input for do_rings == true.
 - minor: csv/serialization labels omit "population" as a ring label when there is 1 (e.g., none) ring for the entire population

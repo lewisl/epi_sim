@@ -209,6 +209,8 @@ void Histories::build_history_vectors(bool for_totals) {
               hm.agenum = HISTORY_AGE_TOTAL;  
               hm.ring = Ring::names[ring_i];
               hm.ringnum = ring_i;
+              hm.output_label = fmt::format("{}|{}|{}|{}|{}", 
+                hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
               seltot.ring = ring_i;
               seltot.age = HISTORY_AGE_TOTAL;
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
@@ -221,6 +223,8 @@ void Histories::build_history_vectors(bool for_totals) {
               hm.agenum = age_i;  
               hm.ring = "total";
               hm.ringnum = RING_ALL;
+              hm.output_label = fmt::format("{}|{}|{}|{}|{}",
+                hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
               seltot.ring = RING_ALL;
               seltot.age = age_i;
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
@@ -414,31 +418,86 @@ std::optional<HistorySelector> Histories::describe_history_vector(size_t history
 }
 
 void Histories::sum_total_histories() {
-  // use aggregate_value function
-  const std::array trait_value_counts{
-        Status::count, Vax::count, Variant::count};
-  size_t trnum;
-  size_t phasenum;
-  Seltot seltot;
-  for (auto tr_enum : Tracked_Traits ) {
-    trnum = size_t(tr_enum);
-    seltot.trait= std::to_underlying(tr_enum);
-    // fmt::println("tr_enum underlying {}", std::to_underlying(tr_enum));
-    for (auto ph_num : all_phases) {
-      phasenum = size_t(ph_num);
-      seltot.phase = phasenum;
-      for (size_t trval_num = 1; trval_num <= trait_table[trnum].count ; ++trval_num) {
-        seltot.trval=trval_num;
-        // fmt::println("sum_total_histories: seltot {}", seltot);
-        auto& destination = sim_totals_map.at(seltot);  // this throws if the key doesn't exist
-        for (auto di = 1; di <= day_cnt; ++di) {
-          // HistoryValue v = aggregate_value(tr_enum, ph_num, trval_num, di);
-          history_vectors_[sim_totals_map[seltot]].data[di] = aggregate_value(tr_enum, ph_num, trval_num, di);;
-        }
-      }
-    }
-  }
+  Selsim selsim;  // selector for source history vectors
+  // iterate over destination vectors
+  for (auto [totals_key, totals_idx] : sim_totals_map) {
+
+    if (Ring::count == 1 && (totals_key.age != HISTORY_AGE_TOTAL || totals_key.ring != RING_ALL))
+    continue; // skip split total summing with only 1 ring: we re-use other vectors
+
+    selsim.trait = totals_key.trait; selsim.phase = totals_key.phase; selsim.trval = totals_key.trval;
+
+    for (size_t d_i = 1; d_i <= day_cnt; ++d_i) {
+      HistoryValue result = 0;
+      for (uint8_t age_i = 1; age_i <= Agegrp::count; ++age_i) {
+        if (totals_key.age != HISTORY_AGE_TOTAL && age_i != totals_key.age) continue;
+        selsim.age = age_i;
+
+        for (uint8_t ring_i = 1; ring_i <= Ring::count; ++ring_i) {
+          if (totals_key.ring != RING_ALL && ring_i != totals_key.ring) continue;
+          selsim.ring = ring_i;
+          auto it = sim_history_map.find(selsim);
+          if (it == sim_history_map.end()) 
+            throw std::range_error(fmt::format("Source vector for history {} doesn't exist.", selsim));
+          result += history_vectors_[it->second].data[d_i];
+        } // source ring loop
+          
+      } // source age loop 
+      history_vectors_[totals_idx].data[d_i] = result;
+    } // day loop
+  } // vector in totals loop
 }
+
+// void Histories::sum_total_histories() {
+  // use aggregate_value function
+//   const std::array trait_value_counts{
+//         Status::count, Vax::count, Variant::count};
+//   size_t trnum;
+//   size_t phasenum;
+//   Seltot seltot;
+//   for (auto tr_enum : Tracked_Traits ) {
+//     trnum = size_t(tr_enum);
+//     seltot.trait= std::to_underlying(tr_enum);
+
+//     for (auto ph_num : all_phases) {
+//       phasenum = size_t(ph_num);
+//       seltot.phase = phasenum;
+
+//       for (size_t trval_num = 1; trval_num <= trait_table[trnum].count ; ++trval_num) {
+//         seltot.trval=trval_num;
+
+//         for (size_t day = 1; day <= day_cnt; ++day) {
+//           HistoryValue result = 0;
+
+//           for (size_t ring_i = 0; ring_i <= Ring::count; ++ring_i) {
+//             const uint8_t ring = static_cast<uint8_t>(ring_i);
+
+//             for (size_t age = 0; age <= Agegrp::count; ++age) {
+//               // full total: both age and ring have total sentinel
+//               if (age == HISTORY_AGE_TOTAL && ring == RING_ALL) {
+//                 seltot.age = age; seltot.ring = ring;
+//                 auto it = sim_totals_map.find(seltot);  
+//                 if (it == sim_totals_map.end()) 
+//                   throw std::range_error(
+//                   fmt::format("Destination vector for history total {} doesn't exist.", seltot));
+//                 result += at(tr_enum, ph_num, trval_num, Agegrp{static_cast<uint8_t>(age)}, ring_i)[day];
+//               }
+//               else {
+//                 if (Ring::count > 1) {}
+//               }
+//             }
+//           }
+//           history_vectors_[sim_totals_map[seltot]].data[day] = result;
+
+//           // auto& destination = sim_totals_map.at(seltot);  // this throws if the key doesn't exist
+//           // for (auto di = 1; di <= day_cnt; ++di) {
+
+//           //   history_vectors_[sim_totals_map[seltot]].data[di] = aggregate_value(tr_enum, ph_num, trval_num, di);;
+//         }
+//       }
+//     }
+//   }
+// }
 
 std::string Histories::explain_history_vector_idx(
     TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
