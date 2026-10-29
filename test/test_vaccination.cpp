@@ -14,7 +14,7 @@ Histories make_series(const PopData& pop, size_t day_cnt) {
   return Histories(day_cnt, pop);
 }
 
-HistoryValue total(const Histories& histories, Trait trait, Phase phase,
+HistoryValue total(const Histories& histories, TraitID trait, Phase phase,
                    uint8_t trait_value, size_t day) {
   return histories.aggregate_value(trait, phase, trait_value, day);
 }

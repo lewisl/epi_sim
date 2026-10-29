@@ -359,7 +359,6 @@ struct HistorySelectorSet {
     // HistorySelectorSet(const char* sentinel, std::vector<std::string> ages);
 
 private:
-    static void validate_sentinel(const char* s);
     static std::vector<HistorySelector> build_for_ages(
         const std::vector<std::string>& ages);
 };
