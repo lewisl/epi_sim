@@ -64,9 +64,11 @@ uint8_t tr_val_to_id(TraitID id, std::string_view name) {
 
 uint8_t tr_val_to_id(uint8_t id, std::string_view name) {
   if (id < 1 || id > trait_table.size() - 1) 
-    throw std::out_of_range("trait id out of range to id");
-  const auto& e = trait_table[id];
-  for (uint8_t i = 0; i <= e.count; ++i)
-    if (e.names[i] == name) return i;
+    throw std::out_of_range("trait id out of range of the trait_table.");
+  const auto& trait = trait_table[id];
+  if (trait.count == 0) 
+    throw std::out_of_range("trait name selected for a trait with no members.");
+  for (uint8_t i = 0; i <= trait.count; ++i)
+    if (trait.names[i] == name) return i;
   throw std::invalid_argument(fmt::format("unknown name {} for trait value {}", name, static_cast<uint8_t>(id)));
 }

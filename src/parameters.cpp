@@ -375,68 +375,69 @@ std::optional<Vax> find_vax(std::string_view name) {
 
 }  // namespace
 
-VaxSet load_vax_data(string fpath) {
+VaxSet load_vax_data(string fpath, bool dovax) {
   VaxSet vaxset{};
-
-  json vaxdata = load_json_params(fpath); // read data from json file input
 
   // 2 different but parallel use of vax names:
   Vax::names.clear();  // static in the struct with multiple instances sharing static member
+  Vax::count = uint16_t(0);
   vaxset.names.clear();  // instance variable vaxset updating "local" names member
-  Vax::names.emplace_back("none");
-  vaxset.names.emplace_back("none");
-  vaxset.params.clear();
-  vaxset.params.emplace_back(Vaxparam{});
+  if (dovax) {
+    json vaxdata = load_json_params(fpath); // read data from json file input
+    Vax::names.emplace_back("none");
+    vaxset.names.emplace_back("none");
+    vaxset.params.clear();
+    vaxset.params.emplace_back(Vaxparam{});
 
-  // for each vax
-  for (const auto &[vaxname, body] : vaxdata.items()) {  
-    const Vax vax{vaxname};  // create a Vax trait instance
-    vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
-    (void)vax;
+    // for each vax
+    for (const auto &[vaxname, body] : vaxdata.items()) {  
+      const Vax vax{vaxname};  // create a Vax trait instance
+      vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
+      (void)vax;
 
-    Vaxparam vx {};  // details for one vaccine
-    // load items for each vax into struct
-    vx.reqdshots = body["reqdshots"];
-    vx.delay2ndshot = body["delay2ndshot"];
-    vx.delaybooster = body["delaybooster"];
-    vx.halflife = body["halflife"];
-    vx.full_effect_days = body["full_effect_days"];
-    vx.day1_effect = body["day1_effect"];
+      Vaxparam vx {};  // details for one vaccine
+      // load items for each vax into struct
+      vx.reqdshots = body["reqdshots"];
+      vx.delay2ndshot = body["delay2ndshot"];
+      vx.delaybooster = body["delaybooster"];
+      vx.halflife = body["halflife"];
+      vx.full_effect_days = body["full_effect_days"];
+      vx.day1_effect = body["day1_effect"];
 
-    // infectfactor vector
-    /*
-    infectfactor vector contains factors for 
-    Variants[1..] with no 0th position for "none".  
-    so to access it using zero based indexing,
-     where 0th index accesses the first variant's factor.
-     Used in disease_modeling.cpp functions.
-    */
-    for (const auto &variantname : Variant::names) {
-      if (body["infectfactor"].contains(variantname) )
-        vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
-      else
-        if (variantname != "none")
-          fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
-              vaxname, variantname);
-    }
-
-    // effectiveness vector of vector
-    for (size_t shot_idx = 1; shot_idx < Vaxstatus::names.size(); ++shot_idx) {
-      const auto& shot = Vaxstatus::names[shot_idx];
-      vector<std::pair<string, float>> variant_effectiveness {};
+      // infectfactor vector
+      /*
+      infectfactor vector contains factors for 
+      Variants[1..] with no 0th position for "none".  
+      so to access it using zero based indexing,
+      where 0th index accesses the first variant's factor.
+      Used in disease_modeling.cpp functions.
+      */
       for (const auto &variantname : Variant::names) {
-        if (body["effectiveness"][shot].contains(variantname))
-          variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
-        else 
+        if (body["infectfactor"].contains(variantname) )
+          vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
+        else
           if (variantname != "none")
-            fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
-                vaxname, shot, variantname);
-      };
-      vx.effectiveness.emplace_back(shot, variant_effectiveness);
-    }
-    vaxset.params.push_back(vx);
-  }
+            fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
+                vaxname, variantname);
+      }
 
+      // effectiveness vector of vector
+      for (size_t shot_idx = 1; shot_idx < Vaxstatus::names.size(); ++shot_idx) {
+        const auto& shot = Vaxstatus::names[shot_idx];
+        vector<std::pair<string, float>> variant_effectiveness {};
+        for (const auto &variantname : Variant::names) {
+          if (body["effectiveness"][shot].contains(variantname))
+            variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
+          else 
+            if (variantname != "none")
+              fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
+                  vaxname, shot, variantname);
+        };
+        vx.effectiveness.emplace_back(shot, variant_effectiveness);
+      }
+      vaxset.params.push_back(vx);
+    }
+  }
   return vaxset;
 };
 
@@ -505,37 +506,39 @@ VaxSched load_vax_sched(const string &fname) {
   return sched;
 }
 
-VaxSchedSet load_vax_sched_set(const string &dirpath) {
+VaxSchedSet load_vax_sched_set(const string &dirpath, bool dovax) {
   namespace fs = std::filesystem;
 
   VaxSchedSet schedset{};
-  vector<fs::path> schedule_files;
 
-  if (!fs::exists(dirpath)) {
-    throw std::runtime_error("Vaccine schedule directory does not exist: " + dirpath);
-  }
-  if (!fs::is_directory(dirpath)) {
-    throw std::runtime_error("Vaccine schedule path is not a directory: " + dirpath);
-  }
+  if (dovax) {
+    vector<fs::path> schedule_files;
 
-  for (const auto& entry : fs::directory_iterator(dirpath)) {
-    if (entry.is_regular_file() && entry.path().extension() == ".json") {
-      schedule_files.push_back(entry.path());
+    if (!fs::exists(dirpath)) {
+      throw std::runtime_error("Vaccine schedule directory does not exist: " + dirpath);
+    }
+    if (!fs::is_directory(dirpath)) {
+      throw std::runtime_error("Vaccine schedule path is not a directory: " + dirpath);
+    }
+
+    for (const auto& entry : fs::directory_iterator(dirpath)) {
+      if (entry.is_regular_file() && entry.path().extension() == ".json") {
+        schedule_files.push_back(entry.path());
+      }
+    }
+
+    std::sort(schedule_files.begin(), schedule_files.end());
+
+    for (const auto& path : schedule_files) {
+      string sched_name = path.stem().string();
+      auto it = std::find_if(schedset.schedules.begin(), schedset.schedules.end(),
+                            [&](const auto& entry) { return entry.first == sched_name; });
+      if (it != schedset.schedules.end()) {
+        throw std::runtime_error("Duplicate vaccine schedule name from filename stem: " + sched_name);
+      }
+      schedset.schedules.emplace_back(sched_name, load_vax_sched(path.string()));
     }
   }
-
-  std::sort(schedule_files.begin(), schedule_files.end());
-
-  for (const auto& path : schedule_files) {
-    string sched_name = path.stem().string();
-    auto it = std::find_if(schedset.schedules.begin(), schedset.schedules.end(),
-                           [&](const auto& entry) { return entry.first == sched_name; });
-    if (it != schedset.schedules.end()) {
-      throw std::runtime_error("Duplicate vaccine schedule name from filename stem: " + sched_name);
-    }
-    schedset.schedules.emplace_back(sched_name, load_vax_sched(path.string()));
-  }
-
   return schedset;
 }
 

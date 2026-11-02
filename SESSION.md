@@ -1,5 +1,40 @@
 # Session Notes
 
+## 2026-11-01: vaccine holdover fix reviewed; stopping checkpoint
+
+- User implemented the vaccine-loader reset in parameters.cpp/.h and
+  setup.cpp. Both vaccine loaders now run on every setup and receive dovax.
+  load_vax_data clears static names and resets Vax::count before the flag
+  check, including enabled reloads. Disabled loading returns empty vaccine
+  and schedule data without reading vaccine JSON or accessing the schedule
+  directory. Simulation dovax remains false for disabled cases.
+- User ran case-1 -> case-2 -> case-1 in one process and reports correct
+  total series for both cases, with no vaccine holdover into case-1. This
+  is user-reported validation; no independent simulation comparison here.
+- Unlike the earlier plan, disabled loading leaves both vaccine name
+  vectors empty rather than preserving a "none" sentinel. Count-based
+  history construction skips vaccine columns when count is zero;
+  Vax::show() checks bounds and safely handles an empty registry.
+- Review identified tr_val_to_id's inclusive loop accessing names[0] even
+  with count zero when an explicit vaccine selection reaches it. Built-in
+  cases requested existing values and did not exercise this invalid lookup.
+  User added a trait.count == 0 guard in src/traits.cpp before the loop,
+  throwing std::out_of_range regardless of whether a sentinel exists.
+  Confirmed the guard in saved source. Invalid selections now deliberately
+  throw on this path; exception handling by callers is a separate concern.
+- Tests are not reliable current behavioral coverage; user says updates
+  have mostly addressed compilation errors. Review found old one-argument
+  vaccine-loader calls in test/test_parameters.cpp despite the new required
+  boolean arguments. User deferred the broader test overhaul and will track
+  it in the project todo list. Do not undertake it without a new request.
+- This supersedes the older deferred-loader checkpoint and restart-between-
+  cases workaround for the reported successful case sequence. It does not
+  establish general case isolation, failed-load recovery, or retained-model
+  registry restoration for R0 simulations; those remain separate follow-ups.
+- Assistant reviewed source only (Serena tools unavailable), changed no
+  product/test code, and ran no builds or tests. This closing update changes
+  SESSION.md only. Preserve the user's existing source changes.
+
 ## 2026-10-28: stopping checkpoint and priorities
 
 - User is done for now. Finish simulation accounting before starting new

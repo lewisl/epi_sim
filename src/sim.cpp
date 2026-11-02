@@ -245,16 +245,11 @@ void post_simulation(Model & model, Histories  & histories) {
     serialize_histories_new_way(histories, history_idxs,
       case_artifact_path(model, "all_series", output_timestamp, "csv"));
 
+    // serialize total using the new way
+    history_idxs = histories.select_indices({}, "total");
+    serialize_histories_new_way(histories, history_idxs,
+      case_artifact_path(model, "total_series", output_timestamp, "csv"));
 
-    // all series columns with materialized totals
-    // serialize_selected_histories(
-    //     HistorySelectorSet("all"),
-    //   histories, case_artifact_path(model, "all_series", output_timestamp, "csv"));
-
-    // all series columns, totals only -> no longer working with sentinel overrides commented out
-    // serialize_selected_histories(
-    //     HistorySelectorSet("all", "total"),
-    //   histories, case_artifact_path(model, "all_total_series", output_timestamp, "csv"));
 
 
     pop_to_csv(pop, pop.all_idx, "all",
@@ -262,22 +257,6 @@ void post_simulation(Model & model, Histories  & histories) {
   }
 
   SummaryData sumstruct = print_summary(pop); fmt::println("");
-
-
-  //==========================================================
-  // series output diagnostics
-  //==========================================================
-
-  // look at whatis in histories.history_vectors_[].meta
-  // size_t n = 30;
-  // size_t o = 270;
-  // fmt::println("history meta output label {}: \n {}", n,
-  //   histories.history_vectors_[n].meta.output_label);
-  // fmt::println("history meta output label {}: \n {}", o,
-  //   histories.history_vectors_[o].meta.output_label);
-
-  //==========================================================
-  //==========================================================
 
 
   //

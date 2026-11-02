@@ -265,15 +265,17 @@ std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::strin
 
   if (grab_bag == "all") idxs = std::views::iota(0uz, history_vectors_.size()) | 
     std::ranges::to<std::vector>();  // all the indices in sequence into the vector
-  else if (grab_bag == "total") idxs = std::views::iota(sim_history_count + 1uz, history_vectors_.size()) | 
+
+  else if (grab_bag == "total") idxs = std::views::iota(sim_history_count, history_vectors_.size()) | 
     std::ranges::to<std::vector>();  // indices of all total history vectors
+
   else {
     for (auto & s : sel.selections) {
       auto traitnum = trait_lookup(s.trait);
       auto phasenum = s.phase == "now" ? uint8_t{0} : uint8_t{1};
       auto tr_val = tr_val_to_id(traitnum, s.trait_value);
 
-      // use total map:  both are total. this stop in sieve must be 1st
+      // use total map:  both are total. this stop in sieve must be first
       if (s.age == "total" && s.ring == "total") {
         Seltot seltot{traitnum, phasenum, tr_val};
         auto it = sim_totals_map.find(seltot); // key exists?

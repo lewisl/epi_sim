@@ -16,13 +16,11 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
   GeoData geodata = load_geodata_csv(geo_path);
   auto [infectparams, progressionset, variant_names] =
       load_infect_params(variants_path);
-  // vax related parameters don't need to be loaded if dovax == false
-    VaxSet vaxdata;
-    VaxSchedSet vaxschedset;
-    if (dovax) {
-      vaxdata = load_vax_data(vax_path);
-      vaxschedset = load_vax_sched_set(vaxsched_dir);
-    }
+
+  VaxSet vaxdata;
+  VaxSchedSet vaxschedset;
+  vaxdata = load_vax_data(vax_path, dovax);
+  vaxschedset = load_vax_sched_set(vaxsched_dir, dovax);
   auto socialdata = load_social_params(social_path);
 
   RingTraits ringtraits{};

@@ -521,11 +521,11 @@ ProgressionSet load_progression_set(json jdata);
 std::tuple<vector<InfectParams>, ProgressionSet, vector<string>> load_infect_params(string fpath);
 
 
-VaxSet load_vax_data(string fpath);
+VaxSet load_vax_data(string fpath, bool dovax);
 
 VaxSched load_vax_sched(const string &fname);
 
-VaxSchedSet load_vax_sched_set(const string &dirpath);
+VaxSchedSet load_vax_sched_set(const string &dirpath, bool dovax);
 
 
 SocialParams load_social_params(string social_path);

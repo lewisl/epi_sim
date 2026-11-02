@@ -115,7 +115,7 @@ use as:
 //
 struct Agegrp {
   enum class Enum : uint8_t {
-    unknown = 0, age0_19 = 1, age20_39 = 2, age40_59 = 3, age60_79 = 4, age80_up = 5
+    unknown = 0, age0_19, age20_39, age40_59, age60_79, age80_up
   };
 
   uint8_t v{};
