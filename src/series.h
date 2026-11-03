@@ -144,20 +144,15 @@ struct Seltot {
 };
 
 
-// use struct as hash key: 20%+ slower
-// template <typename H>
-// H AbslHashValue(H h, const Seltot& sel) {
-//   return H::combine(std::move(h), sel.trait, sel.phase, sel.trval);
-// }
-
-
-// use single uint64_t as hash key
+// use single uint64_t as hash key: 20% slower than what?  I forget...
 template <typename H>
 H AbslHashValue(H h, const Seltot& sel) {
     const std::uint64_t packed =
           std::uint64_t{sel.trait}
         | (std::uint64_t{sel.phase} << 8)
-        | (std::uint64_t{sel.trval} << 16);
+        | (std::uint64_t{sel.trval} << 16)
+        | (std::uint64_t{sel.ring} << 24)
+        | (std::uint64_t{sel.age} << 32);
 
     return H::combine(std::move(h), packed);
 }
@@ -242,13 +237,9 @@ struct Histories {
             TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
             uint8_t ring = RING_ALL, bool total=false) const {
         if (total) {
-          return sim_totals_map.at(Seltot{trait, phase, trait_value, age, ring});
+          return sim_totals_map.at(Seltot{trait, phase, trait_value, ring, static_cast<uint8_t>(age)});
         }
         else {
-          // trait values are all 1-indexed; we need 0 indexed for this
-          const size_t value_ordinal = size_t(trait_value - 1);
-          const size_t ring_ordinal = size_t(ring - 1);
-          const size_t age_ordinal = size_t(age.v - 1);
           return sim_history_map.at(Selsim{static_cast<uint8_t>(trait), static_cast<uint8_t>(phase), trait_value, ring, static_cast<uint8_t>(age)});
         }
     }
@@ -388,11 +379,11 @@ void print_selected_histories(HistorySelectorSet spec,
 // void serialize_selected_histories(HistorySelectorSet spec,
 //                                   const Histories& histories,
 //                                   std::filesystem::path output_path);
-void serialize_histories_new_way(Histories& histories, 
+void serialize_histories(Histories& histories, 
               HistorySelectorSet sel, std::string grab_bag,
               std::filesystem::path output_path);
 
-void serialize_histories_new_way(const Histories& histories, 
+void serialize_histories(const Histories& histories, 
                                  HistorySelectorSet sel, std::string grab_bag,
                                   string base_fname,
                                   vector<string> path_steps);

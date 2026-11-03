@@ -106,6 +106,15 @@ static void doshots(
             agent.vaxstatus() = (vax_params(vaxset, choice).reqdshots > 1)
                                  ? Vaxstat::first
                                  : Vaxstat::full;
+
+            /*
+            a bit tricky here.  for history tracked during simulation, we only 
+            record the first shot to indicate a person has been vaccinated. we don't 
+            track how many shots, boosters, etc regardless of a specific vaccine's dosage.
+            The PopData columns track a history of up to 16 vaccination "events" per
+            person.  This can be queried at the completion of the simulation for a 
+            detailed view of which shots were dispensed of which vaccine.
+            */                     
             sim::history_timing.start();
             histories.update(TraitID::vax, Phase::new_, uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);
             histories.update(TraitID::vax, Phase::now, uint8_t(choice), agent.ring().v, agent.agegrp(), today, 1);

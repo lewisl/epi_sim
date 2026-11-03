@@ -30,18 +30,11 @@ Histories::Histories(size_t n_days, const PopData& pop)
     const std::array trait_value_counts{
         Status::count, Vax::count, Variant::count};
 
-    // create and initialize outer vector container and inner vectors for histories accumulated during simulation
-    // this instantiates only base history vectors updated during simulaton
-    sim_history_count = magic_enum::enum_count<Phase>() * 
-          ((Status::count * Ring::count * Agegrp::count) +
-          (Vax::count * Ring::count * Agegrp::count) +
-          (Variant::count * Ring::count * Agegrp::count));
-
-
     if (n_days == 0) return;
 
     // create sim history vectors
     build_history_vectors(false);
+    sim_history_count = history_vectors_.size();
     // create total history vectors after sim_history_vectors
     build_history_vectors(true);
 
@@ -73,72 +66,40 @@ Histories::Histories(size_t n_days, const PopData& pop)
 
 
 void Histories::build_history_vectors(bool for_totals) {
-    size_t max_names;
-    Selsim selsim{};
-    Seltot seltot{};
-    size_t idx_sim{0};
-
-    // initialize base index values for adding columns
-    if (for_totals) idx_sim = sim_history_count;    // displacement of existing simulation tracked history vectors
-    else idx_sim = 0;    // history vectors updated during simulation
 
     for (auto tr_enum : Tracked_Traits ) { 
+      const auto & trait = trait_table[std::to_underlying(tr_enum)];
       HistoryMeta hm;
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
-      selsim.trait = static_cast<uint8_t>(tr_enum);
-      seltot.trait = static_cast<uint8_t>(tr_enum);
 
-      max_names = tr_enum == TraitID::status ? Status::count :
-                  tr_enum == TraitID::vax ? Vax::count : Variant::count;
 
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
         hm.phasenum = ph_num;
-        selsim.phase = static_cast<uint8_t>(ph_num);
-        seltot.phase = static_cast<uint8_t>(ph_num);
 
 
-        for (size_t trval_num = 1; trval_num <= max_names ; ++trval_num) {
-          // trval for map key is uint8_t, not trait class value
-          selsim.trval = trval_num;
-          seltot.trval = trval_num;
-          switch (tr_enum) {
-            case TraitID::status:
-            {
-              hm.traitval = Status::names[trval_num]; // string
-              hm.traitval_num = Status{uint8_t(trval_num)};
-              break;
-            }
-            case TraitID::vax:
-              hm.traitval = Vax::names[trval_num]; // string
-              hm.traitval_num = trval_num;
-              break;
-            case TraitID::variant:
-              hm.traitval = Variant::names[trval_num];
-              hm.traitval_num = trval_num;
-              break;
-            default:
-              throw std::range_error("Only status, vax, and variant allowed in history building switch.");
-          } // switch on tr_enum
+        for (size_t trval_num = 1; trval_num <= trait.count ; ++trval_num) {
+          hm.traitval  = trait.names[trval_num];
+          hm.traitval_num = trval_num;
 
           // create and place detail simulation result vectors
           if (!for_totals) {     
             for (auto ring_i = 1; ring_i <= Ring::count; ++ring_i) { 
                 hm.ring = Ring::names[ring_i];
                 hm.ringnum = ring_i;
-                selsim.ring = ring_i;
+                // selsim.ring = ring_i;
               // }
               for (auto age_i = 1; age_i < Agegrp::names.size(); ++age_i) {
                 hm.age = Agegrp::names[age_i];
                 hm.agenum = age_i;
-                selsim.age = age_i;
+                
                 // emplace_back a HistoryVector for simulation detail outcome
                 hm.output_label = fmt::format("{}|{}|{}|{}|{}",
                   hm.trait, hm.phase, hm.traitval, hm.ring, hm.age); 
+                const size_t col_idx = history_vectors_.size();
                 history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
-                sim_history_map.emplace(selsim, idx_sim);
-                idx_sim++;  // only increment index count for new vector with new idx
+                sim_history_map.emplace(Selsim(tr_enum, ph_num, trval_num, ring_i, age_i), col_idx);
               } // age loop
 
             }  // ring loop
@@ -154,12 +115,11 @@ void Histories::build_history_vectors(bool for_totals) {
             hm.agenum = HISTORY_AGE_TOTAL;
             hm.output_label = fmt::format("{}|{}|{}|{}|{}",
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age); 
-            seltot.age = HISTORY_AGE_TOTAL;
-            seltot.ring = RING_ALL;
+
             // emplace_back a HistoryVector for a total
+            const size_t full_total_idx = history_vectors_.size();
             history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
-            sim_totals_map.emplace(seltot, idx_sim);
-            idx_sim++;   // only increment index count for new vector with new idx
+            sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, RING_ALL, HISTORY_AGE_TOTAL), full_total_idx);
 
             /*
             SPLIT TOTALS
@@ -179,57 +139,43 @@ void Histories::build_history_vectors(bool for_totals) {
                 //      all we need is a new key that maps to the existing column.
                 // Agegrp::count new keys in sim_totals_map; no new vectors (no new vector, no new idx)
                 for (auto age_i = 1; age_i <= Agegrp::count; ++age_i) {
-                  seltot.ring = uint8_t{0};
-                  seltot.age = age_i;  // age_i is the agenum
                   // key to existing sim history vector
-                  const Selsim tempkey{hm.traitnum, hm.phasenum, hm.traitval_num, Ring{1}, seltot.age};
+                  const Selsim tempkey(tr_enum, ph_num, trval_num, uint8_t{1}, age_i);
                   auto it = sim_history_map.find(tempkey);
                   if (it != sim_history_map.end()) 
-                      sim_totals_map.emplace(seltot, it->second);
+                      sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, RING_ALL, age_i), it->second);
                   else throw std::range_error(fmt::format("Index to existing history column {} not found.", tempkey));
                 }
               
                 // totaling ages for the only ring: use existing total column--all rings (one) and totaled ages,
                 //      which already exists as the full total column
                 
-                seltot.ring = uint8_t{1}; // would be have string label of "population" or some input name
-                seltot.age = HISTORY_AGE_TOTAL;
-                // key to existing totals columns
-                const Seltot tempkey{hm.traitnum, hm.phasenum, hm.traitval_num};
-                auto it = sim_totals_map.find(tempkey);
-                if (it != sim_totals_map.end()) {
-                  const size_t col_idx = it->second;  // !! copy to avoid rehashing!
-                  sim_totals_map.emplace(seltot, col_idx);}
-                else throw std::range_error(fmt::format("Index to existing totals column {} not found.", tempkey));
+                sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, uint8_t{1}, HISTORY_AGE_TOTAL), full_total_idx);
             }
             else {    // split totals with multple rings  
             // split total: sum of ages for each ring
+            hm.age = "total";
+            hm.agenum = HISTORY_AGE_TOTAL;  
             for (auto ring_i = 1; ring_i <= Ring::count; ++ring_i) {
-              hm.age = "total";
-              hm.agenum = HISTORY_AGE_TOTAL;  
               hm.ring = Ring::names[ring_i];
               hm.ringnum = ring_i;
               hm.output_label = fmt::format("{}|{}|{}|{}|{}", 
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
-              seltot.ring = ring_i;
-              seltot.age = HISTORY_AGE_TOTAL;
+              const size_t col_idx = history_vectors_.size();
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
-              sim_totals_map.emplace(seltot, idx_sim);
-              idx_sim++;
+              sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, ring_i, HISTORY_AGE_TOTAL), col_idx);
             }
             // split total sum of rings for each age
+            hm.ring = "total";
+            hm.ringnum = RING_ALL;
             for (auto age_i = 1; age_i <= Agegrp::count; ++age_i) {
               hm.age = Agegrp::names[age_i];
               hm.agenum = age_i;  
-              hm.ring = "total";
-              hm.ringnum = RING_ALL;
               hm.output_label = fmt::format("{}|{}|{}|{}|{}",
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
-              seltot.ring = RING_ALL;
-              seltot.age = age_i;
+              const size_t col_idx = history_vectors_.size();
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
-              sim_totals_map.emplace(seltot, idx_sim);
-              idx_sim++;
+              sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, RING_ALL, age_i), col_idx);
             }
           }
         } // else for_totals == true
@@ -299,7 +245,7 @@ std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::strin
 }
 
 
-void serialize_histories_new_way(Histories & histories, HistorySelectorSet sel, std::string grab_bag,
+void serialize_histories(Histories & histories, HistorySelectorSet sel, std::string grab_bag,
     std::filesystem::path output_path) {
 
   if (histories.day_cnt == 0) {
@@ -352,7 +298,7 @@ std::filesystem::path set_output_path(string base_fname, vector<string> path_ste
   return fpath;
 }
 
-void serialize_histories_new_way(Histories& histories, 
+void serialize_histories(Histories& histories, 
                                  HistorySelectorSet sel, std::string grab_bag,
                                   string base_fname,
                                   vector<string> path_steps) {
@@ -363,7 +309,7 @@ void serialize_histories_new_way(Histories& histories,
   for (auto step : path_steps) fpath /= step;
   fpath /= make_timestamped_filename(base_fname) + ".csv";
 
-  serialize_histories_new_way(histories, sel, grab_bag, fpath);
+  serialize_histories(histories, sel, grab_bag, fpath);
 }
 
 

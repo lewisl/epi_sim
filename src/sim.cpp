@@ -229,7 +229,7 @@ void post_simulation(Model & model, Histories  & histories) {
     //     {"new_", "base", "age20_39",    "variant", ring}}
     //   );
 
-    serialize_histories_new_way(histories, 
+    serialize_histories(histories, 
         {{"status", "now", "unexposed", "age20_39", ring},
         {"status", "new_", "unexposed", "age20_39", ring},
         {"status", "now", "infectious", "age20_39", ring}, 
@@ -252,12 +252,12 @@ void post_simulation(Model & model, Histories  & histories) {
 
     // serialize all using the new way
     // history_idxs = histories.select_indices({}, "all");
-    serialize_histories_new_way(histories, {}, "all",
+    serialize_histories(histories, {}, "all",
       case_artifact_path(model, "all_series", output_timestamp, "csv"));
 
     // serialize total using the new way
     // history_idxs = histories.select_indices({}, "total");
-    serialize_histories_new_way(histories, {}, "total",
+    serialize_histories(histories, {}, "total",
       case_artifact_path(model, "total_series", output_timestamp, "csv"));
 
 

@@ -1,5 +1,24 @@
 # Session Notes
 
+## 2026-11-03: build_history_vectors simplified (user implemented)
+
+- Assistant reviewed; user made all source edits. Removed: max_names ternary
+  and names switch (now trait_table entry `trait`), persistent selsim/seltot
+  (keys built inline at each emplace), idx_sim counter (index = size() before
+  emplace_back; full_total_idx reused by one-ring alias), one-ring full-total
+  find, loop-invariant hm assignments. Constructor sets sim_history_count =
+  history_vectors_.size() after first pass (stride formula gone).
+- Silent bugs fixed: multi-ring per-age split-total key was missing trval_num
+  (collapsed keys); history_vector_idx ring/age order (both branches now
+  trait, phase, trval, ring, age); Seltot hash now packs ring and age.
+- Verified: one-ring dovax=true run, 156 vectors (130+26), 182 totals keys;
+  script check of all 182 keys vs column listing: 0 mismatches. Not yet run:
+  case-2 multi-ring (expect 468 vectors / 208 totals keys), totals values.
+- Open: constructor `if (n_days == 0) return;` now leaves the three count
+  members uninitialized; unused trait_value_counts array remains.
+- Vaxstatus 0="none" stays the known exception; renumbering deferred
+  (pop_serialize numeric values/fixtures would shift).
+
 ## 2026-11-01: vaccine holdover fix reviewed; stopping checkpoint
 
 - User implemented the vaccine-loader reset in parameters.cpp/.h and

@@ -1,5 +1,9 @@
 ## TODO
 - overhaul tests:   especially test for bad inputs off the happy path.
+    >When you get to it, the check we ran today would make a good first test for the new history code. Build Histories for one ring and for several rings, then assert:
+        - the vector and key counts;
+        - that every sim_totals_map key points at the column whose metadata matches it;
+        - that the one-ring aliases share their target column.
 - distribution packaging
 - revise readme for credibility
 - user documentation
