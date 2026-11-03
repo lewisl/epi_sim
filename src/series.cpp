@@ -2,7 +2,7 @@
 #include "parameters.h"
 #include "population.h"
 #include "traits.h"
-#include <charconv>
+// #include <charconv>
 #include <stdexcept>
 #include <magic_enum/magic_enum.hpp>
 #include "absl/container/flat_hash_map.h"
@@ -247,18 +247,9 @@ void Histories::init_history_newday(size_t day) {
     for (const auto idx : cumulative_columns) {
       history_vectors_[idx].data[day] = history_vectors_[idx].data[day - 1];
     }
-    // for (const TraitID trait : Tracked_Traits ) {
-    //     const auto begin = trait_phase_base(trait, Phase::now);
-    //     const auto end = begin + phase_width(trait);
-    //     for (size_t history_idx = begin; history_idx < end; ++history_idx) {
-    //         history_vectors_[history_idx].data[day] = history_vectors_[history_idx].data[day - 1];
-    //     }
-    // }
 }
 
-//=============================================================================
-// do over on serialization, printing, plotting using histories
-//=============================================================================
+
 
 std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::string grab_bag) {
   vector<size_t> idxs{};
@@ -308,12 +299,17 @@ std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::strin
 }
 
 
-void serialize_histories_new_way(const Histories & histories, std::vector<size_t> idxs,
+void serialize_histories_new_way(Histories & histories, HistorySelectorSet sel, std::string grab_bag,
     std::filesystem::path output_path) {
+
   if (histories.day_cnt == 0) {
     fmt::println("\nNo history to output.");
     return;
   }
+
+  vector<size_t> idxs = histories.select_indices(sel, grab_bag);
+
+
   if (idxs.empty()) {
     fmt::println("\nNo history selected.");
     return;
@@ -356,8 +352,19 @@ std::filesystem::path set_output_path(string base_fname, vector<string> path_ste
   return fpath;
 }
 
-//=============================================================================
-//=============================================================================
+void serialize_histories_new_way(Histories& histories, 
+                                 HistorySelectorSet sel, std::string grab_bag,
+                                  string base_fname,
+                                  vector<string> path_steps) {
+  const char* home = std::getenv("HOME");
+  if (!home) throw std::runtime_error("HOME not set");
+  std::filesystem::path fpath{home};
+  if (path_steps.empty()) path_steps = {"code", "epi_sim", "series_output"};
+  for (auto step : path_steps) fpath /= step;
+  fpath /= make_timestamped_filename(base_fname) + ".csv";
+
+  serialize_histories_new_way(histories, sel, grab_bag, fpath);
+}
 
 
 size_t Histories::trait_value_count(TraitID trait) const {
@@ -397,10 +404,10 @@ std::optional<HistorySelector> Histories::describe_history_vector(size_t history
     const HistoryMeta & meta(history_vectors_[history_idx].meta);
 
     return HistorySelector{
+                .trait = meta.trait,
                 .phase = meta.phase,
                 .trait_value = meta.traitval,
                 .age = meta.age,
-                .trait = meta.trait,
                 .ring = meta.ring
             };
 }
@@ -436,21 +443,6 @@ void Histories::sum_total_histories() {
 }
 
 
-std::string Histories::explain_history_vector_idx(
-    TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
-    uint8_t ring) const {
-    if (!valid_history_coordinates(trait, phase, trait_value, age, ring)) {
-        return fmt::format(
-            "invalid history coordinates: trait={} phase={} raw_value={} raw_ring={} raw_age={}",
-            size_t(trait), size_t(phase), trait_value, ring, age.v);
-    }
-    const auto history_idx = history_vector_idx(
-        trait, phase, trait_value, age, ring);
-    return fmt::format(
-        "{} -> column={} (value_ordinal={}, ring_ordinal={}, age_ordinal={})",
-        history_column_label(history_idx), history_idx, size_t(trait_value - 1),
-        size_t(ring - 1), size_t(age.v - 1));
-}
 
 void Histories::dump_history_layout(std::ostream& out) const {
     for (size_t history_idx = 0; history_idx < history_vectors_.size(); ++history_idx) {
@@ -501,256 +493,7 @@ HistoryValue Histories::aggregate_value(
 }
 
 
-// ---------------------------------------------------------------
-// HistorySelectorSet constructors and build_for_ages
-// ---------------------------------------------------------------
 
-
-std::vector<HistorySelector> HistorySelectorSet::build_for_ages(
-        const std::vector<std::string>& ages) {
-    std::vector<HistorySelector> out;
-    for (const auto& age : ages) {
-        // Status: skip index 0 ("none")
-        for (size_t i = 1; i < Status::names.size(); ++i) {
-            out.push_back({"now", std::string{Status::names[i]}, age});
-            // new_unexposed is an allocated-but-never-written schema
-            // placeholder, not a meaningful reporting selection.
-            if (i != size_t(UNEXPOSED)) {
-                out.push_back({"new_", std::string{Status::names[i]}, age});
-            }
-        }
-        // Vaccinated aggregate (sums all brands)
-        out.emplace_back("now", "vaccinated", age);  // any perf difference compared to push_back of literal?
-        out.push_back({"new_", "vaccinated", age});
-        // Per-brand vax: skip index 0 ("none")
-        for (size_t i = 1; i < Vax::names.size(); ++i) {
-            out.push_back({"now", "vax:" + Vax::names[i], age});
-            out.push_back({"new_", "vax:" + Vax::names[i], age});
-        }
-        // Per-variant: skip index 0 ("none")
-        for (size_t i = 1; i < Variant::names.size(); ++i) {
-            out.push_back({"now", "variant:" + Variant::names[i], age});
-            out.push_back({"new_", "variant:" + Variant::names[i], age});
-        }
-    }
-    return out;
-}
-
-// ---------------------------------------------------------------
-// Named selector resolution for serialization/printing
-// ---------------------------------------------------------------
-
-// "" → RING_ALL. A decimal token is taken as a literal ring id; otherwise
-// looked up by name in Ring::names. nullopt if unknown.
-std::optional<uint8_t> ring_id_from_token(const std::string& tok) {
-    if (tok.empty()) return RING_ALL;
-    if (std::ranges::all_of(tok, [](unsigned char c) {
-            return std::isdigit(c) != 0;
-        })) {
-        unsigned int value = 0;
-        const auto [ptr, ec] = std::from_chars(
-            tok.data(), tok.data() + tok.size(), value);
-        if (ec == std::errc{} && ptr == tok.data() + tok.size()
-            && value <= 255
-            && (value == 0 || value < Ring::names.size())) {
-            return static_cast<uint8_t>(value);
-        }
-        return std::nullopt;
-    }
-    auto it = std::find(Ring::names.begin(), Ring::names.end(), tok);
-    if (it == Ring::names.end()) return std::nullopt;
-    return static_cast<uint8_t>(std::distance(Ring::names.begin(), it));
-}
-
-namespace {
-
-struct TraitSelectionView {
-    std::string_view selector_prefix;
-    TraitID trait;
-    std::span<const std::string> trait_value_names;
-};
-
-struct TotalHistorySource {
-    std::string canonical_name;
-    std::vector<size_t> source_history_idxs;
-};
-
-std::optional<TotalHistorySource> resolve_history_source(
-    const Histories& histories, std::string_view phase_token,
-    std::string_view trait_value_selector, uint8_t age, uint8_t ring) {
-    const auto parsed_phase = magic_enum::enum_cast<Phase>(phase_token);
-    if (!parsed_phase) return std::nullopt;
-    const Phase phase = *parsed_phase;
-    const auto display_phase = phase == Phase::now ? "now" : "new";
-
-    if (age > Agegrp::count) return std::nullopt;
-
-    std::vector<uint8_t> rings;
-    if (ring == RING_ALL) {
-        rings.reserve(Ring::count);
-        for (size_t value = 1;
-             value <= Ring::count; ++value) {
-            rings.push_back(static_cast<uint8_t>(value));
-        }
-    } else {
-        if (ring > Ring::count) {
-            return std::nullopt;
-        }
-        rings.push_back(ring);
-    }
-
-    std::vector<Agegrp> ages;
-    if (age == HISTORY_AGE_TOTAL) {
-        ages.reserve(Agegrp::count);
-        for (size_t value = 1; value <= Agegrp::count; ++value) {
-            ages.emplace_back(static_cast<uint8_t>(value));
-        }
-    } else {
-        ages.emplace_back(age);
-    }
-
-    const auto append_atomic_sources = [&histories, phase, &rings, &ages](
-        TotalHistorySource& source, TraitID trait,
-        std::span<const uint8_t> trait_values) {
-        source.source_history_idxs.reserve(
-            trait_values.size() * rings.size() * ages.size());
-        for (const uint8_t trait_value : trait_values) {
-            for (const uint8_t atomic_ring : rings) {
-                for (const Agegrp atomic_age : ages) {
-                    source.source_history_idxs.push_back(
-                        histories.history_vector_idx(
-                            trait, phase, trait_value, atomic_age,
-                            atomic_ring));
-                }
-            }
-        }
-    };
-
-    if (trait_value_selector == "vaccinated") {
-        TotalHistorySource source{
-            fmt::format("{}_vaccinated", display_phase), {}};
-        std::vector<uint8_t> trait_values;
-        trait_values.reserve(Vax::count);
-        for (size_t trait_value = 1;
-             trait_value <= Vax::count; ++trait_value) {
-            trait_values.push_back(static_cast<uint8_t>(trait_value));
-        }
-        append_atomic_sources(source, TraitID::vax, trait_values);
-        return source;
-    }
-
-    const std::array traits{
-        TraitSelectionView{
-            "vax:", TraitID::vax,
-            std::span<const std::string>{Vax::names.data(), Vax::names.size()}},
-        TraitSelectionView{
-            "variant:", TraitID::variant,
-            std::span<const std::string>{Variant::names.data(), Variant::names.size()}},
-    };
-
-    for (const auto& trait : traits) {
-        if (!trait_value_selector.starts_with(trait.selector_prefix)) continue;
-        const auto trait_value_name =
-            trait_value_selector.substr(trait.selector_prefix.size());
-        const auto it = std::find(trait.trait_value_names.begin(),
-                                  trait.trait_value_names.end(), trait_value_name);
-        if (it == trait.trait_value_names.end()) return std::nullopt;
-
-        const size_t trait_value = static_cast<size_t>(
-            std::distance(trait.trait_value_names.begin(), it));
-        if (trait_value == 0
-            || trait_value > histories.trait_value_count(trait.trait)) {
-            return std::nullopt;
-        }
-
-        TotalHistorySource source{
-            fmt::format("{}_{}{}", display_phase, trait.selector_prefix,
-                        trait.trait_value_names[trait_value]),
-        };
-        const std::array trait_values{static_cast<uint8_t>(trait_value)};
-        append_atomic_sources(source, trait.trait, trait_values);
-        return source;
-    }
-
-    const auto status = magic_enum::enum_cast<Status::Enum>(trait_value_selector);
-    if (!status || *status == Status::Enum::none
-        // Kept only so status now/new groups have the same fixed stride.
-        || (phase == Phase::new_ && *status == Status::Enum::unexposed)) {
-        return std::nullopt;
-    }
-    TotalHistorySource source{
-        fmt::format("{}_{}", display_phase, magic_enum::enum_name(*status)), {}};
-    const std::array trait_values{std::to_underlying(*status)};
-    append_atomic_sources(source, TraitID::status, trait_values);
-    return source;
-}
-
-std::string raw_selection_label(const HistorySelector& selection) {
-    return selection.ring.empty()
-        ? fmt::format("{}|{}|{}", selection.phase, selection.trait_value, selection.age)
-        : fmt::format("{}|{}|{}|{}", selection.phase, selection.trait_value,  selection.age, selection.ring);
-}
-
-std::string canonical_selection_label(const TotalHistorySource& source,
-                                      uint8_t age, uint8_t ring) {
-    if (ring == RING_ALL) {
-        return fmt::format("{}:{}", source.canonical_name, age_vec_label(age));
-    }
-    const std::string ring_label = size_t(ring) < Ring::names.size()
-        ? Ring::names[ring]
-        : fmt::format("{}", ring);
-    return fmt::format("{}:{}:{}", source.canonical_name, age_vec_label(age),
-                       ring_label);
-}
-
-// total source vectors into a new history_vector
-std::vector<HistoryValue> materialize_history_vector(
-    const Histories& histories, const TotalHistorySource& source) {
-    if (source.source_history_idxs.size() == 1) {
-        return histories.history_vector(source.source_history_idxs.front());
-    }
-
-    std::vector<HistoryValue> result(histories.day_cnt + 1, 0);  // virtual 1-indexing
-    for (const size_t history_idx : source.source_history_idxs) {
-        const auto& values = histories.history_vector(history_idx);
-        for (size_t day = 0; day <= histories.day_cnt; ++day) {
-            result[day] += values[day];
-        }
-    }
-    return result;
-}
-
-} // namespace
-
-
-TotalHistorySet create_history_set(
-    const HistorySelectorSet & spec, const Histories& histories) {
-  TotalHistorySet total_histories;
-  auto& selections = spec.selections;
-  total_histories.history_vectors.reserve(selections.size());
-
-  for (const auto& sel : selections) {
-    auto age = age_history_idx_from_string(sel.age);
-    auto ring   = ring_id_from_token(sel.ring);
-    const auto raw_label = raw_selection_label(sel);
-    if (!age || !ring) {
-      total_histories.invalid_selections.push_back(raw_label);
-      continue;
-    }
-    auto source = resolve_history_source(histories, sel.phase, sel.trait_value, *age, *ring);
-    if (!source) {
-      total_histories.invalid_selections.push_back(raw_label);
-      continue;
-    }
-    auto label = canonical_selection_label(*source, *age, *ring);
-    auto data = materialize_history_vector(histories, *source);
-    total_histories.history_vectors.push_back({
-        std::move(label), std::move(data),        // move consumes vector, so have to create again for another use
-        std::move(source->source_history_idxs)});
-  }
-
-  return total_histories;
-}
 
 // ---------------------------------------------------------------
 // Print functions
@@ -806,6 +549,7 @@ void print_total_status_histories(const Histories& histories,
 void print_selected_histories(HistorySelectorSet spec,
                               const Histories& histories,
                               size_t days_per_group,
+                              std::string_view title,
                               std::ostream& out) {
   auto& selections = spec.selections;
   if (histories.day_cnt == 0) {
@@ -850,75 +594,4 @@ void print_selected_histories(HistorySelectorSet spec,
       fmt::println(out, "");
     }
   }
-}
-
-// ---------------------------------------------------------------
-// Serialization
-// ---------------------------------------------------------------
-
-void serialize_selected_histories(HistorySelectorSet spec,
-                                  const Histories& histories,
-                                  std::filesystem::path output_path) {
-  auto & selections = spec.selections;
-  if (histories.day_cnt == 0) {
-    fmt::println("\nNo history to output.");
-    return;
-  }
-  if (selections.empty()) {
-    fmt::println("\nNo history selected.");
-    return;
-  }
-
-  auto total_histories = create_history_set(spec, histories);  // don't create: check existence
-  const auto& history_vectors = total_histories.history_vectors;
-
-  if (!total_histories.invalid_selections.empty()) {
-    fmt::println("\nSkipping unknown history selections: {}",
-                 total_histories.invalid_selections);
-  }
-  if (history_vectors.empty()) {      // as reference to existing total history vectors
-    fmt::println("\nNo valid history selected.");
-    return;
-  }
-
-  ensure_parent_dir(output_path);
-
-  std::ofstream out(output_path);
-  if (!out) {
-    throw std::runtime_error(
-        fmt::format("Could not write history CSV to '{}'", output_path.string()));
-  }
-
-  // Write header
-  vector<string> headers;
-  headers.reserve(history_vectors.size());
-  for (const auto& history : history_vectors) headers.push_back(history.label);
-  fmt::println(out, "{}", fmt::join(headers, ","));
-
-  // Write rows (1-indexed days)
-  vector<HistoryValue> row;
-  row.reserve(history_vectors.size());
-  for (size_t i = 1; i <= histories.day_cnt; ++i) {
-    for (const auto& history : history_vectors) {
-      row.push_back(history.data[i]);
-    }
-    fmt::println(out, "{}", fmt::join(row, ","));
-    row.clear();
-  }
-
-  fmt::println("Wrote selected history CSV to '{}'", output_path.string());
-}
-
-void serialize_selected_histories(HistorySelectorSet spec,
-                                  const Histories& histories,
-                                  string base_fname,
-                                  vector<string> path_steps) {
-  const char* home = std::getenv("HOME");
-  if (!home) throw std::runtime_error("HOME not set");
-  std::filesystem::path fpath{home};
-  if (path_steps.empty()) path_steps = {"code", "epi_sim", "series_output"};
-  for (auto step : path_steps) fpath /= step;
-  fpath /= make_timestamped_filename(base_fname) + ".csv";
-
-  serialize_selected_histories(std::move(spec), histories, fpath);
 }

@@ -50,10 +50,10 @@ Optionally, one can use the enum class values as selectors if
 the target function can, too.
 */
 struct HistorySelector {
+    std::string trait;  
     std::string phase;
     std::string trait_value;
     std::string age = "";         // "total" or one of the concrete Agegrp names
-    std::string trait;  // needed for some uses...
     std::string ring = "";   // "" -> RING_ALL (all-rings aggregate)
 
     bool operator==(const HistorySelector&) const = default;
@@ -301,9 +301,9 @@ struct Histories {
     // externally defined methods (in series.cpp)
     std::optional<HistorySelector> describe_history_vector(size_t index) const;
     std::string history_column_label(size_t index) const;
-    std::string explain_history_vector_idx(
-        TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
-        uint8_t ring = RING_ALL) const;
+    // std::string explain_history_vector_idx(
+    //     TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
+    //     uint8_t ring = RING_ALL) const;
     void dump_history_layout(std::ostream& out = std::cout) const;
     void validate_history_indexing() const;
     void insert_total_vecs();
@@ -325,7 +325,7 @@ struct Histories {
 // "" -> RING_ALL (all-rings aggregate). A decimal token is taken as a literal
 // ring id; otherwise the token is looked up by name in Ring::names. Returns
 // nullopt for an unknown name or out-of-range index.
-std::optional<uint8_t> ring_id_from_token(const std::string& tok);
+// std::optional<uint8_t> ring_id_from_token(const std::string& tok);
 
 
 /*
@@ -359,8 +359,8 @@ struct HistorySelectorSet {
     // HistorySelectorSet(const char* sentinel, std::vector<std::string> ages);
 
 private:
-    static std::vector<HistorySelector> build_for_ages(
-        const std::vector<std::string>& ages);
+    // static std::vector<HistorySelector> build_for_ages(
+        // const std::vector<std::string>& ages);
 };
 
 struct TotalHistoryVector {
@@ -383,16 +383,20 @@ void print_total_status_histories(const Histories& histories,
 void print_selected_histories(HistorySelectorSet spec,
                               const Histories& histories,
                               size_t days_per_group = 15,
+                              std::string_view title = "\nSelected histories:",
                               std::ostream& out = std::cout);
-void serialize_selected_histories(HistorySelectorSet spec,
-                                  const Histories& histories,
-                                  std::filesystem::path output_path);
-void serialize_histories_new_way(const Histories& histories, 
-              std::vector<size_t> idxs,
+// void serialize_selected_histories(HistorySelectorSet spec,
+//                                   const Histories& histories,
+//                                   std::filesystem::path output_path);
+void serialize_histories_new_way(Histories& histories, 
+              HistorySelectorSet sel, std::string grab_bag,
               std::filesystem::path output_path);
-void serialize_selected_histories(HistorySelectorSet spec,
-                                  const Histories& histories,
+
+void serialize_histories_new_way(const Histories& histories, 
+                                 HistorySelectorSet sel, std::string grab_bag,
                                   string base_fname,
-                                  vector<string> path_steps = {});
+                                  vector<string> path_steps);
+
+
 const std::vector<HistorySelector>
    enumerate_history_selections(const Histories& histories);

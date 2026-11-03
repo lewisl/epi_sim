@@ -216,20 +216,30 @@ void post_simulation(Model & model, Histories  & histories) {
 
     // test the new way of serializing
     const std::string ring = Ring::names[1];
-    auto history_idxs = histories.select_indices(
-       {{"now", "unexposed", "age20_39", "status", ring},
-        {"new_", "unexposed", "age20_39", "status", ring},
-        {"now", "infectious", "age20_39", "status", ring}, 
-        {"new_", "infectious", "age20_39", "status", ring},
-        {"now", "dead",      "age20_39", "status", ring},
-        {"new_", "dead",       "age20_39", "status", ring},
-        {"now", "recovered", "age20_39", "status", ring},
-        {"new_", "recovered", "age20_39", "status", ring},
-        {"now", "base", "age20_39",    "variant", ring},
-        {"new_", "base", "age20_39",    "variant", ring}}
-      );
+    // auto history_idxs = histories.select_indices(
+    //    {{"now", "unexposed", "age20_39", "status", ring},
+    //     {"new_", "unexposed", "age20_39", "status", ring},
+    //     {"now", "infectious", "age20_39", "status", ring}, 
+    //     {"new_", "infectious", "age20_39", "status", ring},
+    //     {"now", "dead",      "age20_39", "status", ring},
+    //     {"new_", "dead",       "age20_39", "status", ring},
+    //     {"now", "recovered", "age20_39", "status", ring},
+    //     {"new_", "recovered", "age20_39", "status", ring},
+    //     {"now", "base", "age20_39",    "variant", ring},
+    //     {"new_", "base", "age20_39",    "variant", ring}}
+    //   );
 
-    serialize_histories_new_way(histories, history_idxs,
+    serialize_histories_new_way(histories, 
+        {{"status", "now", "unexposed", "age20_39", ring},
+        {"status", "new_", "unexposed", "age20_39", ring},
+        {"status", "now", "infectious", "age20_39", ring}, 
+        {"status", "new_", "infectious", "age20_39", ring},
+        {"status", "now", "dead",      "age20_39", ring},
+        {"status", "new_", "dead",       "age20_39", ring},
+        {"status", "now", "recovered", "age20_39", ring},
+        {"status", "new_", "recovered", "age20_39", ring},
+        {"variant", "now", "base", "age20_39", ring},
+        {"variant", "new_", "base", "age20_39",  ring}}, "",
       case_artifact_path(model, "selected_series", output_timestamp, "csv"));
 
     // total values for status selected with string literals
@@ -241,13 +251,13 @@ void post_simulation(Model & model, Histories  & histories) {
     //   histories, case_artifact_path(model, "series", output_timestamp, "csv"));
 
     // serialize all using the new way
-    history_idxs = histories.select_indices({}, "all");
-    serialize_histories_new_way(histories, history_idxs,
+    // history_idxs = histories.select_indices({}, "all");
+    serialize_histories_new_way(histories, {}, "all",
       case_artifact_path(model, "all_series", output_timestamp, "csv"));
 
     // serialize total using the new way
-    history_idxs = histories.select_indices({}, "total");
-    serialize_histories_new_way(histories, history_idxs,
+    // history_idxs = histories.select_indices({}, "total");
+    serialize_histories_new_way(histories, {}, "total",
       case_artifact_path(model, "total_series", output_timestamp, "csv"));
 
 
@@ -269,42 +279,42 @@ void post_simulation(Model & model, Histories  & histories) {
     if (!model.dovax)
       historyplot(
                   // select histories using an initializer list of strings
-                  {{"now", "infectious", "total"},
-                  {"now", "unexposed", "total"},
-                  {"now", "recovered", "total"},
-                  {"now", "dead", "total"}},
+                  {{"status", "now", "infectious", "total", "total"},
+                  {"status", "now", "unexposed", "total", "total"},
+                  {"status", "now", "recovered", "total", "total"},
+                  {"status", "now", "dead", "total", "total"}},
               histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
               case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
     else
       historyplot(
                   // select histories using an initializer list of strings
-                  {{"now", "infectious", "total"},
-                  {"now", "unexposed", "total"},
-                  {"now", "recovered", "total"},
-                  {"now", "dead", "total"},
-                  {"now", "vaccinated", "total"}},
+                  {{"status", "now", "infectious", "total", "total"},
+                  {"status", "now", "unexposed", "total", "total"},
+                  {"status", "now", "recovered", "total", "total"},
+                  {"status", "now", "dead", "total", "total"}},
+                  // {"vaxstatus", "now", "vaccinated", "total", "total"}},
               histories, model.caldays, sumstruct, "Cumulative Covid Outcome", false,
               case_artifact_path(model, "Cumulative Covid Outcome", output_timestamp, "html"));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    historyplot({{"now", "dead", "age0_19"},
-            {"now", "dead", "age20_39"}, 
-            {"now", "dead", "age40_59"}, 
-            {"now", "dead", "age60_79"},
-            {"now", "dead", "age80_up"}}, 
+    historyplot({{"status", "now", "dead", "age0_19", "total"},
+            {"status", "now", "dead", "age20_39", "total"}, 
+            {"status", "now", "dead", "age40_59", "total"}, 
+            {"status", "now", "dead", "age60_79", "total"},
+            {"status", "now", "dead", "age80_up", "total"}}, 
             histories, model.caldays, sumstruct, "Cumulative Died by Age Group", true,
             case_artifact_path(model, "Cumulative Died by Age Group", output_timestamp, "html"));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    historyplot({{"new_", "infectious", "total"}},
+    historyplot({{"status", "new_", "infectious", "total", "total"}},
             histories, model.caldays, sumstruct, "New Infection Cases", false,
             case_artifact_path(model, "New Infection Cases", output_timestamp, "html"));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    historyplot({{"new_", "dead", "total"}},
+    historyplot({{"status", "new_", "dead", "total", "total"}},
             histories, model.caldays, sumstruct, "Daily Deaths", false,
             case_artifact_path(model, "Daily Deaths", output_timestamp, "html"));
 

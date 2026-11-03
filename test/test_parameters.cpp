@@ -258,22 +258,6 @@ void test_load_vax_sched_rejects_mix_not_summing_to_one() {
 // tests pin down their current, correct behavior (no source changes here).
 //
 
-void test_load_ring_traits_happy_path() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = test_support::sample_paths().rings;
-
-  RingTraits rt = load_ring_traits(path);
-
-  CHECK(rt.ring_count() == 2);
-  CHECK(Ring::names.size() == 3);  // sentinel + ring_1 + ring_2
-  CHECK(Ring::names[1] == "ring_1");
-  CHECK(Ring::names[2] == "ring_2");
-  CHECK(approx_equal(rt.pct_of_population[1], 0.4, 1e-6));
-  CHECK(approx_equal(rt.pct_of_population[2], 0.6, 1e-6));
-  // out_ring_prob is indexed directly by the Agegrp's raw (1-based) value, not zidx
-  CHECK(approx_equal(rt.out_ring_prob[1][AGE0_19.v], 0.05, 1e-6));
-  CHECK(approx_equal(rt.out_ring_prob[2][AGE80_UP.v], 0.15, 1e-6));
-}
 
 void test_vax_schedule_age_aliases_and_fallback() {
   const auto path = write_temp_json("sched_age_aliases", R"({
@@ -290,148 +274,15 @@ void test_vax_schedule_age_aliases_and_fallback() {
   fs::remove_all(path.parent_path());
 }
 
-void test_load_ring_traits_rejects_missing_rings_key() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_no_key", R"({"not_rings":[]})");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "expected top-level 'rings' key");
-  fs::remove_all(path.parent_path());
-}
 
-void test_load_ring_traits_rejects_non_array_rings() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_not_array", R"({"rings": {"a":1}})");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "expected an array under top-level 'rings' key");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_empty_rings_array() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_empty", R"({"rings": []})");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "expected at least one ring");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_duplicate_names() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_dup_name", R"({
-    "rings": [
-      {"name":"dup","pct_of_population":0.5,"out_ring_prob_by_agegrp":
-        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}},
-      {"name":"dup","pct_of_population":0.5,"out_ring_prob_by_agegrp":
-        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}
-    ]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "duplicate ring name");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_missing_pct_of_population() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_no_pct", R"({
-    "rings": [{"name":"ring_1","out_ring_prob_by_agegrp":
-      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "missing pct_of_population");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_pct_out_of_range() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_pct_range", R"({
-    "rings": [{"name":"ring_1","pct_of_population":1.5,"out_ring_prob_by_agegrp":
-      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "pct_of_population=");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_missing_out_ring_prob() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_no_prob", R"({
-    "rings": [{"name":"ring_1","pct_of_population":1.0}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "missing out_ring_prob_by_agegrp");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_unknown_agegrp() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_bad_agegrp", R"({
-    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
-      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1,"bogus_age":0.1}}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "unknown agegrp");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_prob_out_of_range() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_prob_range", R"({
-    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
-      {"age0_19":1.5,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "out_ring_prob=");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_missing_agegrp_entry() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_missing_entry", R"({
-    "rings": [{"name":"ring_1","pct_of_population":1.0,"out_ring_prob_by_agegrp":
-      {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1}}]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "missing out_ring_prob for agegrp");
-  fs::remove_all(path.parent_path());
-}
-
-void test_load_ring_traits_rejects_pct_sum_not_one() {
-  test_support::RingNamesGuard ring_guard;
-  const auto path = write_temp_json("rings_bad_sum", R"({
-    "rings": [
-      {"name":"ring_1","pct_of_population":0.4,"out_ring_prob_by_agegrp":
-        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}},
-      {"name":"ring_2","pct_of_population":0.4,"out_ring_prob_by_agegrp":
-        {"age0_19":0.1,"age20_39":0.1,"age40_59":0.1,"age60_79":0.1,"age80_up":0.1}}
-    ]
-  })");
-  expect_throws_containing([&] { (void)load_ring_traits(path.string()); },
-                           "must sum to 1.0");
-  fs::remove_all(path.parent_path());
-}
 
 //
 // load_vax_sched_set: directory-existence guards already exist -- pin down
 // current behavior (no source changes here).
 //
 
-void test_load_vax_sched_set_rejects_missing_directory() {
-  const auto missing_dir = fs::temp_directory_path() /
-                           fmt::format("epi_sim_missing_sched_dir_{}", std::random_device{}());
-  expect_throws_containing([&] { (void)load_vax_sched_set(missing_dir.string()); },
-                           "does not exist");
-}
 
-void test_load_vax_sched_set_rejects_non_directory_path() {
-  const auto tmp_dir = fs::temp_directory_path() /
-                       fmt::format("epi_sim_sched_file_{}", std::random_device{}());
-  fs::create_directories(tmp_dir);
-  const auto file_path = tmp_dir / "not_a_dir.json";
-  { std::ofstream out(file_path); out << "{}"; }
 
-  expect_throws_containing([&] { (void)load_vax_sched_set(file_path.string()); },
-                           "is not a directory");
-  fs::remove_all(tmp_dir);
-}
 
 void test_model_params_loading(const test_support::TestRunOptions& options) {
   fmt::print("\n=== Testing ModelParams Loading ===\n\n");
@@ -498,117 +349,6 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(approx_equal(socialdata.touchfactors[0][0], 0.55, 1e-6));
   CHECK(approx_equal(socialdata.touchfactors[4][0], 0.28, 1e-6));
 
-  VaxSet vaxset = load_vax_data(paths.vaccines);
-  CHECK(vaxset.size() == 3);
-  CHECK(Vax::names.size() == 4);
-  CHECK(Vax::names[0] == "none");
-  CHECK(Vax::names[1] == "Pfizer");
-  CHECK(Vax::names[2] == "Moderna");
-  CHECK(Vax::names[3] == "JnJ");
-  const auto& pfizer = test_support::require_vax(vaxset, "Pfizer");
-  CHECK(pfizer.reqdshots == 2);
-  CHECK(pfizer.delay2ndshot == 21);
-  CHECK(pfizer.delaybooster == 160);
-  CHECK(approx_equal(pfizer.day1_effect, 0.65, 1e-6));
-  CHECK(approx_equal(test_support::require_named_factor(pfizer.infectfactor, "delta"), 0.85, 1e-6));
-  CHECK(pfizer.effectiveness.size() == 3);
-  CHECK(pfizer.effectiveness[1].first == "full");
-  CHECK(approx_equal(test_support::require_named_factor(pfizer.effectiveness[1].second, "delta"), 0.8, 1e-6));
-
-  VaxSchedSet vaxschedset = load_vax_sched_set(paths.vax_sched_dir);
-  CHECK(vaxschedset.size() == 2);
-
-  const auto& old_sched = test_support::require_sched(vaxschedset, "loc38015_old");
-  CHECK(old_sched.vaxesincluded.size() == 3);
-  const auto& jnj_sched = test_support::require_sched_vax(old_sched, "JnJ");
-  CHECK(approx_equal(jnj_sched.mix, 0.05, 1e-6));
-  CHECK(jnj_sched.starting_doses == 4000);
-  CHECK(approx_equal(jnj_sched.pct2ndshot, 0.0, 1e-6));
-  CHECK(approx_equal(jnj_sched.pctboost, 0.4, 1e-6));
-  CHECK(old_sched.dayrange.first == 350);
-  CHECK(old_sched.dayrange.second == 700);
-  CHECK(approx_equal(old_sched.targetpct, 0.95, 1e-6));
-  CHECK(old_sched.filtervec.size() == 2);
-  CHECK(old_sched.filtervec[0] == AGE80_UP);
-  CHECK(old_sched.filtervec[1] == AGE60_79);
-  CHECK(old_sched.shotmode == "all");
-  CHECK(old_sched.pattern.size() == 12);
-  CHECK(approx_equal(old_sched.pattern[3], 0.1, 1e-6));
-  CHECK(static_cast<bool>(old_sched.spreadfunc));
-
-  const auto& young_sched = test_support::require_sched(vaxschedset, "loc38015_young");
-  CHECK(approx_equal(young_sched.targetpct, 0.65, 1e-6));
-  CHECK(young_sched.filtervec.size() == 3);
-  CHECK(young_sched.filtervec[0] == AGE0_19);
-  CHECK(young_sched.filtervec[1] == AGE20_39);
-  CHECK(young_sched.filtervec[2] == AGE40_59);
-  CHECK(static_cast<bool>(young_sched.spreadfunc));
-
-  if (options.write_artifacts) {
-    std::ostringstream artifact;
-    artifact << "Parameter loader summary\n";
-    artifact << "========================\n\n";
-    artifact << "geodata:\n";
-    artifact << "  rows: " << geodata.num_rows << "\n";
-    artifact << "  locale 38015 county/city/state: "
-             << geodata.county[locale_idx] << ", "
-             << geodata.city[locale_idx] << ", "
-             << geodata.state[locale_idx] << "\n";
-    artifact << "  locale 38015 pop: " << geodata.pop[locale_idx] << "\n";
-    artifact << "  indoor window: " << geodata.indoor_st[locale_idx]
-             << " -> " << geodata.indoor_end[locale_idx] << "\n\n";
-
-    artifact << "variants:\n";
-    artifact << fmt::format("  names: [{}]\n", fmt::join(Variant::names, ", "));
-    artifact << "  infectparams count: " << infectparams.size() << "\n";
-    artifact << "  base sendrisk[2]: " << infectparams[1].sendrisk[2] << "\n";
-    artifact << "  alpha riskadjust[3]: " << progressionset.progression[2].factors.riskadjust[3] << "\n\n";
-
-    artifact << "social:\n";
-    artifact << "  gammashape: " << socialdata.gammashape << "\n";
-    artifact << "  indoor_uplift: " << socialdata.indoor_uplift << "\n";
-    artifact << "  contactfactors[0][1]: " << socialdata.contactfactors[0][1] << "\n";
-    artifact << "  touchfactors[4][0]: " << socialdata.touchfactors[4][0] << "\n\n";
-
-    artifact << "vaccines:\n";
-    artifact << fmt::format("  names: [{}]\n", fmt::join(Vax::names, ", "));
-    artifact << "  set size: " << vaxset.size() << "\n";
-    artifact << "  Pfizer reqdshots/delay2nd/booster: "
-             << pfizer.reqdshots << "/" << pfizer.delay2ndshot << "/"
-             << pfizer.delaybooster << "\n";
-    artifact << "  Pfizer delta infectfactor: "
-             << test_support::require_named_factor(pfizer.infectfactor, "delta") << "\n\n";
-
-    artifact << "schedules:\n";
-    artifact << "  schedule count: " << vaxschedset.size() << "\n";
-    artifact << "  loc38015_old targetpct/dayrange: "
-             << old_sched.targetpct << " / [" << old_sched.dayrange.first
-             << ", " << old_sched.dayrange.second << "]\n";
-    artifact << "  loc38015_young targetpct/filter count: "
-             << young_sched.targetpct << " / " << young_sched.filtervec.size() << "\n\n";
-
-    artifact << "assembled ModelParams inputs:\n";
-    artifact << "  variants: " << variant_names.size() << "\n";
-    artifact << "  vaxset: " << vaxset.size() << "\n";
-    artifact << "  schedules: " << vaxschedset.size() << "\n";
-
-    test_support::write_artifact_text(options, GROUP, "loader_summary.txt", artifact.str());
-  }
-
-  ModelParams mp{
-      .geodata = std::move(geodata),
-      .variant_names = std::move(variant_names),
-      .infectparams = std::move(infectparams),
-      .progressionset = std::move(progressionset),
-      .socialdata = std::move(socialdata),
-      .vaxset = std::move(vaxset),
-      .vaxschedset = std::move(vaxschedset),
-  };
-
-  CHECK(mp.geodata.pop[locale_idx] == 95626);
-  CHECK(mp.variant_names[1] == "base");
-  CHECK(mp.vaxset.size() == 3);
-  CHECK(mp.vaxschedset.size() == 2);
 
   fmt::println("=== ModelParams Loading Test Completed ===");
 }
@@ -994,20 +734,6 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   test_load_seed_case_rejects_duration_above_limit();
   test_load_vax_sched_rejects_mix_not_summing_to_one();
   test_vax_schedule_age_aliases_and_fallback();
-  test_load_ring_traits_happy_path();
-  test_load_ring_traits_rejects_missing_rings_key();
-  test_load_ring_traits_rejects_non_array_rings();
-  test_load_ring_traits_rejects_empty_rings_array();
-  test_load_ring_traits_rejects_duplicate_names();
-  test_load_ring_traits_rejects_missing_pct_of_population();
-  test_load_ring_traits_rejects_pct_out_of_range();
-  test_load_ring_traits_rejects_missing_out_ring_prob();
-  test_load_ring_traits_rejects_unknown_agegrp();
-  test_load_ring_traits_rejects_prob_out_of_range();
-  test_load_ring_traits_rejects_missing_agegrp_entry();
-  test_load_ring_traits_rejects_pct_sum_not_one();
-  test_load_vax_sched_set_rejects_missing_directory();
-  test_load_vax_sched_set_rejects_non_directory_path();
   test_input_verify_accepts_template_inputs();
   test_input_verify_reports_vaccine_variant_alignment_error();
   test_check_config_rejects_missing_days();

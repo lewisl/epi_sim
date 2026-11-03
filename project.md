@@ -1,8 +1,4 @@
 ## TODO
-- revise/simpify overall to selection of hisgtories for printing, serialization and plotting.  must complete before getting rid of the old crap
-- purge materialize_history_vector and everything associated with on-the-fly history totals.
-    - Includes all of the resolve_history_source, etc. functions
-    - remove usage from serialization, printing and plotting
 - overhaul tests:   especially test for bad inputs off the happy path.
 - distribution packaging
 - revise readme for credibility
@@ -26,6 +22,10 @@
 - opencode -s ses_11e137ffbffeM94mDnfMrjLSza
 
 ## Done
+- revise/simpify overall to selection of hisgtories for printing, serialization and plotting.  must complete before getting rid of the old crap
+- purge materialize_history_vector and everything associated with on-the-fly history totals.
+    - Includes all of the resolve_history_source, etc. functions
+    - remove usage from serialization, printing and plotting
 - update sum_total_histories to sum split totals
 - build all history vectors including full totals and split totals
 - make all traits 1-indexed:  0 will be "error". names[1] will be the first valid value of a trait.
