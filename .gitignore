@@ -4,6 +4,7 @@ build/
 compile_commands.json
 outtakes
 test_output
+.vscode/
 
 # MacOS Cache
 .DS_Store
