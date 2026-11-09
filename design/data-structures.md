@@ -20,11 +20,14 @@ At load time this JSON hierarchy is converted to `ProgressionTree`:
   one-based `Agegrp` and `Condition` values. Outcome indices are directly
   zero-based `Progressionmap` underlying values (`ToRecover=0` through `ToDead=5`).
 
-Fixed trait metadata is defined by scoped enums and reflected with magic_enum.
-`Agegrp`, `Status`, `Condition`, and `Vaxstatus` retain their concrete PopData
-wrappers and single `uint8_t v` storage member. Their nested `Enum` supplies
-names and parsing; it does not add per-person storage. `Progressionmap`,
-`Trait`, and `Phase` are ordinary scoped enums. All fixed IDs remain explicit;
-history indexing and progression continue to use numeric offsets.
+`Agegrp`, `Status`, `Condition`, and `Vaxstatus` define their names directly as
+`inline static const std::vector<std::string>` members. A name's position is
+its numeric ID. Names-based lookup supplies parsing; constrained explicit
+integer constructors check the value before narrowing to one-byte `uint8_t v`
+storage. The wrappers remain distinct types with no per-person name storage.
+Agegrp and Condition retain compile-time counts for progression array dimensions;
+setup checks those dimensions against the actual name tables. `Progressionmap`,
+`TraitID`, and `Phase` remain ordinary scoped enums reflected with magic_enum.
+History indexing and progression continue to use the same numeric offsets.
 
 `Variant`, `Vax`, `SDCase`, and `Ring` still use runtime name registries.

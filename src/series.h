@@ -19,20 +19,20 @@ Tracked_Traits are recorded during the simulation for each agent who experiences
 */
 inline constexpr array<TraitID, 3> Tracked_Traits{TraitID::status, TraitID::vax, TraitID::variant};
 
-inline constexpr Agegrp HISTORY_AGE_TOTAL = Agegrp{0};
+inline const Agegrp HISTORY_AGE_TOTAL = Agegrp{0};
 inline constexpr uint8_t RING_ALL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
 
-constexpr std::string_view age_vec_label(uint8_t age) {
+inline std::string_view age_vec_label(uint8_t age) {
     if (age == HISTORY_AGE_TOTAL) return "total";
     else return std::string_view{Agegrp::names[age]};
 }
 
 inline std::optional<uint8_t> age_history_idx_from_string(std::string_view text) {
-    if (text == "total") return HISTORY_AGE_TOTAL;
-    const auto age = magic_enum::enum_cast<Agegrp::Enum>(text);
-    if (age && *age != Agegrp::Enum::unknown) return std::to_underlying(*age);
+    if (text == "total") return static_cast<uint8_t>(HISTORY_AGE_TOTAL);
+    const auto age = trait_name_to_id(Agegrp::names, std::string{text});
+    if (age && *age != 0) return *age;
     return std::nullopt;
 }
 

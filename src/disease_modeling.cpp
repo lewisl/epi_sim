@@ -154,23 +154,16 @@ void AgentView::make_dead(Histories& histories) {
 
 //clang-format off
 uint8_t touch_map(Status target_status, Condition target_cond) {
-  switch (target_status)
-  {
-  case UNEXPOSED:           return uint8_t{0};
-  case RECOVERED:           return uint8_t{1};
-  case INFECTIOUS:
-    switch (target_cond)
-    {
-    case NIL:               return uint8_t{2};
-    case MILD:              return uint8_t{3};
-    case SICK:              return uint8_t{4};  
-    case SEVERE:            return uint8_t{5};
-    default:
-      throw std::runtime_error("Invalid condition input for touch_map");
-    }
-  default:
-    throw std::runtime_error("Invalid status input for touch_map");
+  if (target_status == UNEXPOSED) return uint8_t{0};
+  if (target_status == RECOVERED) return uint8_t{1};
+  if (target_status == INFECTIOUS) {
+    if (target_cond == NIL) return uint8_t{2};
+    if (target_cond == MILD) return uint8_t{3};
+    if (target_cond == SICK) return uint8_t{4};
+    if (target_cond == SEVERE) return uint8_t{5};
+    throw std::runtime_error("Invalid condition input for touch_map");
   }
+  throw std::runtime_error("Invalid status input for touch_map");
 }
 //clang-format on
 

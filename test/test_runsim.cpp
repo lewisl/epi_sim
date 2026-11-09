@@ -26,13 +26,10 @@ RunsimResult tally(const PopData& pop) {
   RunsimResult r{pop.popn, 0, 0, 0, 0, 0};
   for (size_t i = 1; i <= pop.popn; ++i) {
     if (pop.sickday[i] > 0) ++r.ever_infectious;
-    switch (pop.status[i]) {
-      case UNEXPOSED:  ++r.n_unexposed;  break;
-      case INFECTIOUS: ++r.n_infectious; break;
-      case RECOVERED:  ++r.n_recovered;  break;
-      case DEAD:       ++r.n_dead;       break;
-      default: break;
-    }
+    if (pop.status[i] == UNEXPOSED) ++r.n_unexposed;
+    else if (pop.status[i] == INFECTIOUS) ++r.n_infectious;
+    else if (pop.status[i] == RECOVERED) ++r.n_recovered;
+    else if (pop.status[i] == DEAD) ++r.n_dead;
   }
   return r;
 }

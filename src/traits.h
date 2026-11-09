@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include <array>
 #include <cstdint>
+#include <concepts>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -98,10 +99,14 @@ std::string_view tr_val_to_string(TraitID id, uint8_t v);
 uint8_t tr_val_to_id(TraitID id, std::string_view name);
 uint8_t tr_val_to_id(uint8_t id, std::string_view name);
 
+std::optional<uint8_t> trait_name_to_id(
+    const std::vector<std::string>& names, const std::string& name,
+    bool case_insensitive = false);
+void validate_fixed_trait_names();
 
 
 /*
-Compile time classes for traits with values that can't be changed
+Traits whose name tables are defined in source and immutable after initialization
 
 use as:
 
@@ -111,47 +116,36 @@ use as:
 */
 
 //
-// Agegrp: enum metadata with one-byte PopData storage.
+// Agegrp: fixed names with one-byte PopData storage.
 //
 struct Agegrp {
-  enum class Enum : uint8_t {
-    unknown = 0, age0_19, age20_39, age40_59, age60_79, age80_up
-  };
-
   uint8_t v{};
-  static inline const std::vector<std::string> names = [] {
-      const auto& a = magic_enum::enum_names<Enum>();
-      return std::vector<std::string>(a.begin(), a.end());
-  }();
-  static constexpr uint16_t count = magic_enum::enum_count<Enum>() - 1;
+  inline static const std::vector<std::string> names{
+      "unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"};
+  // A compile-time dimension of the progression arrays; checked at setup.
+  static constexpr uint16_t count = 5;
 
   template <std::integral I>
-  constexpr explicit Agegrp(I value) {
-    if (value < 0 || value > count) {
-      throw std::out_of_range("Invalid Agegp value");
+  explicit Agegrp(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Agegrp value");
     }
     v = static_cast<uint8_t>(value);
   }
 
-  constexpr explicit Agegrp(Enum value) : Agegrp(std::to_underlying(value)) {}
-
   Agegrp() = default;
-  // constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
-  // constexpr Agegrp(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  // constexpr explicit Agegrp(Enum value) noexcept : v(std::to_underlying(value)) {}
   Agegrp(std::string name) : v(resolve_name(std::move(name))) {}
 
   static uint8_t resolve_name(std::string name) {
-      const auto value = magic_enum::enum_cast<Enum>(
-        name, magic_enum::case_insensitive);
+      const auto value = trait_name_to_id(names, name, true);
       if (!value) {
-        throw std::invalid_argument(fmt::format("Unknown Agegrp name '{}", name));
+        throw std::invalid_argument(fmt::format("Unknown Agegrp name '{}'", name));
       }
-      return std::to_underlying(*value);
+      return *value;
   }
 
   std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
+    return v < names.size() ? names[v] : std::string{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Agegrp&) const = default;
@@ -163,49 +157,38 @@ static_assert(sizeof(Agegrp) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Agegrp>);
 
 // constants for Agegrp instances used in PopData and Series
-inline constexpr Agegrp UNKNOWN{Agegrp::Enum::unknown};
-inline constexpr Agegrp AGE0_19{Agegrp::Enum::age0_19};
-inline constexpr Agegrp AGE20_39{Agegrp::Enum::age20_39};
-inline constexpr Agegrp AGE40_59{Agegrp::Enum::age40_59};
-inline constexpr Agegrp AGE60_79{Agegrp::Enum::age60_79};
-inline constexpr Agegrp AGE80_UP{Agegrp::Enum::age80_up};
-
-static_assert(UNKNOWN.v == 0 && AGE0_19.v == 1 && AGE20_39.v == 2
-              && AGE40_59.v == 3 && AGE60_79.v == 4 && AGE80_UP.v == 5);
+inline const Agegrp UNKNOWN{"unknown"};
+inline const Agegrp AGE0_19{"age0_19"};
+inline const Agegrp AGE20_39{"age20_39"};
+inline const Agegrp AGE40_59{"age40_59"};
+inline const Agegrp AGE60_79{"age60_79"};
+inline const Agegrp AGE80_UP{"age80_up"};
 
 //
-// Status: enum metadata with one-byte PopData storage.
+// Status: fixed names with one-byte PopData storage.
 //
 struct Status {
-  enum class Enum : uint8_t {
-    none = 0, unexposed, infectious, recovered, dead};
-
   uint8_t v{};
-  static inline const std::vector<std::string> names = [] {
-      const auto& a = magic_enum::enum_names<Enum>();
-      return std::vector<std::string>(a.begin(), a.end());
-  }();
-
-  static constexpr uint16_t count = magic_enum::enum_count<Enum>() - 1;
+  inline static const std::vector<std::string> names{
+      "none", "unexposed", "infectious", "recovered", "dead"};
+  inline static const uint16_t count = static_cast<uint16_t>(names.size() - 1);
 
   Status() = default;
-  // constexpr explicit Status(uint8_t v) noexcept : v(v) {}
-  // constexpr Status(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  Status(int val) {
-    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
-    else throw std::invalid_argument("Status trait value must fit in uint8_t raw values @ <= 255");
-  };
-  constexpr explicit Status(Enum value) noexcept : v(std::to_underlying(value)) {}
+  template <std::integral I>
+  explicit Status(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Status value");
+    }
+    v = static_cast<uint8_t>(value);
+  }
   Status(std::string name) : v(resolve_name(std::move(name))) {}
 
   static uint8_t resolve_name(std::string name) {
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::none));
+    return trait_name_to_id(names, name, true).value_or(0);
   }
 
   std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
+    return v < names.size() ? names[v] : std::string{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Status&) const = default;
@@ -215,45 +198,38 @@ static_assert(sizeof(Status) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Status>);
 
 // constants for Status instances used in PopData and Series
-inline constexpr Status NONE{Status::Enum::none};
-inline constexpr Status UNEXPOSED{Status::Enum::unexposed};
-inline constexpr Status INFECTIOUS{Status::Enum::infectious};
-inline constexpr Status RECOVERED{Status::Enum::recovered};
-inline constexpr Status DEAD{Status::Enum::dead};
-
-static_assert(NONE.v == 0 && UNEXPOSED.v == 1 && INFECTIOUS.v == 2
-              && RECOVERED.v == 3 && DEAD.v == 4);
+inline const Status NONE{"none"};
+inline const Status UNEXPOSED{"unexposed"};
+inline const Status INFECTIOUS{"infectious"};
+inline const Status RECOVERED{"recovered"};
+inline const Status DEAD{"dead"};
 
 //
-// Condition: enum metadata with one-byte PopData storage.
+// Condition: fixed names with one-byte PopData storage.
 //
 struct Condition {
-  enum class Enum : uint8_t {
-    error = 0, uninfected, nil, mild, sick, severe
-  };
-
   uint8_t v{};
-  static inline const std::vector<std::string> names = [] {
-      const auto& a = magic_enum::enum_names<Enum>();
-      return std::vector<std::string>(a.begin(), a.end());
-  }();
-  static constexpr uint16_t count = magic_enum::enum_count<Enum>() - 1;
-
+  inline static const std::vector<std::string> names{
+      "error", "uninfected", "nil", "mild", "sick", "severe"};
+  // A compile-time dimension of the progression arrays; checked at setup.
+  static constexpr uint16_t count = 5;
 
   Condition() = default;
-  constexpr explicit Condition(uint8_t v) noexcept : v(v) {}
-  constexpr Condition(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr explicit Condition(Enum value) noexcept : v(std::to_underlying(value)) {}
+  template <std::integral I>
+  explicit Condition(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Condition value");
+    }
+    v = static_cast<uint8_t>(value);
+  }
   Condition(std::string name) : v(resolve_name(std::move(name))) {}
 
   static uint8_t resolve_name(std::string name) {
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::uninfected));
+    return trait_name_to_id(names, name, true).value_or(1);
   }
 
   std::string show() const {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
+    return v < names.size() ? names[v] : std::string{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Condition&) const = default;
@@ -263,36 +239,32 @@ static_assert(sizeof(Condition) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Condition>);
 
 // constants for Condition instances used in PopData
-inline constexpr Condition UNINFECTED{Condition::Enum::uninfected};
-inline constexpr Condition NIL{Condition::Enum::nil};
-inline constexpr Condition MILD{Condition::Enum::mild};
-inline constexpr Condition SICK{Condition::Enum::sick};
-inline constexpr Condition SEVERE{Condition::Enum::severe};
-
-static_assert(UNINFECTED.v == 1 && NIL.v == 2 && MILD.v == 3
-              && SICK.v == 4 && SEVERE.v == 5);  // I see no point for this guard
+inline const Condition UNINFECTED{"uninfected"};
+inline const Condition NIL{"nil"};
+inline const Condition MILD{"mild"};
+inline const Condition SICK{"sick"};
+inline const Condition SEVERE{"severe"};
 
 /* 
-Vaxstatus: enum metadata with one-byte PopData storage.
+Vaxstatus: fixed names with one-byte PopData storage.
 values: none=0, first, full, booster, exhausted
 */
 struct Vaxstatus {
-  enum class Enum : uint8_t {
-    none = 0, first, full, booster, exhausted
-  };
-
   uint8_t v{};
-  static inline const std::vector<std::string> names = [] {
-      const auto& a = magic_enum::enum_names<Enum>();
-      return std::vector<std::string>(a.begin(), a.end());
-  }();
-  static constexpr uint16_t count = magic_enum::enum_count<Enum>();
+  inline static const std::vector<std::string> names{
+      "none", "first", "full", "booster", "exhausted"};
+  inline static const uint16_t count = static_cast<uint16_t>(names.size());
 
-  constexpr explicit Vaxstatus(uint8_t v) noexcept : v(v) {}
-  constexpr explicit Vaxstatus(Enum value) noexcept : v(std::to_underlying(value)) {}
+  template <std::integral I>
+  explicit Vaxstatus(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Vaxstatus value");
+    }
+    v = static_cast<uint8_t>(value);
+  }
 
   std::string show() const noexcept {
-    return std::string{magic_enum::enum_name(static_cast<Enum>(v))};
+    return v < names.size() ? names[v] : std::string{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Vaxstatus&) const = default;
@@ -305,15 +277,12 @@ static_assert(sizeof(Vaxstatus) == sizeof(uint8_t));
 static_assert(std::is_trivially_copyable_v<Vaxstatus>);
 
 namespace Vaxstat {
-  inline constexpr Vaxstatus none{Vaxstatus::Enum::none};
-  inline constexpr Vaxstatus first{Vaxstatus::Enum::first};
-  inline constexpr Vaxstatus full{Vaxstatus::Enum::full};
-  inline constexpr Vaxstatus booster{Vaxstatus::Enum::booster};
-  inline constexpr Vaxstatus exhausted{Vaxstatus::Enum::exhausted};
+  inline const Vaxstatus none{trait_name_to_id(Vaxstatus::names, "none").value()};
+  inline const Vaxstatus first{trait_name_to_id(Vaxstatus::names, "first").value()};
+  inline const Vaxstatus full{trait_name_to_id(Vaxstatus::names, "full").value()};
+  inline const Vaxstatus booster{trait_name_to_id(Vaxstatus::names, "booster").value()};
+  inline const Vaxstatus exhausted{trait_name_to_id(Vaxstatus::names, "exhausted").value()};
 } // namespace Vaxstat
-
-static_assert(Vaxstat::none.v == 0 && Vaxstat::first.v == 1
-              && Vaxstat::full.v == 2 && Vaxstat::booster.v == 3);
 
 //
 // All six progression outcomes are valid zero-based parameter indices.
@@ -332,13 +301,7 @@ namespace Progressmap {
   inline constexpr auto ToDead = Progressionmap::ToDead;
 }
 
-// do_progression assigns outcomes 1..4 directly to Condition.  that is no longer going to work!
-// static_assert(std::to_underlying(Progressmap::ToRecover) == 0);
-// static_assert(std::to_underlying(Progressmap::ToNil) == NIL.v);
-// static_assert(std::to_underlying(Progressmap::ToMild) == MILD.v);
-// static_assert(std::to_underlying(Progressmap::ToSick) == SICK.v);
-// static_assert(std::to_underlying(Progressmap::ToSevere) == SEVERE.v);
-// static_assert(std::to_underlying(Progressmap::ToDead) == 5);
+// do_progression maps outcomes 1..4 to Condition IDs 2..5 (nil..severe).
 
 //
 // length of time being infected, per each infection incidence
@@ -835,8 +798,8 @@ struct VaxdayHist {
 };
 
 /* trait_from_string<T>(s) -- converts a string name to a trait value.
-   Fixed wrappers use their nested Enum; ordinary enums use reflection directly.
-   Runtime wrappers retain their names vector and uint8_t constructor.
+   Wrappers use their names vectors; ordinary enums use reflection directly.
+   Fixed wrappers use checked construction; runtime wrappers retain sentinel handling.
    Unknown input returns std::nullopt; named zero sentinels parse successfully.
 
    Usage:
@@ -849,24 +812,16 @@ template<typename T>
 std::optional<T> trait_from_string(const std::string& s) {
   if constexpr (std::is_enum_v<T>) {
     return magic_enum::enum_cast<T>(s, magic_enum::case_insensitive);
-  } else if constexpr (requires { typename T::Enum; }) {
-    const auto value = magic_enum::enum_cast<typename T::Enum>(
-        s, magic_enum::case_insensitive);
-    if (!value) return std::nullopt;
-    return T{*value};
   } else {
-    auto tolower_str = [](const std::string& str) {
-        std::string out = str;
-        std::transform(out.begin(), out.end(), out.begin(), ::tolower);  // like functional "apply"
-        return out;
-    };
-    std::string sl = tolower_str(s);
-    auto it = std::find_if(T::names.begin(), T::names.end(),
-        [&](const std::string& name) { return tolower_str(name) == sl; });
-    if (it == T::names.end()) return std::nullopt;    // use nullopt instead of nullptr. we could use {} instead
-    T result{};
-    result.v = static_cast<uint8_t>(std::distance(T::names.begin(), it));
-    return result;
-    // return T{static_cast<uint8_t>(std::distance(T::names.begin(), it))};
+    const auto value = trait_name_to_id(T::names, s, true);
+    if (!value) return std::nullopt;
+    if constexpr (std::same_as<T, Agegrp> || std::same_as<T, Status> ||
+                  std::same_as<T, Condition> || std::same_as<T, Vaxstatus>) {
+      return T{*value};
+    } else {
+      T result{};
+      result.v = *value;
+      return result;
+    }
   }
 }

@@ -1,5 +1,80 @@
 # Session Notes
 
+## 2026-11-09: runtime trait constructor safety review; no implementation requested
+
+- User asks whether runtime traits need checked numeric/string construction
+  after loaders finish. Source/reference review only; no C++ edits or tests.
+- Variant/Vax numeric constructors check 0..255, not registry membership;
+  Ring(int) incorrectly accepts names.size(); SDCase numeric constructors narrow
+  unchecked, and registration has no capacity guard before uint8_t conversion.
+- All four string constructors currently append/register names. Recommend
+  moving registration into loaders or an explicitly named registration operation,
+  and making ordinary post-load string construction resolve existing names only.
+  Unknown input must fail without mutating names/count/parameter alignment.
+- Recommend constrained explicit integral constructors with validation before
+  narrowing, actual names.size() bounds, and explicit per-trait zero policies.
+  Preserve zero states for defaults/disabled vaccination; reject zero where a
+  real variant/ring is required. Keep validation outside unchanged hot loops.
+- Input verification already rejects many duplicate/reserved names, while
+  trait_from_string already performs lookup only. Registration/loaders still
+  need consistent name uniqueness/capacity and parallel-vector alignment.
+  Public v and Ring's raw assignment can bypass constructor checks; private
+  storage/mutation redesign is separate work, not authorized by this question.
+
+## 2026-11-09: fixed trait name-vector migration implemented
+
+- User explicitly authorized implementation after checkpoint commit 014dbde;
+  worktree was clean. This authorization supersedes the planning-only notes below.
+- Agegrp, Status, Condition, Vaxstatus now directly define immutable
+  vector<string> names literals. Nested enums/reflection removed for these four;
+  public named constants resolve against their own names tables. Constructors
+  accept constrained integral inputs, validate before narrowing, and are explicit.
+  Default states, one-byte storage, IDs, count conventions, and parser contracts
+  preserved. Status/Condition invalid-name fallbacks remain unchanged.
+- Shared names lookup preserves exact/case-insensitive choices and optional
+  failure. trait_from_string constructs fixed wrappers through checked numeric
+  constructors, preserving runtime registry sentinel handling separately.
+  Generic conversion bounds now use actual names sizes, including named zero
+  and final values. Setup validates fixed tables and progression dimensions.
+- Downstream updates: progression/history age parsing; numeric change terms
+  checked before narrowing; explicit Condition arithmetic result construction;
+  touch_map and test tally comparisons replace switch labels that required
+  constexpr named objects. TraitID/Phase/Progressionmap reflection remains.
+- Two checkpoint build blockers repaired minimally before baseline capture:
+  selector ring/age locals are raw uint8_t map coordinates (no Ring{0}), and
+  plot.h's historyplot declaration matches its existing const Histories& definition.
+- Existing trait metadata tests now use production vectors rather than copied
+  complete catalogs; old constexpr ID assertions became runtime checks; the
+  invalid Agegrp string expectation now matches the user's throwing policy.
+  Current data-structures documentation updated. No test-harness redesign.
+- xmake build epi_sim passed. Serena errors are zero in changed production
+  files checked; no four-trait nested Enum/T::Enum references remain in src/test.
+  git diff --check passed.
+- xmake build test is blocked by pre-existing HistorySelectorSet("all") and
+  serialize_selected_histories calls in test/test_runsim.cpp (currently lines
+  112/120). Do not expand this migration into unrelated history-test repair.
+  No unit sweep was run; full simulation is the user-selected acceptance test.
+- Baseline with the two build fixes, before names migration: isolated scaffold
+  test_output/fixed_trait_migration/case; 180 days, rings and vaccination enabled;
+  copied schedules moved to days 1..120 to exercise vaccination. Full run wrote
+  four CSVs and four HTML plots under baseline_output. Baseline binary/logs:
+  /private/tmp/epi_sim_fixed_traits_dm5woq49/. Second elevated run permission was
+  declined; no migrated scaffold run was executed. User elected to run familiar
+  cases manually; leave full simulation execution to them unless requested.
+- User's new case-1 output timestamp 20261109T135632 was compared read-only
+  against 20261109T100107 in ~/epi-sim-project/case-1/output. All four CSVs
+  (population, selected, all, total) are byte-identical. All four plots' embedded
+  data/layout are identical; every plot trace matches serialized history for
+  all 180 days. Population has 95,626 person rows; daily status totals conserve
+  population; all 20 full totals equal atomic sums. Final counts: unexposed
+  25,304, recovered 69,475, dead 847. Comparison report saved in the temp
+  directory as case-1-comparison.txt.
+- User reports successful visual acceptance runs with multiple variants,
+  multiple rings, and history columns including mixed totals; a separate
+  vaccination case also appeared to work. The migrated combination of
+  vaccination plus multiple rings was not tested; user accepts that coverage
+  limit and is reviewing the diff. No further source changes or runs requested.
+
 ## 2026-11-09: fixed trait name-vector migration plan requested
 
 - User requests a plan to replace nested enums/magic_enum mapping for Agegrp,

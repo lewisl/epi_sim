@@ -11,6 +11,7 @@ namespace fs = std::filesystem;
 
 ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, string variants_path, string social_path, string vax_path, string vaxsched_dir, string rings_path)
 {
+  validate_fixed_trait_names();
   // first build each needed datastructure;
   //          then wrap all of them in the aggregate initialization of the container
   GeoData geodata = load_geodata_csv(geo_path);

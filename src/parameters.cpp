@@ -272,14 +272,13 @@ ProgressionSet load_progression_set(json jdata) {
       tree.entries.reserve(breakday_count);
 
       for (const auto& [age, body_age] : jsontree.items()) {
-        const auto age_value = magic_enum::enum_cast<Agegrp::Enum>(age);
-        if (!age_value || *age_value == Agegrp::Enum::unknown) {
+        const auto age_value = trait_name_to_id(Agegrp::names, age);
+        if (!age_value || *age_value == 0) {
           throw std::runtime_error(fmt::format(
               "progression_tree: variant '{}' has unknown age group '{}'.",
               variant, age));
         }
-        const size_t age_idx =
-            size_t(std::to_underlying(*age_value) - 1);
+        const size_t age_idx = size_t(*age_value - 1);
         if (seen_ages[age_idx]) {
           throw std::runtime_error(fmt::format(
               "progression_tree: variant '{}' repeats age group '{}'.", variant, age));

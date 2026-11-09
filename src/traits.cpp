@@ -1,4 +1,7 @@
 #include "traits.h"
+#include <algorithm>
+#include <cctype>
+#include <limits>
 #include <magic_enum.hpp>
 #include <fmt/base.h>
 #include <fmt/format.h> 
@@ -47,13 +50,55 @@ inline constexpr std::array trait_table{
   TraitEntry{.id = TraitID::vaxdayhist, .names = no_names, .count = no_count},
 };
 
+std::optional<uint8_t> trait_name_to_id(
+    const std::vector<std::string>& names, const std::string& name,
+    bool case_insensitive) {
+  for (size_t i = 0; i < names.size(); ++i) {
+    const auto& candidate = names[i];
+    const bool matches = case_insensitive
+        ? std::equal(candidate.begin(), candidate.end(), name.begin(), name.end(),
+            [](unsigned char a, unsigned char b) {
+              return std::tolower(a) == std::tolower(b);
+            })
+        : candidate == name;
+    if (matches) {
+      if (i > std::numeric_limits<uint8_t>::max()) {
+        throw std::out_of_range("Trait name index exceeds uint8_t storage");
+      }
+      return static_cast<uint8_t>(i);
+    }
+  }
+  return std::nullopt;
+}
+
+void validate_fixed_trait_names() {
+  for (const auto id : {TraitID::agegrp, TraitID::status,
+                        TraitID::condition, TraitID::vaxstatus}) {
+    const auto& names = trait_table[std::to_underlying(id)].names;
+    if (names.empty() || names.size() > size_t{std::numeric_limits<uint8_t>::max()} + 1) {
+      throw std::logic_error(fmt::format("Invalid names table size for {}", trait_lookup(id)));
+    }
+    for (size_t i = 0; i < names.size(); ++i) {
+      if (names[i].empty() ||
+          std::find(names.begin(), names.begin() + i, names[i]) != names.begin() + i) {
+        throw std::logic_error(fmt::format("Empty or duplicate name for {}", trait_lookup(id)));
+      }
+    }
+  }
+  if (Agegrp::names.size() != Agegrp::count + 1 ||
+      Condition::names.size() != Condition::count + 1) {
+    throw std::logic_error("Fixed trait names do not match progression array dimensions");
+  }
+}
+
 // trait value lookups
 std::string_view tr_val_to_string(TraitID id, uint8_t v) {
   auto tbl_idx = std::to_underlying(id);
   if (tbl_idx < 1 || tbl_idx > trait_table.size() - 1) 
     throw std::out_of_range("trait id out of range to string");
   const auto& e = trait_table[std::to_underlying(id)];
-  if (v < 1 || v > e.count - 1) throw std::out_of_range("index to trait value out of range");
+  if (e.count == 0 || v >= e.names.size())
+    throw std::out_of_range("index to trait value out of range");
   return e.names[v];
 }
 
@@ -68,7 +113,6 @@ uint8_t tr_val_to_id(uint8_t id, std::string_view name) {
   const auto& trait = trait_table[id];
   if (trait.count == 0) 
     throw std::out_of_range("trait name selected for a trait with no members.");
-  for (uint8_t i = 0; i <= trait.count; ++i)
-    if (trait.names[i] == name) return i;
+  if (const auto value = trait_name_to_id(trait.names, std::string{name})) return *value;
   throw std::invalid_argument(fmt::format("unknown name {} for trait value {}", name, static_cast<uint8_t>(id)));
 }

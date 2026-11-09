@@ -1,8 +1,13 @@
 # Fixed trait names using directly initialized immutable vectors
 
-Status: plan only. No production or test implementation is authorized by this
-document. Review and migrate one trait at a time: Agegrp, Status, Condition,
-then Vaxstatus.
+Status: implementation authorized and completed on 2026-11-09 after checkpoint
+014dbde. Application build passes. The user's new case-1 CSVs match the earlier
+run byte-for-byte; embedded plot data/layout also match. User reports successful
+visual runs with multiple variants/rings and mixed totals, plus a separate
+vaccination case. Vaccination combined with multiple rings remains untested;
+user accepts that limit and is reviewing the diff. See SESSION.md for evidence
+and the unrelated test-target build blocker. The sections below record the
+agreed plan.
 
 ## Objective and required representation
 
@@ -231,6 +236,7 @@ the removal of magic_enum or redesign unrelated runtime loaders.
 | parameters.cpp: agegrp_from_string, load_vax_sched, load_ring_traits | These already use names lookup. Keep vaccine-filter aliases and the ring loader's explicit rejection of UNKNOWN; no rewrite is required merely because the nested enum disappears. |
 | cases.cpp: apply_change | Review checked construction of Status, Condition, Vaxstatus from parsed term IDs, including casts before construction. Preserve make_sick/make_well/make_dead routing; any untrusted numeric input must be checked before narrowing. |
 | progression.cpp: do_progression | An arithmetic result is currently assigned to Condition through implicit construction. Make the final construction explicit if required, preserving the outcome-to-condition mapping and avoiding string conversion in the kernel. |
+| disease_modeling.cpp: touch_map; test/test_runsim.cpp: tally | Named objects initialized by runtime lookup cannot be switch case labels. Use equivalent comparisons against the same public constants, preserving values and invalid-input behavior without hardcoded replacement IDs. |
 | population.h: PopData constructor and age_distribution | Named constants initialize status, condition, vaccination status, and real ages. Preserve one-based person indexing, initial values, and the initialization order of the named constants they copy. |
 | series.cpp: build_history_vectors, select_indices, aggregate_value | Review numeric-to-Agegrp construction, total constants, and generic raw-ID lookup at selector boundaries. Keep numeric selector coordinates consistent with Selsim/Seltot; no Ring{0} construction for totals. |
 | pop_serialize.cpp and presentation callers of show() | Existing wrapper APIs should keep call sites working. Verify the same names and numeric IDs in output; no blanket rewrite of formatting calls is expected. |
@@ -344,7 +350,8 @@ Complete the migration audit alongside that application acceptance run:
   expected to remain. Recheck indirect callers after the changed parsers bind
   successfully, rather than relying only on absence of old symbol names.
 
-Only the plan and session handoff were written while planning. No C++ files,
-tests, dependency declarations, or runtime settings were changed; no builds or
-tests were run. The existing test-only repair plan is provisional and must not
-be implemented as an enum-based redesign after this direction is selected.
+Planning originally changed only this document and the session handoff.
+Implementation was subsequently authorized; current implementation and
+acceptance evidence are recorded in SESSION.md. The existing test-only repair
+plan is superseded for these four traits and must not be implemented as an
+enum-based redesign.

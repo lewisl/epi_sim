@@ -98,7 +98,7 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
                                 [](const Term& t) { return t.trait == "status"; });
 
   if (status_it != chg.terms.end()) {
-    Status new_status{static_cast<uint8_t>(status_it->val)};
+    Status new_status{status_it->val};
 
     if (new_status == INFECTIOUS) {
       if (person.status() != UNEXPOSED && person.status() != RECOVERED) {
@@ -111,7 +111,7 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
       Duration  dur{1};
       for (const auto& t : chg.terms) {
         if      (t.trait == "variant")  var  = Variant{static_cast<uint8_t>(t.val)};
-        else if (t.trait == "cond")     cond = Condition{static_cast<uint8_t>(t.val)};
+        else if (t.trait == "cond")     cond = Condition{t.val};
         else if (t.trait == "duration") dur  = t.val;
       }
       if (!var) {
@@ -123,7 +123,7 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
       for (const auto& t : chg.terms) {
         if (t.trait == "status" || t.trait == "variant" ||
             t.trait == "cond"   || t.trait == "duration") continue;
-        if      (t.trait == "vaxstatus") person.vaxstatus() = Vaxstatus{static_cast<uint8_t>(t.val)};
+        if      (t.trait == "vaxstatus") person.vaxstatus() = Vaxstatus{t.val};
         else if (t.trait == "quar")      person.quar()      = static_cast<uint8_t>(t.val);
       }
       return;
@@ -135,9 +135,9 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
 
   // No status routing: apply all terms directly
   for (const auto& t : chg.terms) {
-    if      (t.trait == "cond")      person.cond()      = Condition{static_cast<uint8_t>(t.val)};
+    if      (t.trait == "cond")      person.cond()      = Condition{t.val};
     else if (t.trait == "duration")  person.duration()  = t.val;
-    else if (t.trait == "vaxstatus") person.vaxstatus() = Vaxstatus{static_cast<uint8_t>(t.val)};
+    else if (t.trait == "vaxstatus") person.vaxstatus() = Vaxstatus{t.val};
     else if (t.trait == "quar")      person.quar()      = static_cast<uint8_t>(t.val);
   }
 }

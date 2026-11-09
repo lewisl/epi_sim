@@ -55,8 +55,8 @@ namespace {
 
         person.make_well(histories);
         
-    } else {   // valid outcomes are 1..6. we need 2..5 mapped to 1..4
-        person.cond() = static_cast<Condition>(outcome) + uint8_t{1};  // this ONLY works because conds are 1..4 in Progressmap
+    } else {   // Outcomes 1..4 map to Condition IDs 2..5 (nil..severe).
+        person.cond() = Condition{outcome + 1};
         ++person.duration(); 
     }
   }

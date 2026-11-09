@@ -104,20 +104,17 @@ void test_compile_time_trait_names_and_lookup() {
   CHECK(!trait_from_string<Vaxstatus>("bad_vaxstatus").has_value());
 }
 
-template <typename T, size_t N>
-void check_fixed_trait_metadata(const std::array<std::string_view, N>& expected) {
+template <typename T>
+void check_fixed_trait_metadata() {
   static_assert(sizeof(T) == sizeof(uint8_t));
   static_assert(std::is_trivially_copyable_v<T>);
-  static_assert(magic_enum::enum_count<typename T::Enum>() == N);
-  CHECK(std::ranges::equal(T::names, expected));
-  for (size_t i = 0; i < N; ++i) {
-    const auto value = magic_enum::enum_values<typename T::Enum>()[i];
-    CHECK(std::to_underlying(value) == i);
-    const T wrapped{value};
+  static_assert(!std::is_convertible_v<int, T>);
+  for (size_t i = 0; i < T::names.size(); ++i) {
+    const T wrapped{i};
     CHECK(wrapped.v == i);
-    CHECK(wrapped.show() == expected[i]);
-    CHECK(trait_from_string<T>(std::string{expected[i]}) == wrapped);
-    std::string uppercase{expected[i]};
+    CHECK(wrapped.show() == T::names[i]);
+    CHECK(trait_from_string<T>(T::names[i]) == wrapped);
+    std::string uppercase{T::names[i]};
     std::ranges::transform(uppercase, uppercase.begin(),
         [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
     CHECK(trait_from_string<T>(uppercase) == wrapped);
@@ -127,14 +124,20 @@ void check_fixed_trait_metadata(const std::array<std::string_view, N>& expected)
 }
 
 void test_fixed_metadata_round_trips() {
-  check_fixed_trait_metadata<Agegrp>(std::array<std::string_view, 6>{
-      "unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"});
-  check_fixed_trait_metadata<Status>(std::array<std::string_view, 5>{
-      "none", "unexposed", "infectious", "recovered", "dead"});
-  check_fixed_trait_metadata<Condition>(std::array<std::string_view, 6>{
-      "error", "uninfected", "nil", "mild", "sick", "severe"});
-  check_fixed_trait_metadata<Vaxstatus>(std::array<std::string_view, 5>{
-      "none", "first", "full", "booster", "exhausted"});
+  validate_fixed_trait_names();
+  check_fixed_trait_metadata<Agegrp>();
+  check_fixed_trait_metadata<Status>();
+  check_fixed_trait_metadata<Condition>();
+  check_fixed_trait_metadata<Vaxstatus>();
+
+  CHECK(UNKNOWN.v == 0 && AGE0_19.v == 1 && AGE20_39.v == 2
+        && AGE40_59.v == 3 && AGE60_79.v == 4 && AGE80_UP.v == 5);
+  CHECK(NONE.v == 0 && UNEXPOSED.v == 1 && INFECTIOUS.v == 2
+        && RECOVERED.v == 3 && DEAD.v == 4);
+  CHECK(UNINFECTED.v == 1 && NIL.v == 2 && MILD.v == 3
+        && SICK.v == 4 && SEVERE.v == 5);
+  CHECK(Vaxstat::none.v == 0 && Vaxstat::first.v == 1 && Vaxstat::full.v == 2
+        && Vaxstat::booster.v == 3 && Vaxstat::exhausted.v == 4);
 
   constexpr std::array<std::string_view, 6> outcomes{
       "ToRecover", "ToNil", "ToMild", "ToSick", "ToSevere", "ToDead"};
@@ -164,8 +167,10 @@ void test_agegrp_string_constructor_round_trips_all_names() {
   CHECK(Agegrp("AGE0_19")  == AGE0_19);
   CHECK(Agegrp("Age80_Up") == AGE80_UP);
 
-  // unmatched input falls back to unknown, per resolve_name's default case
-  CHECK(Agegrp("not_a_group") == UNKNOWN);
+  bool threw = false;
+  try { Agegrp invalid{"not_a_group"}; }
+  catch (const std::invalid_argument&) { threw = true; }
+  CHECK(threw);
 }
 
 // Status and Condition share Agegrp's resolve_name-based string constructor

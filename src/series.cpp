@@ -205,8 +205,8 @@ std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::strin
         else fmt::println("Key {} not found. skipped", seltot);
       }
       else if (s.age == "total" || s.ring == "total") {
-        // auto ringnum{HISTORY_AGE_TOTAL}; auto agenum{RING_ALL};
-        Ring ringnum{RING_ALL}; Agegrp agenum{HISTORY_AGE_TOTAL};
+        uint8_t ringnum = RING_ALL;
+        uint8_t agenum = static_cast<uint8_t>(HISTORY_AGE_TOTAL);
         if (s.age == "total") {agenum = HISTORY_AGE_TOTAL;
           ringnum = tr_val_to_id(TraitID::ring, s.ring);}
         if (s.ring == "total") {ringnum = RING_ALL;
