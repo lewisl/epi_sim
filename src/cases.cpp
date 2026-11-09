@@ -110,7 +110,7 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
       Condition cond = NIL;
       Duration  dur{1};
       for (const auto& t : chg.terms) {
-        if      (t.trait == "variant")  var  = Variant{static_cast<uint8_t>(t.val)};
+        if      (t.trait == "variant")  var  = Variant{t.val};
         else if (t.trait == "cond")     cond = Condition{t.val};
         else if (t.trait == "duration") dur  = t.val;
       }
@@ -240,10 +240,9 @@ vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& so
     shifter(sdc.touchfactors, sdc.touch_delta[0], sdc.touch_delta[1]);
   }
 
-  SDCase::names.clear();
-  SDCase{"none"};
+  SDCase::names = {"none"};
   for (const auto& sdc : sd_cases) {
-    SDCase{sdc.name};
+    register_trait_name(SDCase::names, sdc.name);
   }
 
   return sd_cases;
@@ -278,7 +277,8 @@ void print_sd_cases(const vector<SocialDistancing>& sd_cases) {
 void apply_sd_cases_for_day(int day, const vector<SocialDistancing>& sd_cases, PopData& pop) {
   for (size_t k = 0; k < sd_cases.size(); ++k) {
     const auto& sdc = sd_cases[k];
-    const uint8_t case_idx = static_cast<uint8_t>(k + 1);
+    const SDCase case_value{k + 1};
+    const uint8_t case_idx = static_cast<uint8_t>(case_value);
 
     if (day == sdc.startday) {
       for (size_t i = 1; i <= pop.popn; ++i) {
@@ -296,7 +296,7 @@ void apply_sd_cases_for_day(int day, const vector<SocialDistancing>& sd_cases, P
         }
 
         if (xo::bernoulli(sdc.comply)) {
-          pop.sdcase[i] = SDCase{case_idx};
+          pop.sdcase[i] = case_value;
         }
       }
     } else if (day == sdc.endday) {

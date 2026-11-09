@@ -102,6 +102,8 @@ uint8_t tr_val_to_id(uint8_t id, std::string_view name);
 std::optional<uint8_t> trait_name_to_id(
     const std::vector<std::string>& names, const std::string& name,
     bool case_insensitive = false);
+// Loaders register names; ordinary trait construction only resolves them.
+void register_trait_name(std::vector<std::string>& names, const std::string& name);
 void validate_fixed_trait_names();
 
 
@@ -352,22 +354,20 @@ struct Ring {
   inline static uint16_t count{0};
 
   constexpr Ring() noexcept = default;
-  // explicit constexpr Ring(uint8_t value) noexcept : v(value) {}
   explicit Ring(std::string_view name) {
-    if (names.empty()) {
-      names.emplace_back("");  // index 0 reserved as sentinel for population
+    const auto value = trait_name_to_id(names, std::string{name}, true);
+    if (!value || *value == 0) {
+      throw std::invalid_argument(fmt::format("Unknown Ring name '{}'", name));
     }
-    assert(!name.empty() && "Ring name must not be empty");
-    if (names.size() < 255) {
-      names.emplace_back(std::string{name});
-      v = static_cast<uint8_t>(names.size() - 1);
-      count++;}
-    else throw std::invalid_argument("Ring trait value must fit in uint8_t raw values @ <= 255");
+    v = *value;
   }
-  Ring(int val) {
-    if (val > 0 && val <= names.size())  v = static_cast<uint8_t>(val);
-    else throw std::invalid_argument("Ring trait value exceeds number of rings.");
+  template <std::integral I>
+  explicit Ring(I value) {
+    if (value <= 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Ring value");
     }
+    v = static_cast<uint8_t>(value);
+  }
   
   constexpr Ring& operator=(uint8_t value) noexcept { v = value; return *this; }
 
@@ -493,23 +493,19 @@ struct Variant {
   inline static uint16_t count{0};
 
   Variant() = default;
-  // constexpr explicit Variant(uint8_t v) noexcept : v(v) {}
-  // constexpr Variant(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr Variant(int val) {
-    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
-    else throw std::invalid_argument("Variant trait value must fit in uint8_t raw values @ <= 255");
-  };
-  explicit Variant(std::string_view name) {
-    if (names.empty()) {
-      assert(name == "none" && "First Variant constructed must be \"none\"");
-    } else {
-      assert(name != "none" && "\"none\" variant already exists");
+  template <std::integral I>
+  explicit Variant(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Variant value");
     }
-    if (names.size() < 255) {
-      names.push_back(std::string{name});
-      v = static_cast<uint8_t>(names.size() - 1);
-      count++;}
-    else throw std::invalid_argument("Variant trait value must fit in uint8_t raw values @ <= 255");
+    v = static_cast<uint8_t>(value);
+  }
+  explicit Variant(std::string_view name) {
+    const auto value = trait_name_to_id(names, std::string{name}, true);
+    if (!value) {
+      throw std::invalid_argument(fmt::format("Unknown Variant name '{}'", name));
+    }
+    v = *value;
   }
 
   std::string show() const noexcept {
@@ -529,22 +525,19 @@ struct Vax {
   inline static uint16_t count{0};
 
   Vax() = default;
-  // constexpr explicit Vax(uint8_t v) noexcept : v(v) {}
-  constexpr Vax(int val) {
-    if (val <= 255 && val >= 0) v = static_cast<uint8_t>(val);
-    else throw std::invalid_argument("Vax trait value must fit in uint8_t raw values @ <= 255");
-  };
-  explicit Vax(std::string_view name) {
-    if (names.empty()) {
-      assert(name == "none" && "First Vax constructed must be \"none\"");
-    } else {
-      assert(name != "none" && "\"none\" vax already exists");
+  template <std::integral I>
+  explicit Vax(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid Vax value");
     }
-    if (names.size() < 255) {
-      names.push_back(std::string{name});
-      v = static_cast<uint8_t>(names.size() - 1);
-      count++;}
-    else throw std::invalid_argument("Vax trait value must fit in uint8_t raw values @ <= 255");
+    v = static_cast<uint8_t>(value);
+  }
+  explicit Vax(std::string_view name) {
+    const auto value = trait_name_to_id(names, std::string{name}, true);
+    if (!value) {
+      throw std::invalid_argument(fmt::format("Unknown Vax name '{}'", name));
+    }
+    v = *value;
   }
 
   std::string show() const noexcept {
@@ -563,16 +556,19 @@ struct SDCase {
   inline static std::vector<std::string> names;
 
   SDCase() = default;
-  constexpr explicit SDCase(uint8_t v) noexcept : v(v) {}
-  constexpr SDCase(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  explicit SDCase(std::string_view name) {
-    if (names.empty()) {
-      assert(name == "none" && "First SDCase constructed must be \"none\"");
-    } else {
-      assert(name != "none" && "\"none\" SDCase already exists");
+  template <std::integral I>
+  explicit SDCase(I value) {
+    if (value < 0 || static_cast<uintmax_t>(value) >= names.size()) {
+      throw std::out_of_range("Invalid SDCase value");
     }
-    names.push_back(std::string{name});
-    v = static_cast<uint8_t>(names.size() - 1);
+    v = static_cast<uint8_t>(value);
+  }
+  explicit SDCase(std::string_view name) {
+    const auto value = trait_name_to_id(names, std::string{name}, true);
+    if (!value) {
+      throw std::invalid_argument(fmt::format("Unknown SDCase name '{}'", name));
+    }
+    v = *value;
   }
 
   std::string show() const noexcept {
@@ -799,7 +795,7 @@ struct VaxdayHist {
 
 /* trait_from_string<T>(s) -- converts a string name to a trait value.
    Wrappers use their names vectors; ordinary enums use reflection directly.
-   Fixed wrappers use checked construction; runtime wrappers retain sentinel handling.
+   Wrappers use checked construction; Ring's zero sentinel uses its default constructor.
    Unknown input returns std::nullopt; named zero sentinels parse successfully.
 
    Usage:
@@ -815,13 +811,9 @@ std::optional<T> trait_from_string(const std::string& s) {
   } else {
     const auto value = trait_name_to_id(T::names, s, true);
     if (!value) return std::nullopt;
-    if constexpr (std::same_as<T, Agegrp> || std::same_as<T, Status> ||
-                  std::same_as<T, Condition> || std::same_as<T, Vaxstatus>) {
-      return T{*value};
-    } else {
-      T result{};
-      result.v = *value;
-      return result;
+    if constexpr (std::same_as<T, Ring>) {
+      if (*value == 0) return Ring{};
     }
+    return T{*value};
   }
 }

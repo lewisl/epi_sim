@@ -1,4 +1,5 @@
 ## TODO
+- test social distancing cases
 - use comments in jsonc files!
 - test using json schema for the project
 - overhaul tests:   especially test for bad inputs off the happy path.

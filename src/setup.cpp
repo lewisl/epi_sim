@@ -240,5 +240,5 @@ void install_runtime_trait_names(const Model& model) {
 
   SDCase::names = {"none"};
   for (const auto& sd_case : model.sd_cases)
-    SDCase::names.push_back(sd_case.name);
+    register_trait_name(SDCase::names, sd_case.name);
 }

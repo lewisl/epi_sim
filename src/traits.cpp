@@ -71,6 +71,24 @@ std::optional<uint8_t> trait_name_to_id(
   return std::nullopt;
 }
 
+void register_trait_name(std::vector<std::string>& names, const std::string& name) {
+  if (names.empty()) {
+    throw std::logic_error("Initialize the trait's zero entry before registering names");
+  }
+  if (name.empty()) {
+    throw std::invalid_argument("Trait name must not be empty");
+  }
+  if (trait_name_to_id(names, name, true)) {
+    throw std::invalid_argument(fmt::format("Duplicate or reserved trait name '{}'", name));
+  }
+  // Keep the existing limit: at most 255 entries including the zero slot.
+  // Some history traversal counters are themselves uint8_t.
+  if (names.size() >= std::numeric_limits<uint8_t>::max()) {
+    throw std::out_of_range("Too many trait names for uint8_t indexing");
+  }
+  names.push_back(name);
+}
+
 void validate_fixed_trait_names() {
   for (const auto id : {TraitID::agegrp, TraitID::status,
                         TraitID::condition, TraitID::vaxstatus}) {

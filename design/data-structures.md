@@ -30,4 +30,11 @@ setup checks those dimensions against the actual name tables. `Progressionmap`,
 `TraitID`, and `Phase` remain ordinary scoped enums reflected with magic_enum.
 History indexing and progression continue to use the same numeric offsets.
 
-`Variant`, `Vax`, `SDCase`, and `Ring` still use runtime name registries.
+`Variant`, `Vax`, `SDCase`, and `Ring` use runtime name registries. Their loaders
+register supplied names explicitly, rejecting empty, duplicate (including
+case-insensitive duplicates), reserved-zero, and excess entries. Ordinary string
+construction only resolves an existing name; it never extends a registry.
+Explicit constrained integer constructors check registry bounds before narrowing.
+Zero defaults remain available, while numeric `Ring{0}` remains invalid; use
+`Ring{}` for its sentinel. Cardinal day values and per-person histories retain
+their separate simulation invariants and do not use registry-membership guards.

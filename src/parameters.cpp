@@ -90,8 +90,9 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
   vector<string> variant_names{"none"};
 
   for (auto v : jdata.items()) {
+    register_trait_name(Variant::names, v.key());
+    ++Variant::count;
     variant_names.emplace_back(v.key());
-    const Variant variant(v.key());
   }
 
   if (variant_names.size() < 2) {
@@ -390,9 +391,9 @@ VaxSet load_vax_data(string fpath, bool dovax) {
 
     // for each vax
     for (const auto &[vaxname, body] : vaxdata.items()) {  
-      const Vax vax{vaxname};  // create a Vax trait instance
+      register_trait_name(Vax::names, vaxname);
+      ++Vax::count;
       vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
-      (void)vax;
 
       Vaxparam vx {};  // details for one vaccine
       // load items for each vax into struct
@@ -579,9 +580,10 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
   Ring::count = 0;
   Ring::names = {"error"};
 
-  // setup instance v = 1 with names[1] = "population"q
+  // Ring 1 is the population lane when separate rings are disabled.
   if (!do_rings) {
-    Ring registered{std::string_view{"population"}};
+    register_trait_name(Ring::names, "population");
+    ++Ring::count;
     return rt;
   }
 
@@ -610,16 +612,8 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
     string name = entry.contains("name") && !entry["name"].is_null()
                       ? entry["name"].get<string>()
                       : fmt::format("ring_{}", n);
-    if (std::find(Ring::names.begin(), Ring::names.end(), name) != Ring::names.end()) {
-      throw std::runtime_error(fmt::format("rings: duplicate ring name '{}'.", name));
-    }
-
-    Ring registered{std::string_view{name}};
-    if (static_cast<size_t>(registered.v) != n) {
-      throw std::runtime_error(fmt::format(
-          "rings: registration order mismatch for '{}' (got id {}, expected {}).",
-          name, static_cast<unsigned>(registered.v), n));
-    }
+    register_trait_name(Ring::names, name);
+    ++Ring::count;
 
     if (!entry.contains("pct_of_population")) {
       throw std::runtime_error(fmt::format("rings: '{}' missing pct_of_population.", name));

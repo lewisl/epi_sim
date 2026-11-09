@@ -1,5 +1,69 @@
 # Session Notes
 
+## 2026-11-09: social-distancing acceptance cases prepared
+
+- User needs a social-distancing case for manual acceptance after runtime trait
+  guards. Prepared isolated generated scaffold copies under the gitignored
+  test_output/social_distancing_acceptance/{control,distancing}/ directories.
+  No existing user cases or production/test source changed for this step.
+- Scaffold already supplies soc_dist.json: young applies to all eligible ages
+  (include_ages empty) from day 50 until clearing on day 100; old starts on day
+  100 for Age60_79/Age80_up and ends on day 300, beyond the 180-day run. Both
+  use 90% compliance and the scaffold's contact/touch factor ranges. These
+  actual supplied schedules were retained rather than inventing another set.
+- Both cases retain 180 days, multiple variants, vaccination disabled, separate
+  rings disabled. Configs differ only in do_social_distancing and description;
+  all other input files were compared byte-for-byte and match.
+- Run from repo root with:
+  xmake run epi_sim --use-dir "$PWD/test_output/social_distancing_acceptance/control"
+  xmake run epi_sim --use-dir "$PWD/test_output/social_distancing_acceptance/distancing"
+  Output stays in each case's output/ directory. Runs/visual inspection remain
+  with the user; only --setup-dir and JSON/input consistency checks ran here.
+- Expected comparison: history matches through day 49, before the first
+  intervention; later trajectories may differ. At final day, the population
+  CSV's boolean sdcase column should be false for all ages under 60 because
+  young expired, with some ages 60+ still true from old. Control should have
+  all sdcase=false. Serializer emits a boolean, not the schedule's name.
+
+## 2026-11-09: runtime name-backed trait guards implemented
+
+- User explicitly authorized implementing constructor/registration guards only
+  for name-backed runtime traits. Started from clean checkpoint cd534c5. User
+  later edited project.md during this work; preserve it as unrelated work.
+- Variant, Vax, Ring, SDCase now use explicit std::integral constructors that
+  check registry bounds before narrowing. String constructors perform existing
+  case-insensitive names lookup and throw for unknown names without mutation.
+  Zero defaults remain; numeric Ring{0} and a string naming Ring's zero entry
+  remain invalid. trait_from_string uses checked construction and preserves
+  named Ring-zero parsing through Ring{}.
+- One explicit register_trait_name helper is used in the existing variant,
+  vaccine, ring, and social-distancing loaders and SDCase registry installation.
+  It requires the initialized zero slot and rejects empty/duplicate/reserved
+  names (case-insensitively) and excess entries before appending. Loader counts
+  and parallel parameter/name order retain their original conventions.
+- Preserve existing capacity: at most 255 names including zero (254 real
+  entries). Do not expand to 256 entries without fixing byte-counter traversal,
+  notably the <= Ring::count uint8_t loop in sum_total_histories.
+- apply_change now passes the original Variant term value to checked construction;
+  rt_sim explicitly constructs its Variant. apply_sd_cases_for_day checks the
+  original case index once outside person loops and copies the resulting SDCase.
+- All 12 user-listed cardinal/history structs were compared against HEAD and
+  are byte-for-byte unchanged: Sickday, Recovday, Deadday, Testday, Quarday,
+  Vaxday, VariantHist, VaxHist, SickdayHist, RecovdayHist, TestdayHist, VaxdayHist.
+  Public v and Ring's raw assignment remain as previously discussed; private
+  storage/mutation redesign is outside this authorization.
+- Existing runtime trait tests now initialize supplied-name fixtures and test
+  resolution, invalid/negative/oversized numeric inputs, missing names, and
+  rejection of unrelated wrapper/enum arguments. No new groups or harness.
+- xmake build epi_sim passed. xmake build --files=test/test_traits.cpp test
+  passed (compilation only). Changed production files have no Serena errors;
+  git diff --check passed. Full xmake build test remains blocked, first reported
+  by existing nested-function syntax errors in test/test_series.cpp:292 onward;
+  that file matches HEAD and was not edited. Previous obsolete history API
+  blockers in test_runsim.cpp are also outside this work. No unit tests ran.
+- Per the user's established choice, full simulation/visual acceptance remains
+  with them; no simulation or browser launch was repeated for these new guards.
+
 ## 2026-11-09: runtime trait constructor safety review; no implementation requested
 
 - User asks whether runtime traits need checked numeric/string construction

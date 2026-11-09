@@ -68,7 +68,7 @@ void rt_sim(PopData locdat, Model & model) {
     // create the simulation population--> this is all we have to do in the front end function
     PopData rtpop {locdat};
     int scale = 3;
-    Variant use_variant = 1;
+    Variant use_variant{1};
 
     const int saved_day = sim::current_day;
     sim::reset_day();  // day back to 0--assume incremented at start of day loop

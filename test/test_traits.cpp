@@ -74,6 +74,8 @@ void test_primitive_wrappers() {
 }
 
 void test_wrapper_comparisons() {
+  test_support::RingNamesGuard ring_guard;
+  Ring::names = {"error", "first", "second"};
   CHECK(Duration{5} < Duration{6});
   CHECK(Ring{1} < Ring{2});
   CHECK(Sickday{3} < Sickday{4});
@@ -188,14 +190,40 @@ void test_status_and_condition_string_constructors() {
   CHECK(Condition("not_a_condition") == UNINFECTED);
 }
 
-void test_runtime_traits_register_and_render_names() {
+template <typename Exception, typename F>
+void check_constructor_throws(F action) {
+  bool threw = false;
+  try { action(); }
+  catch (const Exception&) { threw = true; }
+  CHECK(threw);
+}
+
+template <typename T>
+void check_runtime_trait_construction(size_t first_valid = 0) {
+  static_assert(!std::is_convertible_v<int, T>);
+  static_assert(!std::is_constructible_v<T, Agegrp>);
+  static_assert(!std::is_constructible_v<T, TraitID>);
+  const auto saved_names = T::names;
+  CHECK(T{}.v == 0);
+  for (size_t i = first_valid; i < T::names.size(); ++i) {
+    CHECK(T{i}.v == i);
+    CHECK(T{std::string_view{T::names[i]}} == T{i});
+  }
+  check_constructor_throws<std::out_of_range>([] { (void)T{-1}; });
+  check_constructor_throws<std::out_of_range>([] { (void)T{T::names.size()}; });
+  check_constructor_throws<std::out_of_range>([] { (void)T{uint64_t{1} << 32}; });
+  check_constructor_throws<std::invalid_argument>([] { (void)T{"missing_trait_name"}; });
+  CHECK(T::names == saved_names);
+}
+
+void test_runtime_traits_resolve_existing_names() {
   test_support::VariantNamesGuard variant_guard;
   test_support::VaxNamesGuard vax_guard;
   test_support::SDCaseNamesGuard sdcase_guard;
 
-  Variant::names.clear();
-  Vax::names.clear();
-  SDCase::names.clear();
+  Variant::names = {"none", "alpha", "delta"};
+  Vax::names = {"none", "Pfizer"};
+  SDCase::names = {"none", "distancing"};
 
   const Variant none_variant{"none"};
   const Variant alpha{"alpha"};
@@ -219,30 +247,29 @@ void test_runtime_traits_register_and_render_names() {
   CHECK(none_sd.show() == "none");
   CHECK(distancing.show() == "distancing");
   CHECK(SDCase::names.size() == 2);
+  check_runtime_trait_construction<Variant>();
+  check_runtime_trait_construction<Vax>();
+  check_runtime_trait_construction<SDCase>();
 }
 
-// Ring was the last PopData column/trait type added; unlike Variant/Vax/SDCase
-// its registration constructor reserves an empty sentinel at index 0 before
-// the first real name, which is worth pinning down explicitly.
-void test_ring_runtime_registration_renders_names() {
+void test_ring_resolves_existing_names() {
   test_support::RingNamesGuard ring_guard;
-  Ring::names.clear();
+  Ring::names = {"error", "Jail", "School"};
 
   const Ring jail{"Jail"};
   const Ring school{"School"};
 
-  CHECK(Ring::names.size() == 3);  // "" sentinel, then "Jail", "School"
+  CHECK(Ring::names.size() == 3);
   CHECK(jail.v == 1);
   CHECK(school.v == 2);
   CHECK(jail.show() == "Jail");
   CHECK(school.show() == "School");
   CHECK(trait_from_string<Ring>("sChOoL") == school);
-  CHECK(trait_from_string<Ring>("") == Ring{0});
+  CHECK(trait_from_string<Ring>("error") == Ring{});
   CHECK(!trait_from_string<Ring>("missing_ring").has_value());
-
-  // the reserved sentinel slot has an empty name, so it still falls back
-  // to numeric rendering even though names is now populated
-  CHECK(Ring{0}.show() == "0");
+  check_runtime_trait_construction<Ring>(1);
+  check_constructor_throws<std::out_of_range>([] { (void)Ring{0}; });
+  check_constructor_throws<std::invalid_argument>([] { (void)Ring{"error"}; });
 }
 
 void test_runtime_histories_render_values() {
@@ -408,8 +435,8 @@ void run_traits_tests(const test_support::TestRunOptions& options) {
   test_fixed_metadata_round_trips();
   test_agegrp_string_constructor_round_trips_all_names();
   test_status_and_condition_string_constructors();
-  test_runtime_traits_register_and_render_names();
-  test_ring_runtime_registration_renders_names();
+  test_runtime_traits_resolve_existing_names();
+  test_ring_resolves_existing_names();
   test_runtime_histories_render_values();
   test_runtime_trait_lookup();
   test_histories_empty_state();
