@@ -1,13 +1,4 @@
 
-Explain codebase structure to newcomer
-
-Apr 23·epi_sim·main
-
-Explain the codebase to a newcomer. What is the general structure, what are the important things to know, and what are some pointers for things to learn next?
-
-Copy
-
-Great question — here’s a practical newcomer map of this repo.
 
 ## 1) What this codebase is (high-level)
 
@@ -130,14 +121,3 @@ Seed/SD cases are loaded from JSON and applied by day using trait-based filters/
 
 ------
 
-## Commands I used to inspect the repo
-
-- ✅ `rg --files -g 'AGENTS.md'`
-- ✅ `find . -maxdepth 2 -type d | sort`
-- ✅ `find src -maxdepth 2 -type f | sort`
-- ✅ `find test -maxdepth 1 -type f | sort`
-- ✅ `find sample_parameters -maxdepth 2 -type f | sort | head -n 80`
-- ✅ `sed -n '1,260p' ...` and `nl -ba ... | sed -n 'start,endp'` across core files
-- ✅ `git status --short`
-
-If you want, I can next give you a **“first week onboarding plan”** (day-by-day tasks + specific files/functions) tailored to whether you want to focus on modeling, performance, or tooling.

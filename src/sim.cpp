@@ -202,6 +202,8 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
 void post_simulation(Model & model, Histories  & histories) {
 
+  print_total_status_histories(histories);
+
   PopData &pop = model.pop;    // all person data
 
   // write series + PopData columns to csv (skipped in headless runs)
@@ -214,21 +216,7 @@ void post_simulation(Model & model, Histories  & histories) {
     std::filesystem::create_directories(model.output_dir);
 
 
-    // test the new way of serializing
     const std::string ring = Ring::names[1];
-    // auto history_idxs = histories.select_indices(
-    //    {{"now", "unexposed", "age20_39", "status", ring},
-    //     {"new_", "unexposed", "age20_39", "status", ring},
-    //     {"now", "infectious", "age20_39", "status", ring}, 
-    //     {"new_", "infectious", "age20_39", "status", ring},
-    //     {"now", "dead",      "age20_39", "status", ring},
-    //     {"new_", "dead",       "age20_39", "status", ring},
-    //     {"now", "recovered", "age20_39", "status", ring},
-    //     {"new_", "recovered", "age20_39", "status", ring},
-    //     {"now", "base", "age20_39",    "variant", ring},
-    //     {"new_", "base", "age20_39",    "variant", ring}}
-    //   );
-
     serialize_histories(histories, 
         {{"status", "now", "unexposed", "age20_39", ring},
         {"status", "new_", "unexposed", "age20_39", ring},

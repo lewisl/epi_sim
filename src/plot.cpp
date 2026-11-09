@@ -106,7 +106,7 @@ void produce_plot(std::filesystem::path output_path, std::string end_message, js
 }
 
 // new style historyplot
-void historyplot(HistorySelectorSet spec, Histories& histories,
+void historyplot(HistorySelectorSet spec, const Histories& histories,
     const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
     const std::string plot_title, const bool dostack, std::filesystem::path output_path) {
 
@@ -115,11 +115,13 @@ void historyplot(HistorySelectorSet spec, Histories& histories,
         fmt::println("No valid history selected for plot '{}'.", plot_title);
         return;
       }
+
     // x axis values
     std::vector<std::string> daystrs;
     daystrs.reserve(caldays.size());
     for (const auto& day : caldays)
         daystrs.push_back(absl::FormatCivilTime(day));
+
     // summary totals for plot inset annotation text box
     int died = sumstruct.dead[6];
     int recovered = sumstruct.recovered[6];
@@ -128,14 +130,14 @@ void historyplot(HistorySelectorSet spec, Histories& histories,
     // step 2: create the json objects
     json data_json = json::array();
     for (const auto hist_idx : idxs) {
-      auto y_values = std::span{histories.history_vectors_[hist_idx].data}.subspan(1);
+      auto y_values = std::span{histories.data(hist_idx)}.subspan(1);
 
       json trace = {
         {"x", daystrs},
         {"y", y_values},
         {"type", "scatter"},
         {"mode", "lines"},
-        {"name", histories.history_vectors_[hist_idx].meta.output_label}
+        {"name", histories.label(hist_idx)}
       };
 
       if (dostack) {
@@ -176,87 +178,6 @@ void historyplot(HistorySelectorSet spec, Histories& histories,
       produce_plot(plot_title, "Close the tab and return to terminal.", data_json, layout);
     else
       produce_plot(output_path, "Close the tab and return to terminal.", data_json, layout);
-}
-
-//
-// Standard plot type for simulation history output.
-//
-void old_historyplot(HistorySelectorSet spec, const Histories& histories,
-    const std::vector<absl::CivilDay>& caldays, SummaryData sumstruct,
-    const std::string plot_title, const bool dostack, std::filesystem::path output_path) {
-
-      // step 1: assemble data from simulation run
-      auto resolved = create_history_set(spec, histories);
-      if (!resolved.invalid_selections.empty()) {
-        fmt::println("Skipping invalid plot history selections: {}",
-                     resolved.invalid_selections);
-      }
-      if (resolved.history_vectors.empty()) {
-        fmt::println("No valid history selected for plot '{}'.", plot_title);
-        return;
-      }
-      // x axis values
-      std::vector<std::string> daystrs;
-      daystrs.reserve(caldays.size());
-      for (const auto& day : caldays)
-          daystrs.push_back(absl::FormatCivilTime(day));
-      // summary totals for plot inset text box
-      int died = sumstruct.dead[6];
-      int recovered = sumstruct.recovered[6];
-      int unexposed = sumstruct.unexposed[6];
-      int infected = sumstruct.infected[6];
-
-      // step 2: create the json objects
-      json data_json = json::array();
-      for (const auto& history : resolved.history_vectors) {
-        std::vector<int> y_values(history.data.begin() + 1, history.data.end());
-
-        json trace = {
-          {"x", daystrs},
-          {"y", y_values},
-          {"type", "scatter"},
-          {"mode", "lines"},
-          {"name", history.label}
-        };
-
-        if (dostack) {
-          trace["stackgroup"] = "stk";
-        }
-
-        data_json.push_back(std::move(trace));
-      }
-
-      // this is the ideal and most reliable way to do this
-      json layout;  // add keys just like a map
-      layout["title"] = plot_title;
-      layout["xaxis"]["title"]["text"] = "Simulation Days";
-      layout["yaxis"]["title"]["text"] = "Count of People";
-      layout["plot_bgcolor"] = "#f3f2f2";
-      layout["annotations"] = json::array(
-        {
-          {
-            {"text", fmt::format(
-                "Died: {}<br>Infected: {}<br>Recovered: {}<br>Unexposed: {}",
-                died, infected, recovered, unexposed)},
-            {"xref", "paper"},
-            {"yref", "paper"},
-            {"x", 0.02},
-            {"y", 0.55},
-            {"showarrow", false},
-            {"font", {{"size", 13}}},
-            {"align", "left"},
-            {"bgcolor", "rgba(255,255,255,0.8)"},
-            {"bordercolor", "#888"},
-            {"borderwidth", 1},
-            {"borderpad", 6}
-          }
-        }
-      );
-
-  if (output_path.empty())
-    produce_plot(plot_title, "Close the tab and return to terminal.", data_json, layout);
-  else
-    produce_plot(output_path, "Close the tab and return to terminal.", data_json, layout);
 }
 
 

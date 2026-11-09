@@ -73,11 +73,9 @@ void Histories::build_history_vectors(bool for_totals) {
       hm.traitnum = tr_enum;
       hm.trait = magic_enum::enum_name(tr_enum);
 
-
       for (auto ph_num : all_phases) {
         hm.phase = magic_enum::enum_name(ph_num);
         hm.phasenum = ph_num;
-
 
         for (size_t trval_num = 1; trval_num <= trait.count ; ++trval_num) {
           hm.traitval  = trait.names[trval_num];
@@ -92,10 +90,10 @@ void Histories::build_history_vectors(bool for_totals) {
               // }
               for (auto age_i = 1; age_i < Agegrp::names.size(); ++age_i) {
                 hm.age = Agegrp::names[age_i];
-                hm.agenum = age_i;
+                hm.agenum = Agegrp{age_i};
                 
                 // emplace_back a HistoryVector for simulation detail outcome
-                hm.output_label = fmt::format("{}|{}|{}|{}|{}",
+                hm.label = fmt::format("{}|{}|{}|{}|{}",
                   hm.trait, hm.phase, hm.traitval, hm.ring, hm.age); 
                 const size_t col_idx = history_vectors_.size();
                 history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1, HistoryValue(0)), hm);
@@ -106,14 +104,12 @@ void Histories::build_history_vectors(bool for_totals) {
           }
           
           else {    // for_totals true
-            //  
-            // full total:  both rings and ages to be summed
-            //       one for trait-phase-trval
+            // full total:  both rings and ages to be summed into one vector for trait-phase-trval
             hm.ring = "total";
             hm.ringnum = RING_ALL;
             hm.age = "total";
-            hm.agenum = HISTORY_AGE_TOTAL;
-            hm.output_label = fmt::format("{}|{}|{}|{}|{}",
+            hm.agenum = Agegrp{HISTORY_AGE_TOTAL};
+            hm.label = fmt::format("{}|{}|{}|{}|{}",
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age); 
 
             // emplace_back a HistoryVector for a total
@@ -127,17 +123,9 @@ void Histories::build_history_vectors(bool for_totals) {
             one ring: 
             - For totaling only one ring per age, it's just the simulation columns.
             - For totaling the agegrps for one ring, it's just the "full" totals.
-            - But, we will create the keys so that the keys can always be used, but we map to indices for existing columns. We don't need a vector so we don't increment 
-            multiple rings:
+            - But, we will create the keys so that the keys can always be used, but we map to indices for existing columns. We don't create a new vector.
             */
             if (Ring::count == 1) {
-                // "totaling" one ring per each age with a key for each age & ring = "total":
-                //      use existing sim history column of age and ring, 
-                //      but set a new key using ring = "total"
-                //      don't create a vector; don't increment the index value idx_sim and we don't need
-                //      hm for metadata because we use the existing column
-                //      all we need is a new key that maps to the existing column.
-                // Agegrp::count new keys in sim_totals_map; no new vectors (no new vector, no new idx)
                 for (auto age_i = 1; age_i <= Agegrp::count; ++age_i) {
                   // key to existing sim history vector
                   const Selsim tempkey(tr_enum, ph_num, trval_num, uint8_t{1}, age_i);
@@ -146,20 +134,16 @@ void Histories::build_history_vectors(bool for_totals) {
                       sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, RING_ALL, age_i), it->second);
                   else throw std::range_error(fmt::format("Index to existing history column {} not found.", tempkey));
                 }
-              
-                // totaling ages for the only ring: use existing total column--all rings (one) and totaled ages,
-                //      which already exists as the full total column
-                
                 sim_totals_map.emplace(Seltot(tr_enum, ph_num, trval_num, uint8_t{1}, HISTORY_AGE_TOTAL), full_total_idx);
             }
             else {    // split totals with multple rings  
             // split total: sum of ages for each ring
             hm.age = "total";
-            hm.agenum = HISTORY_AGE_TOTAL;  
+            hm.agenum = Agegrp{HISTORY_AGE_TOTAL};  
             for (auto ring_i = 1; ring_i <= Ring::count; ++ring_i) {
               hm.ring = Ring::names[ring_i];
               hm.ringnum = ring_i;
-              hm.output_label = fmt::format("{}|{}|{}|{}|{}", 
+              hm.label = fmt::format("{}|{}|{}|{}|{}", 
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
               const size_t col_idx = history_vectors_.size();
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
@@ -170,8 +154,8 @@ void Histories::build_history_vectors(bool for_totals) {
             hm.ringnum = RING_ALL;
             for (auto age_i = 1; age_i <= Agegrp::count; ++age_i) {
               hm.age = Agegrp::names[age_i];
-              hm.agenum = age_i;  
-              hm.output_label = fmt::format("{}|{}|{}|{}|{}",
+              hm.agenum = Agegrp{age_i};  
+              hm.label = fmt::format("{}|{}|{}|{}|{}",
                 hm.trait, hm.phase, hm.traitval, hm.ring, hm.age);
               const size_t col_idx = history_vectors_.size();
               history_vectors_.emplace_back(std::vector<HistoryValue>(day_cnt+1,HistoryValue(0)), hm);
@@ -184,10 +168,12 @@ void Histories::build_history_vectors(bool for_totals) {
   }       // trait loop
 }
 
-// for simulation updated history vectors; not applicable to total history vectors
-// performed 1 day at a time for the current day in the day loop
-// for phase == 'now', each day's history begins with final count of preceding day
-// not applicable to phase == 'new_'
+/* 
+for simulation tracked history vectors; not applicable to total history vectors.
+Performed 1 day at a time for the current day in the day loop.
+For phase == 'now', each day's history begins with final count of preceding day
+Not applicable to phase == 'new_'. 
+*/
 void Histories::init_history_newday(size_t day) {
     if (day <= 1) return;
     for (const auto idx : cumulative_columns) {
@@ -196,8 +182,7 @@ void Histories::init_history_newday(size_t day) {
 }
 
 
-
-std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::string grab_bag) {
+std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::string grab_bag) const {
   vector<size_t> idxs{};
 
   if (grab_bag == "all") idxs = std::views::iota(0uz, history_vectors_.size()) | 
@@ -220,7 +205,8 @@ std::vector<size_t> Histories::select_indices(HistorySelectorSet sel, std::strin
         else fmt::println("Key {} not found. skipped", seltot);
       }
       else if (s.age == "total" || s.ring == "total") {
-        auto ringnum{HISTORY_AGE_TOTAL}; auto agenum{RING_ALL};
+        // auto ringnum{HISTORY_AGE_TOTAL}; auto agenum{RING_ALL};
+        Ring ringnum{RING_ALL}; Agegrp agenum{HISTORY_AGE_TOTAL};
         if (s.age == "total") {agenum = HISTORY_AGE_TOTAL;
           ringnum = tr_val_to_id(TraitID::ring, s.ring);}
         if (s.ring == "total") {ringnum = RING_ALL;
@@ -255,7 +241,6 @@ void serialize_histories(Histories & histories, HistorySelectorSet sel, std::str
 
   vector<size_t> idxs = histories.select_indices(sel, grab_bag);
 
-
   if (idxs.empty()) {
     fmt::println("\nNo history selected.");
     return;
@@ -273,7 +258,7 @@ void serialize_histories(Histories & histories, HistorySelectorSet sel, std::str
   vector<std::string_view> headers;
   headers.reserve(idxs.size());
   for (auto idx : idxs) 
-    headers.push_back(histories.history_vectors_[idx].meta.output_label);
+    headers.push_back(histories.history_vectors_[idx].meta.label);
   fmt::println(out, "{}", fmt::join(headers, ","));
 
   // write rows
@@ -327,18 +312,6 @@ size_t Histories::trait_value_count(TraitID trait) const {
 
 }
 
-bool Histories::valid_history_coordinates(
-    TraitID trait, Phase phase, uint8_t trait_value, Agegrp age,
-    uint8_t ring) const {
-    if (size_t(trait) >= magic_enum::enum_count<TraitID>()
-        || size_t(phase) >= magic_enum::enum_count<Phase>()
-        || trait_value == 0
-        || size_t(trait_value) > trait_value_count(trait)
-        || age.v == 0 || age.v > Agegrp::count) {
-        return false;
-    }
-    return ring >= 1 && size_t(ring) <= Ring::count;
-}
 
 //
 // introspection of Histories object and specific history vectors
@@ -396,7 +369,7 @@ void Histories::dump_history_layout(std::ostream& out) const {
     }
 }
 
-
+// for tui command to display history vector list
 const std::vector<HistorySelector> enumerate_history_selections(const Histories& histories) {
     vector<HistorySelector> vh;
     // for (auto i = 0; i < histories.sim_history_count; ++i) {
@@ -439,13 +412,11 @@ HistoryValue Histories::aggregate_value(
 }
 
 
-
-
 // ---------------------------------------------------------------
 // Print functions
 // ---------------------------------------------------------------
 
-void print_total_status_histories(const Histories& histories,
+void print_total_status_histories(Histories& histories,
                                   size_t days_per_group,
                                   std::ostream& out) {
   if (histories.day_cnt == 0) {
@@ -455,16 +426,14 @@ void print_total_status_histories(const Histories& histories,
 
   constexpr auto labels   = std::array{"infected", "unexposed", "recovered", "dead"};
   const HistorySelectorSet spec(std::vector<HistorySelector>{
-      {"now", "infectious", "total"},
-      {"now", "unexposed", "total"},
-      {"now", "recovered", "total"},
-      {"now", "dead", "total"},
+      {"status","now", "infectious", "total", "total"},
+      {"status", "now", "unexposed", "total", "total"},
+      {"status", "now", "recovered", "total", "total"},
+      {"status", "now", "dead", "total", "total"},
   });
-  const auto total_histories = create_history_set(spec, histories);
-  if (!total_histories.invalid_selections.empty()
-      || total_histories.history_vectors.size() != labels.size()) {
-    fmt::println(out, "\nUnable to resolve total status histories: {}",
-                 total_histories.invalid_selections);
+  const auto idxs = histories.select_indices(spec);
+  if (idxs.empty()) {
+    fmt::println(out, "\nNo valid histories requested at series.cpp, print_total_status_histories.");
     return;
   }
 
@@ -475,21 +444,22 @@ void print_total_status_histories(const Histories& histories,
         std::min(group_start + days_per_group - 1, histories.day_cnt);
     fmt::println(out, "\nDays {}-{}", group_start, group_end);
 
-    fmt::print(out, "{:<12}", "day");
+    fmt::print(out, "{:<34}", "day");
     for (size_t day = group_start; day <= group_end; ++day) {
       fmt::print(out, "{:>8}", day);
     }
-    fmt::println(out, "");
+    fmt::println(out, ""); // line break
 
-    for (size_t status = 1; status < labels.size(); ++status) {
-      fmt::print(out, "{:<12}", labels[status]);
+    for (auto index : idxs) {
+      fmt::print(out, "{:<34}", histories.label(index));
       for (size_t day = group_start; day <= group_end; ++day) {
         fmt::print(out, "{:>8}",
-                   total_histories.history_vectors[status].data[day]);
+                   histories.data(index)[day]);
       }
-      fmt::println(out, "");
+      fmt::println(out, "");  // line break
     }
   }
+  fmt::println(out, "\n\n");
 }
 
 void print_selected_histories(HistorySelectorSet spec,
@@ -497,25 +467,14 @@ void print_selected_histories(HistorySelectorSet spec,
                               size_t days_per_group,
                               std::string_view title,
                               std::ostream& out) {
-  auto& selections = spec.selections;
   if (histories.day_cnt == 0) {
     fmt::println(out, "\nNo history to print.");
     return;
   }
-  if (selections.empty()) {
-    fmt::println(out, "\nNo history selected.");
-    return;
-  }
 
-  auto total_histories = create_history_set(spec, histories);
-  const auto& history_vectors = total_histories.history_vectors;
-
-  if (!total_histories.invalid_selections.empty()) {
-    fmt::println(out, "\nSkipping invalid history selections: {}",
-                 total_histories.invalid_selections);
-  }
-  if (history_vectors.empty()) {
-    fmt::println(out, "\nNo valid history selected.");
+  const auto idxs = histories.select_indices(spec);
+  if (idxs.empty()) {
+    fmt::println(out, "\nNo valid histories requested at series.cpp, print_total_status_histories.");
     return;
   }
 
@@ -532,12 +491,12 @@ void print_selected_histories(HistorySelectorSet spec,
     }
     fmt::println(out, "");
 
-    for (const auto& history : history_vectors) {
-      fmt::print(out, "{:<12}", history.label);
+    for (auto index : idxs) {
+      fmt::print(out, "{:<12}", histories.label(index));
       for (size_t day = group_start; day <= group_end; ++day) {
-        fmt::print(out, "{:>8}", history.data[day]);
+        fmt::print(out, "{:>8}", histories.data(index)[day]);
       }
-      fmt::println(out, "");
+      fmt::println(out, "\n\n");
     }
   }
 }

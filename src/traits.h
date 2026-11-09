@@ -125,16 +125,29 @@ struct Agegrp {
   }();
   static constexpr uint16_t count = magic_enum::enum_count<Enum>() - 1;
 
+  template <std::integral I>
+  constexpr explicit Agegrp(I value) {
+    if (value < 0 || value > count) {
+      throw std::out_of_range("Invalid Agegp value");
+    }
+    v = static_cast<uint8_t>(value);
+  }
+
+  constexpr explicit Agegrp(Enum value) : Agegrp(std::to_underlying(value)) {}
+
   Agegrp() = default;
-  constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
-  constexpr Agegrp(int val) noexcept : v(static_cast<uint8_t>(val)) {}
-  constexpr explicit Agegrp(Enum value) noexcept : v(std::to_underlying(value)) {}
+  // constexpr explicit Agegrp(uint8_t v) noexcept : v(v) {}
+  // constexpr Agegrp(int val) noexcept : v(static_cast<uint8_t>(val)) {}
+  // constexpr explicit Agegrp(Enum value) noexcept : v(std::to_underlying(value)) {}
   Agegrp(std::string name) : v(resolve_name(std::move(name))) {}
 
   static uint8_t resolve_name(std::string name) {
-    return std::to_underlying(
-        magic_enum::enum_cast<Enum>(name, magic_enum::case_insensitive)
-            .value_or(Enum::unknown));
+      const auto value = magic_enum::enum_cast<Enum>(
+        name, magic_enum::case_insensitive);
+      if (!value) {
+        throw std::invalid_argument(fmt::format("Unknown Agegrp name '{}", name));
+      }
+      return std::to_underlying(*value);
   }
 
   std::string show() const {
@@ -259,12 +272,13 @@ inline constexpr Condition SEVERE{Condition::Enum::severe};
 static_assert(UNINFECTED.v == 1 && NIL.v == 2 && MILD.v == 3
               && SICK.v == 4 && SEVERE.v == 5);  // I see no point for this guard
 
-//
-// Vaxstatus: enum metadata with one-byte PopData storage.
-//
+/* 
+Vaxstatus: enum metadata with one-byte PopData storage.
+values: none=0, first, full, booster, exhausted
+*/
 struct Vaxstatus {
   enum class Enum : uint8_t {
-    none = 0, first = 1, full = 2, booster = 3, exhausted = 4
+    none = 0, first, full, booster, exhausted
   };
 
   uint8_t v{};

@@ -1,4 +1,6 @@
 ## TODO
+- use comments in jsonc files!
+- test using json schema for the project
 - overhaul tests:   especially test for bad inputs off the happy path.
     >When you get to it, the check we ran today would make a good first test for the new history code. Build Histories for one ring and for several rings, then assert:
         - the vector and key counts;
@@ -10,7 +12,6 @@
 - should we ahve more consistency of structure for json files? should we have the category as the top key?  should we have a name descriptor?
 - 2nd shot/booster should probabilistically substitute an alternate brand when the person's own brand is out of stock, instead of just skipping them that day (check Julia code for correct behavior)
 - fix cumbersome seedcase code?
-- use comments in json files!
 - test and trace
 - revisit whether severe people should stay in the social distancing case.
 - revisit if compliance is an upfront thing or on any day a person is spreading or contactable
@@ -23,9 +24,10 @@
 - model viral load
 
 ## immediately previous session
-- opencode -s ses_11e137ffbffeM94mDnfMrjLSza
+- opencode:
 
 ## Done
+- update print functions to latest approach
 - revise/simpify overall to selection of hisgtories for printing, serialization and plotting.  must complete before getting rid of the old crap
 - purge materialize_history_vector and everything associated with on-the-fly history totals.
     - Includes all of the resolve_history_source, etc. functions

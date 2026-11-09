@@ -188,7 +188,7 @@ Use `{}`-style fmt format strings, not printf-style `%` format strings.
 ## Before Making Any Change
 
 - Read every file you intend to modify. No exceptions.
-- To find what calls a function, what uses a type, or what a signature change would break, use clangd `findReferences` / call-hierarchy — it resolves overloads correctly. Use `codegraph_context` for fast broad orientation. Fall back to grep/Read only when both return nothing. (See "Code navigation tooling" below.)
+- For semantic C++ questions (callers, type uses, signature-change impact), prefer clangd `findReferences` / call hierarchy — it resolves overloads correctly. Use grep for text matches (comments, strings, non-C++ files, commented-out code) or when clangd hasn't finished indexing.
 - Identify whether vectors involved use 1-based indexing (most PopData vectors do — see AGENTS.md).
 - State your understanding of the relevant invariants before proposing code.
 

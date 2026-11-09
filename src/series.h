@@ -19,7 +19,7 @@ Tracked_Traits are recorded during the simulation for each agent who experiences
 */
 inline constexpr array<TraitID, 3> Tracked_Traits{TraitID::status, TraitID::vax, TraitID::variant};
 
-inline constexpr uint8_t HISTORY_AGE_TOTAL = 0;
+inline constexpr Agegrp HISTORY_AGE_TOTAL = Agegrp{0};
 inline constexpr uint8_t RING_ALL = 0;
 // Histories store only the five concrete age groups. "total" is a query
 // selector and is materialized by summing those atomic vectors.
@@ -176,7 +176,7 @@ struct HistoryMeta {
   std::string ring;
   Ring ringnum;
 
-  std::string output_label;
+  std::string label;
 
 };
 
@@ -217,6 +217,7 @@ struct Histories {
     size_t total_history_count;
     size_t all_history_count;
 
+    // accessed with the data and label accessor methods
     std::vector<HistoryVector> history_vectors_;
 
     absl::flat_hash_map<Selsim, size_t> sim_history_map;
@@ -229,7 +230,7 @@ struct Histories {
   
     void build_history_vectors(bool for_totals);
 
-    std::vector<size_t> select_indices(HistorySelectorSet sel, std::string grab_bag="");
+    std::vector<size_t> select_indices(HistorySelectorSet sel, std::string grab_bag="") const;
 
 
     // returns index to Histories.history_vectors_ method uses enum value inputs
@@ -246,13 +247,18 @@ struct Histories {
 
 
     // return a mutable vector reference using index input
-    [[clang::always_inline]] std::vector<HistoryValue> & history_vector(size_t index) {
+    [[clang::always_inline]] std::vector<HistoryValue> & data(size_t index) {
         return history_vectors_[index].data;
     }
     // return a const vector reference using index input
-    [[clang::always_inline]] const std::vector<HistoryValue>& history_vector(
+    [[clang::always_inline]] const std::vector<HistoryValue>& data(
         size_t index) const {
         return history_vectors_[index].data;
+    }
+
+    // return the label of a vector using index input
+    [[clang::always_inline]] const std::string_view label(size_t index) const {
+        return history_vectors_[index].meta.label;
     }
     
     // return a mutable vector 
@@ -262,12 +268,6 @@ struct Histories {
         return history_vectors_[history_vector_idx(
             trait, phase, trait_value, age, ring)].data;
     }
-    // return a mutable total vector
-    [[clang::always_inline]] std::vector<HistoryValue>& at(
-        TraitID trait, Phase phase, uint8_t trait_value, Agegrp age) {
-        return history_vectors_[history_vector_idx(
-            trait, phase, trait_value, age)].data;
-    }    
 
     // return a const vector 
     [[clang::always_inline]] const std::vector<HistoryValue>& at(
@@ -368,7 +368,7 @@ struct TotalHistorySet {
 TotalHistorySet create_history_set(
     const HistorySelectorSet& spec, const Histories& histories);
 
-void print_total_status_histories(const Histories& histories,
+void print_total_status_histories(Histories& histories,
                                   size_t days_per_group = 15,
                                   std::ostream& out = std::cout);
 void print_selected_histories(HistorySelectorSet spec,

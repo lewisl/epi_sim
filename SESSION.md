@@ -1,5 +1,170 @@
 # Session Notes
 
+## 2026-11-09: fixed trait name-vector migration plan requested
+
+- User requests a plan to replace nested enums/magic_enum mapping for Agegrp,
+  Status, Condition, Vaxstatus. Explicit requirement: names remain real
+  std::vector<std::string>, immutable after initialization; no arrays or
+  string_view name tables. Plan saved in design/fixed_trait_names_plan.md.
+- User explicitly rejected constexpr factories as unnecessary ceremony and
+  requested a revised plan. Current plan directly initializes inline static
+  const std::vector<std::string> names. No factories, temporary compile-time
+  catalogs, constexpr string lookup, or probe for those mechanisms.
+- Preserve current IDs and count conventions; Vaxstatus count includes zero
+  but valid numeric IDs still end at names.size()-1. Shared runtime string
+  lookup uses the actual owned strings/vectors; no separate catalog copies.
+- Genuine compile-time dependencies found: ProgressionTree::entry_index and
+  load_progression_set's seen_ages use Agegrp::count as array extents;
+  OutcomesByCurrentCondition uses a dimension derived from Condition::count.
+  Revised plan keeps necessary explicit compile-time layout counts, checked
+  against runtime names sizes, without making names constexpr or replacing
+  progression arrays. Other counts can derive from names.size().
+- Named constants can become inline const objects resolved once by runtime
+  lookup. Audit static initialization ordering and real constexpr consumers;
+  do not build factories just to preserve constexpr qualifiers. No production
+  changes, builds, or tests have been performed.
+- TraitEntry already holds const vector<string>& and remains compatible.
+  Migrate four wrappers/constants and fixed parser branch, direct Agegrp enum
+  consumers in parameters.cpp and series.h, and narrowly necessary test uses.
+  Review implicit assignments such as progression's Condition arithmetic too.
+  Retain magic_enum for TraitID, Phase, Progressionmap; runtime loaders unchanged.
+- Downstream audit completed with Serena references and src/test text scans;
+  plan section 5 now inventories direct and indirect consumers, each parsing
+  contract, tests/current documentation, and legitimate remaining reflection.
+  Important gap: deleting trait_from_string's nested-Enum branch alone selects
+  a default-construction/direct-v-write path incompatible with Vaxstatus and
+  checked fixed-wrapper construction. Preserve runtime Ring sentinel behavior.
+- Existing helper limits found: tr_val_to_id uses <= count, overrunning the
+  Vaxstatus names vector on a failed search; tr_val_to_string excludes named
+  zero and final values for several fixed traits. Plan records their treatment
+  before reuse, without attributing them to this representation migration.
+- User emphasizes this follows the other traits' existing representation and
+  should not be characterized as a high-risk redesign. Broad caller coverage
+  reflects frequency and variety of use; preserve behavior without adding
+  infrastructure. Only plan/session changed; no C++ edits or builds/tests.
+- Acceptance criterion revised at user's explicit direction: a full simulation
+  run with serialized output and plots working correctly. Inspect the actual
+  outputs/plots, not just process exit or file existence. Unit tests support
+  diagnosis and API compatibility, not acceptance; the default broad test sweep
+  is superseded for this migration. Record the case/invocation/output location;
+  preserve specialized case inputs and compare a baseline where available.
+  Plan section 7 updated; no simulation or implementation authorized/run yet.
+- Current user changes include constrained checked Agegrp integer construction,
+  strict name parsing, and Agegrp-typed HISTORY_AGE_TOTAL. Selector code mixes
+  wrapper and numeric representations and remains user-owned in-progress work;
+  use raw uint8_t coordinates at Seltot/Selsim boundaries. Do not rollback or
+  automatically repair those edits while implementing a different scope.
+- This is planning only, not authorization to implement. Earlier test-only
+  repair plan is provisional; discussion moved to design review and then this
+  vector-based direction. This turn changes only this handoff and the new plan.
+
+## 2026-11-09: traits test repair plan; implementation not authorized
+
+- User now wants to review intended behavior file by file before deciding how
+  to test it. The earlier repair plan is provisional; do not implement merely
+  to make tests match current source. Current focus: four fixed trait structs
+  and whether wrappers should enforce membership in their own declared enum.
+- Re-read current structs: Agegrp/Status/Condition default to v=0 via v{};
+  Vaxstatus has no default constructor. names/count are per-type static state;
+  Enum is a nested type, not an object member. Numeric constructors do initialize
+  v. Status(int) validates only 0..255; Agegrp/Condition numeric paths and
+  Vaxstatus(uint8_t) do not enforce enum membership. Own-enum constructors reject
+  unrelated scoped-enum argument types, but explicitly cast unnamed values of
+  their own fixed-underlying enum remain possible. Public v also permits writes
+  outside the declared enum domain. These are source findings, not authorization
+  to change production. Intended validation boundary remains to be settled.
+
+- User requests a plan to repair test/test_traits.cpp with no production-source
+  changes. Plan saved in design/test_traits_repair_plan.md. No C++ files changed
+  and no builds/tests run.
+- Serena confirms line 111 fails for check_fixed_trait_metadata<Condition, 5>:
+  caller's array supplies N=5; actual Condition::Enum has six entries including
+  error=0 and uninfected=1. 5UL is unsigned-long 5, not a size-type mismatch;
+  installed magic_enum::enum_count returns std::size_t.
+- Proposed: T-only helper driven by real enum_entries, no copied complete name
+  catalogs or ordinal-as-value assumption; preserve constructor/show/parser,
+  negative-input, ABI, and trait-specific count/sentinel coverage. Vaxstatus
+  count includes its zero value; Agegrp/Status/Condition counts exclude theirs.
+- Also repair this file's stale Ring assumptions: numeric constructor requires
+  registry setup; default Ring{} is the sentinel, numeric Ring{0} throws.
+  Keep real runtime-trait fixtures/history checks; restore count changes as
+  well as names locally without shared-harness changes.
+- Planned validation: traits group first, then full non-runsim sweep for state
+  isolation. Other translation-unit build blockers remain outside this patch.
+  Existing dirty production edits belong to the user and must be preserved.
+
+## 2026-11-09: select_indices const qualification explained
+
+- Review/explanation only; no product code changes or builds/tests.
+- Histories::select_indices reads its members and returns a new index vector.
+  Add trailing const after the parameter list in both series.h declaration
+  and series.cpp definition; keep std::vector<size_t> as the return type.
+- Serena confirms print_selected_histories already takes const Histories&;
+  its select_indices call fails because the method lacks trailing const.
+  Other references are serialization, total-status printing, and plotting.
+- Separate existing diagnostic: print_selected_histories uses undeclared
+  history_vectors in its output loop. Const qualification does not fix that.
+- Preserve the user's ongoing source changes; implementation remains theirs.
+- Follow-up inspection: series.h now declares select_indices with trailing
+  const, but series.cpp:185 still defines it without const. Serena reports
+  a declaration/definition mismatch; print_selected_histories can retain
+  its existing const Histories& parameter. No source edits performed.
+- Next inspection: const declaration/definition mismatch diagnostic is gone.
+  Remaining series.cpp:496 error is undeclared history_vectors. Explained
+  iterating idxs and binding const auto& history = histories.history_vectors_[idx],
+  with label read from history.meta.output_label. This supports const input;
+  no product edits or builds/tests performed.
+- Design discussion only: recommend both history printers as const Histories
+  methods, consistent with its introspection interface. Consider sharing the
+  table-printing loop, with total-status printing supplying fixed selections;
+  current label widths/spacing differ. This is advice, not an implementation
+  decision or authorization. User explicitly requests no code changes.
+- User prefers a small reusable Histories access interface and free reporting
+  functions rather than adding printers as methods. Revised recommendation:
+  retain existing history_vector(index) reference accessors, consider const
+  metadata/output-label accessors. select_indices remains the filtering step.
+  Existing history_column_label builds a diagnostic label via a copied selector;
+  it does not directly return meta.output_label. Discussion only, no source edits.
+- Confirmed four-argument Histories::at at series.h:266 is redundant with the
+  mutable five-argument overload at :259 whose ring defaults to RING_ALL.
+  Keep the const counterpart at :273 for const access. The duplicate mutable
+  overloads make four-argument calls on mutable Histories ambiguous. No removal
+  performed; user requested confirmation only.
+- VS Code rename discussion: official docs distinguish Rename Symbol (F2,
+  editor.action.rename), supporting cross-file language-server renaming, from
+  Change All Occurrences (editor.action.changeAll), a current-editor selection
+  operation. clangd cross-file rename uses its project index.
+- Read-only local check: compile_commands.json has 53 entries with existing
+  source paths, including series.cpp and sim.cpp. .clangd skips background
+  indexing only for scratch translation units. Did not inspect VS Code's
+  active provider/logs or establish the cause of the reported partial rename.
+  No code/configuration changes or tests.
+- Follow-up read-only VS Code diagnosis: actual clangd log records rename
+  requests at 09:30:13 and 09:39:03 changing history_vector to vector at
+  series.h:249 (non-const overload). Both responses contain exactly one edit
+  at that declaration. VS Code did send the correct LSP request; clangd
+  supplied the one-edit result. Loaded expected compilation database and
+  completed background indexing; C_Cpp.intelliSenseEngine is disabled.
+- Saved source currently has one history_vector call, in the const-Histories
+  selected printer (series.cpp:499); it binds the separate const overload at
+  series.h:253. Non-const overload has no current call sites found. LLVM's
+  RenameTests.cpp explicitly tests renaming only the selected overload. Thus
+  these particular attempts are explained by per-overload rename scope;
+  renaming the whole accessor API requires renaming both overloads. This
+  does not establish that all other reported rename failures share this cause.
+  No source/settings edits, refactor operations, or builds/tests performed.
+- Rename follow-up: both saved accessors are now named vector; const caller
+  updated to histories.vector(index). Serena reports cascading errors in
+  Histories::select_indices starting at series.cpp:186, vector<size_t> idxs{}.
+  Histories::vector hides the unqualified std::vector name in member scope.
+  Explicit std::vector<size_t> at that declaration avoids this lookup collision;
+  alternatively revert both accessor names and the caller. Advice only.
+- Later log confirms const-overload rename edited just its declaration and
+  the caller at series.cpp:499; mutable rename still edited only series.h:249.
+  Evidence supports a rename-induced name collision, not unrelated text edits
+  at the failing idxs lines. Undo behavior remains uninvestigated. No source
+  changes, rollback, configuration changes, or builds/tests performed.
+
 ## 2026-11-03: build_history_vectors simplified (user implemented)
 
 - Assistant reviewed; user made all source edits. Removed: max_names ternary

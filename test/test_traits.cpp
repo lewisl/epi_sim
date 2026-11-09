@@ -131,8 +131,8 @@ void test_fixed_metadata_round_trips() {
       "unknown", "age0_19", "age20_39", "age40_59", "age60_79", "age80_up"});
   check_fixed_trait_metadata<Status>(std::array<std::string_view, 5>{
       "none", "unexposed", "infectious", "recovered", "dead"});
-  check_fixed_trait_metadata<Condition>(std::array<std::string_view, 5>{
-      "uninfected", "nil", "mild", "sick", "severe"});
+  check_fixed_trait_metadata<Condition>(std::array<std::string_view, 6>{
+      "error", "uninfected", "nil", "mild", "sick", "severe"});
   check_fixed_trait_metadata<Vaxstatus>(std::array<std::string_view, 5>{
       "none", "first", "full", "booster", "exhausted"});
 
