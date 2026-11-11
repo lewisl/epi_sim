@@ -1,0 +1,24 @@
+{
+    "days": 180,                      
+    "locale": 38015,                  
+    "calendar_start": "2020-01-01",   
+    "dovax": false,                   
+    "do_rings": false,               
+    "debug": false,                  
+    "rt_sim_interval": 0,            
+    "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],
+
+    "case_desc": "simple: no vax, no rings",
+
+    "geodata":           "geodata.csv",
+    "variants":          "variants.json",
+    "social_params":     "socialparams.json",
+    "seed":              "seed.json",
+
+    "vaccines":          "vaccines.json",
+    "vax_sched_dir":     "vaccine_100k",
+    "rings":             "rings.json",
+    "social_dist":       "soc_dist.json",
+
+    "output":             "output"
+}
