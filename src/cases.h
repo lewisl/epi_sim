@@ -27,9 +27,10 @@ struct Filter {
 };
 
 // Change: the trait values to set on each matched candidate, and how many to affect.
-// Allowed traits: "status", "cond", "duration", "variant", "vaxstatus", "quar"
-// When "status"="infectious" is present, make_sick is called (preserving all invariants)
-// and a "variant" term is required.
+// For a SeedCase the constructor enforces: "status"=infectious (required), "variant"
+// (required, real variant), optional "cond" (nil..severe) and "duration"
+// (1..DURATIONLIM), each trait at most once, count >= 1.
+// apply_change also accepts "vaxstatus" and "quar", but SeedCase never passes them.
 // Guard: only UNEXPOSED and RECOVERED persons may be made sick.
 struct Change {
   std::vector<Term> terms;
@@ -42,11 +43,12 @@ struct SeedCase {
   Filter filter;
   Change change;
 
-  SeedCase(int triggerday, bool startofday, Filter filt, Change chg)
-      : triggerday(triggerday), startofday(startofday),
-        filter(std::move(filt)), change(std::move(chg)) {}
+  // Validates the seed invariants above (and triggerday >= 1); throws std::runtime_error.
+  SeedCase(int triggerday, bool startofday, Filter filt, Change chg);
   SeedCase() = delete;
 
+  // Makes up to change.count matching UNEXPOSED or RECOVERED people infectious.
+  // Returns the ids actually made sick; ineligible matches are not counted.
   std::vector<size_t> operator()(PopData& pop, Histories& histories);
 };
 

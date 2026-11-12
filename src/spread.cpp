@@ -28,7 +28,8 @@ void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& 
     auto indoor_factor = indoor_seq[zidx(thisday)];
 
     // which contacts does the infected person have? use pre-allocated buffer contacts
-    auto contact_factor = contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
+    // rows are nil..severe (0..3); Condition nil..severe is 2..5, so subtract 2
+    auto contact_factor = contactfactors[spr_cond - 2][zidx(spr_agegrp)];
     auto scale = density_factor * indoor_factor * contact_factor;
 
     // debug

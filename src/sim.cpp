@@ -78,6 +78,22 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   float density_factor = mp.geodata.density[locale_idx];
 
 
+  // apply the seed cases for this day and time of day (beginning or end of day)
+  auto run_seed_cases = [&](int day, bool startofday) {
+    for (auto& sc : seedcases) {
+      if (sc.startofday != startofday || sc.triggerday != day) continue;
+      auto seeds = sc(pop, histories);
+      std::string filt;
+      for (const auto& t : sc.filter.terms)
+        filt += fmt::format("{}{}={}", filt.empty() ? "" : ",", t.trait, t.val);
+      std::string chg;
+      for (const auto& t : sc.change.terms)
+        chg += fmt::format("{}{}={}", chg.empty() ? "" : ",", t.trait, t.val);
+      fmt::println("\nSeed day {}{} count: {} filter: [{}] change: [{}]", day,
+                   startofday ? "" : " (end of day)", seeds.size(), filt, chg);
+    }
+  };
+
   //
   // day loop
   //
@@ -91,17 +107,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     sim::history_timing.cum();
 
     // run beginning of day seed cases
-    for (auto& sc : seedcases)
-      if (sc.startofday && sc.triggerday == sim::ds.day) {
-        auto seeds = sc(pop, histories);
-        std::string filt;
-        for (const auto& t : sc.filter.terms)
-          filt += fmt::format("{}{}={}", filt.empty() ? "" : ",", t.trait, t.val);
-        std::string chg;
-        for (const auto& t : sc.change.terms)
-          chg += fmt::format("{}{}={}", chg.empty() ? "" : ",", t.trait, t.val);
-        fmt::println("\nSeed day {} count: {} filter: [{}] change: [{}]", d_i, seeds.size(), filt, chg);
-      }
+    run_seed_cases(d_i, true);
 
     // run social distancing cases
     apply_sd_cases_for_day(sim::ds.day, sd_cases, pop);
@@ -154,8 +160,9 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     } // end persons loop
 
 
-    // run end of day cases
- 
+    // run end of day seed cases: after spread and progression, so these seeds start
+    // spreading tomorrow, the same as beginning of day seeds
+    run_seed_cases(d_i, false);
 
   } // end day loop
 

@@ -1,26 +1,38 @@
 {
-    "rings": [
-        {
-            "name"                   : "ring_1",
-            "pct_of_population"      : 0.4,
-            "out_ring_prob_by_agegrp": {
-                "age0_19" : 0.05,
-                "age20_39": 0.10,
-                "age40_59": 0.15,
-                "age60_79": 0.10,
-                "age80_up": 0.05
-            }
-        },
-        {
-            "name"                   : "ring_2",
-            "pct_of_population"      : 0.6,
-            "out_ring_prob_by_agegrp": {
-                "age0_19" : 0.20,
-                "age20_39": 0.25,
-                "age40_59": 0.30,
-                "age60_79": 0.20,
-                "age80_up": 0.15
-            }
+  "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
+
+  "_edit_rings_": "must be an array of ring objects or empty",
+  "rings": 
+  [
+    
+    "_edit_ring_objects_": "let's define the 3 required keys in defined ring object",
+      "_edit_name_": "string that names the ring",
+      "_edit_pct_of_population_": "percentage of population assigned to this ring":,
+        "_required_values_": "each between 0.0 and 1.0. total of all rings must equal 1.0",
+      "_out_ring_prob_by_agegrp_": "probability a person in an agegrp contacts people outside this ring",
+        "_required_values_": "between 0.0 and 1.0",
+            
+    {
+      "name"                   : "ring_1",
+      "pct_of_population"      : 0.4,
+      "out_ring_prob_by_agegrp": {
+        "age0_19" : 0.05,
+        "age20_39": 0.10,
+        "age40_59": 0.15,
+        "age60_79": 0.10,
+        "age80_up": 0.05
         }
-    ]
+    },
+    {
+      "name"                   : "ring_2",
+      "pct_of_population"      : 0.6,
+      "out_ring_prob_by_agegrp": {
+        "age0_19" : 0.20,
+        "age20_39": 0.25,
+        "age40_59": 0.30,
+        "age60_79": 0.20,
+        "age80_up": 0.15
+       }
+    }
+  ]
 }

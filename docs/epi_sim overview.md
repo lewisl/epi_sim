@@ -121,3 +121,11 @@ Seed/SD cases are loaded from JSON and applied by day using trait-based filters/
 
 ------
 
+## 7) Tests
+
+
+ | Command      |                        What it's for                        | Time  |     Result     |
+|:-----------------------|:----------------------------------------------------------|:-----------|:-------------------|
+| xmake run test   | Quick check after any edit                   | ~0.3s  | 1,687 checks,  all pass|
+| xmake run test runsim   | Thorough: 5 full scenarios <br>run the way --use-dir does       | ~5 s  | 195 checks,  all pass  |
+| xmake run test  templates  | Project and case directories<br> (temporarily rewrites your   ~/.config/epi_sim file, then restores it)  | ~1 s  | 192 checks, all pass    |

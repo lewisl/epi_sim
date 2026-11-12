@@ -1,436 +1,301 @@
+// series: the Histories container -- vector layout and order, metadata, the two lookup
+// maps, seeding, carry-forward, totals, selection, and CSV output.
 #include "test_support.h"
-
-#include "../src/series.h"
-
-// used in several series tests:  can't be in anonymous namespace
-void Histories::validate_variant_invariant() const {
-    for (size_t day = 1; day <= day_cnt; ++day) {
-        HistoryValue variant_total = 0;
-        for (size_t v = 1; v <= Variant::count; ++v) {
-            variant_total += aggregate_value(
-                TraitID::variant, Phase::now, static_cast<uint8_t>(v), day);
-        }
-        const HistoryValue infectious = aggregate_value(
-            TraitID::status, Phase::now, uint8_t(INFECTIOUS), day);
-        if (variant_total != infectious)
-            throw std::runtime_error(fmt::format(
-                "Variant invariant failed on day {}: sum(now_variant)={} != now_infectious={}",
-                day, variant_total, infectious));
-    }
-    fmt::println("Variant invariant OK: sum(now_variant) == now_infectious for all {} days.", day_cnt);
-}
 
 namespace {
 
 constexpr std::string_view GROUP = "series";
+using test_support::install_names;
+using test_support::make_pop;
+using test_support::RuntimeNamesGuard;
 
-struct RuntimeNamesGuard {
-  test_support::VariantNamesGuard variants;
-  test_support::VaxNamesGuard vaccines;
-  test_support::RingNamesGuard rings;
-};
-
-void install_names(size_t variant_count, size_t vax_count,
-                   size_t ring_count) {
-  Variant::names = {"none"};
-  Vax::names = {"none"};
-  Ring::names.clear();
-  for (size_t i = 1; i <= variant_count; ++i) {
-    Variant::names.push_back(fmt::format("variant_{}", i));
-  }
-  for (size_t i = 1; i <= vax_count; ++i) {
-    Vax::names.push_back(fmt::format("vax_{}", i));
-  }
-  if (ring_count != 0) Ring::names.push_back("");
-  for (size_t i = 1; i <= ring_count; ++i) {
-    Ring::names.push_back(fmt::format("ring_{}", i));
-  }
+void install_counts(size_t variants, size_t vaxes, size_t rings) {
+  vector<string> v, x, r;
+  for (size_t i = 1; i <= variants; ++i) v.push_back(fmt::format("variant_{}", i));
+  for (size_t i = 1; i <= vaxes; ++i) x.push_back(fmt::format("vax_{}", i));
+  for (size_t i = 1; i <= rings; ++i) r.push_back(fmt::format("ring_{}", i));
+  install_names(v, x, r);
 }
 
-PopData make_pop(size_t ring_count = 0) {
-  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
-  if (ring_count != 0) {
-    for (size_t person = 1; person <= pop.popn; ++person) {
-      pop.ring[person] = static_cast<uint8_t>((person - 1) % ring_count + 1);
+const vector<string>& value_names(TraitID t) {
+  return t == TraitID::status ? Status::names : t == TraitID::vax ? Vax::names : Variant::names;
+}
+
+size_t values_per_trait_total() { return Status::count + Vax::count + Variant::count; }
+
+// vector counts follow from the registries: (status+vax+variant values) x 2 phases x rings x ages
+void test_layout_counts_across_cardinalities() {
+  RuntimeNamesGuard guard;
+  for (size_t nv = 1; nv <= 3; ++nv)
+    for (size_t nx = 0; nx <= 2; ++nx)
+      for (size_t nr = 1; nr <= 3; ++nr) {
+        install_counts(nv, nx, nr);
+        auto pop = make_pop(10, nr);
+        Histories h(3, pop);
+        const size_t vals = values_per_trait_total();
+        const size_t sim = vals * 2 * nr * Agegrp::count;
+        const size_t tot = vals * 2 * (nr == 1 ? 1 : 1 + nr + Agegrp::count);
+        CHECK_MSG(h.sim_history_count == sim && h.total_history_count == tot &&
+                      h.all_history_count == sim + tot && h.history_vectors_.size() == sim + tot,
+                  "variants {} vaxes {} rings {}: sim {} (want {}) total {} (want {}) all {}", nv, nx, nr,
+                  h.sim_history_count, sim, h.total_history_count, tot, h.history_vectors_.size());
+        CHECK_EQ(h.sim_history_map.size(), sim);
+        CHECK_EQ(h.cumulative_columns.size() + h.new_columns.size(), sim);
+        int bad_len = 0;
+        for (const auto& hv : h.history_vectors_) bad_len += hv.data.size() != 4;
+        CHECK_MSG(bad_len == 0, "{} vectors not sized day_cnt + 1", bad_len);
+      }
+}
+
+// sim map: bijection onto [0, sim_count), metadata agrees with the key, label format,
+// and storage order is trait (status, vax, variant) > phase > value > ring > age
+void test_sim_map_metadata_and_order() {
+  RuntimeNamesGuard guard;
+  install_counts(2, 2, 2);
+  auto pop = make_pop(10, 2);
+  Histories h(2, pop);
+  vector<int> hits(h.sim_history_count, 0);
+  int bad = 0;
+  std::string first;
+  for (const auto& [k, idx] : h.sim_history_map) {
+    REQUIRE(idx < h.sim_history_count);
+    ++hits[idx];
+    const auto& m = h.history_vectors_[idx].meta;
+    const auto t = static_cast<TraitID>(k.trait);
+    const string label = fmt::format("{}|{}|{}|{}|{}", trait_lookup(t), magic_enum::enum_name(static_cast<Phase>(k.phase)),
+                                     value_names(t)[k.trval], Ring::names[k.ring], Agegrp::names[k.age]);
+    const bool ok = std::to_underlying(m.traitnum) == k.trait && std::to_underlying(m.phasenum) == k.phase &&
+                    m.traitval_num == k.trval && m.ringnum.v == k.ring && m.agenum.v == k.age &&
+                    m.label == label && h.label(idx) == label;
+    if (!ok && bad++ == 0) first = fmt::format("{} -> {} has label '{}'", k, idx, m.label);
+  }
+  CHECK_MSG(bad == 0, "{} sim-map entries disagree with metadata; first: {}", bad, first);
+  CHECK_MSG(std::ranges::all_of(hits, [](int x) { return x == 1; }), "sim map is not a bijection");
+
+  auto rank = [](TraitID t) { return t == TraitID::status ? 0 : t == TraitID::vax ? 1 : 2; };
+  auto key = [&](size_t i) {
+    const auto& m = h.history_vectors_[i].meta;
+    return std::tuple{rank(m.traitnum), std::to_underlying(m.phasenum), m.traitval_num, m.ringnum.v, m.agenum.v};
+  };
+  int order_bad = 0;
+  for (size_t i = 1; i < h.sim_history_count; ++i) order_bad += !(key(i - 1) < key(i));
+  CHECK_MSG(order_bad == 0, "{} adjacent simulation vectors out of order", order_bad);
+  CHECK_EQ(h.history_vector_idx(TraitID::status, Phase::now, UNEXPOSED.v, AGE0_19, 1), size_t{0});
+  CHECK_EQ(h.history_vector_idx(TraitID::variant, Phase::new_, 2, AGE80_UP, 2), h.sim_history_count - 1);
+}
+
+// totals map with several rings: every key points at a total vector whose metadata agrees
+void test_totals_map_multi_ring() {
+  RuntimeNamesGuard guard;
+  install_counts(1, 1, 3);
+  auto pop = make_pop(12, 3);
+  Histories h(2, pop);
+  int bad = 0;
+  std::string first;
+  for (const auto& [k, idx] : h.sim_totals_map) {
+    const auto& m = h.history_vectors_[idx].meta;
+    const bool ok = idx >= h.sim_history_count && std::to_underlying(m.traitnum) == k.trait &&
+                    std::to_underlying(m.phasenum) == k.phase && m.traitval_num == k.trval &&
+                    m.ringnum.v == k.ring && m.agenum.v == k.age;
+    if (!ok && bad++ == 0) first = fmt::format("{} -> {} ({})", k, idx, m.label);
+  }
+  CHECK_MSG(bad == 0, "{} totals-map entries disagree with metadata; first: {}", bad, first);
+  CHECK_EQ(h.sim_totals_map.size(), h.total_history_count);
+}
+
+// with a single ring the split totals are aliases: (all rings, age a) is the ring-1 cell
+// and (ring 1, all ages) is the full total; no extra vectors are created
+void test_totals_map_single_ring_aliases() {
+  RuntimeNamesGuard guard;
+  install_counts(1, 0, 1);
+  auto pop = make_pop(10, 1);
+  Histories h(2, pop);
+  const uint8_t v = INFECTIOUS.v;
+  const size_t full = h.history_vector_idx(TraitID::status, Phase::now, v, Agegrp{0}, RING_ALL, true);
+  CHECK_EQ(h.history_vector_idx(TraitID::status, Phase::now, v, Agegrp{0}, 1, true), full);
+  for (uint8_t a = 1; a <= Agegrp::count; ++a)
+    CHECK_EQ(h.history_vector_idx(TraitID::status, Phase::now, v, Agegrp{a}, RING_ALL, true),
+             h.history_vector_idx(TraitID::status, Phase::now, v, Agegrp{a}, 1));
+}
+
+// constructor seeds day-1 now_unexposed per (ring, age) from PopData; nothing else
+void test_constructor_seeds_unexposed_by_ring_and_age() {
+  RuntimeNamesGuard guard;
+  install_counts(1, 0, 2);
+  auto pop = make_pop(23, 2);
+  Histories h(4, pop);
+  int bad = 0;
+  for (uint8_t r = 1; r <= 2; ++r)
+    for (uint8_t a = 1; a <= Agegrp::count; ++a) {
+      int want = 0;
+      for (size_t p = 1; p <= pop.popn; ++p) want += pop.ring[p].v == r && pop.agegrp[p].v == a;
+      bad += h.at(TraitID::status, Phase::now, UNEXPOSED.v, Agegrp{a}, r)[1] != want;
     }
-  }
-  return pop;
+  CHECK_MSG(bad == 0, "{} (ring, age) cells seeded wrongly", bad);
+  long other = 0;
+  for (size_t i = 0; i < h.sim_history_count; ++i)
+    for (size_t d = 0; d <= 4; ++d)
+      if (!(h.history_vectors_[i].meta.traitnum == TraitID::status && h.history_vectors_[i].meta.phasenum == Phase::now &&
+            h.history_vectors_[i].meta.traitval_num == UNEXPOSED.v && d == 1))
+        other += h.history_vectors_[i].data[d];
+  CHECK_EQ(other, 0L);
+
+  pop.ring[3] = Ring{};  // ring 0 is not a valid lane
+  CHECK_THROWS(std::runtime_error, (Histories(4, pop)), "Cannot seed history for person 3");
 }
 
-Histories make_histories(size_t day_count, size_t variant_count = 2,
-                         size_t vax_count = 2, size_t ring_count = 0) {
-  install_names(variant_count, vax_count, ring_count);
-  auto pop = make_pop(ring_count);
-  return Histories(day_count, pop);
-}
-
-const TotalHistoryVector& only_history(
-    const TotalHistorySet& resolved) {
-  if (!resolved.invalid_selections.empty()) {
-    fmt::println(stderr, "unexpected invalid selections: {}",
-                 resolved.invalid_selections);
-  }
-  REQUIRE(resolved.invalid_selections.empty());
-  REQUIRE(resolved.history_vectors.size() == 1);
-  return resolved.history_vectors.front();
-}
-
-
-void test_atomic_layout_formula_and_introspection() {
+void test_newday_carries_now_but_not_new() {
   RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 2, 2, 2);
-
-  CHECK(Agegrp::count == 5);
-  CHECK(histories.sim_history_count == 160);
-
-  CHECK(histories.history_vector_idx(
-            TraitID::status, Phase::now, uint8_t(UNEXPOSED), AGE0_19, 1) == 0);
-  CHECK(histories.history_vector_idx(
-            TraitID::status, Phase::now, uint8_t(DEAD), AGE80_UP, 2) == 39);
-  CHECK(histories.history_vector_idx(
-            TraitID::status, Phase::new_, uint8_t(UNEXPOSED), AGE0_19, 1) == 40);
-  CHECK(histories.history_vector_idx(
-            TraitID::vax, Phase::now, 1, AGE0_19, 1) == 80);
-  CHECK(histories.history_vector_idx(
-            TraitID::vax, Phase::new_, 1, AGE0_19, 1) == 100);
-  CHECK(histories.history_vector_idx(
-            TraitID::variant, Phase::now, 1, AGE0_19, 1) == 120);
-  CHECK(histories.history_vector_idx(
-            TraitID::variant, Phase::new_, 2, AGE80_UP, 2) == 159);
-
-  for (size_t index = 0;
-       index < histories.sim_history_count; ++index) {
-    const auto coordinates = histories.describe_history_vector(index);
-    REQUIRE(coordinates.has_value());
-    const auto parsed_trait = magic_enum::enum_cast<TraitID>(coordinates->trait);
-    const auto parsed_phase = magic_enum::enum_cast<Phase>(coordinates->phase);
-    REQUIRE(parsed_trait.has_value());
-    REQUIRE(parsed_phase.has_value());
-    const auto trait = *parsed_trait;
-    const auto phase = *parsed_phase;
-    const auto value = trait == TraitID::status
-        ? uint8_t(*trait_from_string<Status>(coordinates->trait_value))
-        : trait == TraitID::vax
-            ? uint8_t(*trait_from_string<Vax>(coordinates->trait_value))
-            : uint8_t(*trait_from_string<Variant>(coordinates->trait_value));
-    const auto age = age_history_idx_from_string(coordinates->age);
-    // const auto ring = ring_id_from_token(coordinates->ring);
-    REQUIRE(age.has_value());
-    // REQUIRE(ring.has_value());
-    // CHECK(histories.history_vector_idx(
-    //           trait, phase, value, Agegrp{*age}, *ring) == index);
-  }
-  CHECK(!histories.describe_history_vector(160).has_value());
-  CHECK(histories.history_column_label(159) ==
-        "trait=variant|phase=new_|value=variant_2|ring=ring_2|age=age80_up");
-  // CHECK(histories.explain_history_vector_idx(
-  //           TraitID::variant, Phase::new_, 2, AGE80_UP, 2)
-  //       .contains("column=159"));
-  // CHECK(histories.explain_history_vector_idx(
-  //           TraitID::variant, Phase::now, 0, AGE0_19, 1)
-  //       .starts_with("invalid history coordinates"));
-
-  std::ostringstream dump;
-  histories.dump_history_layout(dump);
-  CHECK(test_support::split_trimmed_lines(dump.str()).size() == 160);
-  CHECK(dump.str().contains("0: trait=status|phase=now|value=unexposed"));
-  CHECK(dump.str().contains("0: trait=status|phase=now|value=unexposed"));
+  install_counts(1, 1, 1);
+  auto pop = make_pop(5, 1);
+  Histories h(3, pop);
+  h.update(TraitID::status, Phase::now, INFECTIOUS.v, 1, AGE20_39, 1, 2);
+  h.update(TraitID::status, Phase::new_, INFECTIOUS.v, 1, AGE20_39, 1, 2);
+  h.update(TraitID::vax, Phase::now, 1, 1, AGE20_39, 1, 3);
+  h.init_history_newday(2);
+  CHECK_EQ(h.at(TraitID::status, Phase::now, INFECTIOUS.v, AGE20_39, 1)[2], 2);
+  CHECK_EQ(h.at(TraitID::status, Phase::now, UNEXPOSED.v, AGE20_39, 1)[2], 1);
+  CHECK_EQ(h.at(TraitID::vax, Phase::now, 1, AGE20_39, 1)[2], 3);
+  CHECK_EQ(h.at(TraitID::status, Phase::new_, INFECTIOUS.v, AGE20_39, 1)[2], 0);
+  h.init_history_newday(1);  // day 1 is the seed day: unchanged
+  CHECK_EQ(h.at(TraitID::status, Phase::now, UNEXPOSED.v, AGE20_39, 1)[1], 1);
 }
 
-void test_layout_all_zero_one_many_cardinalities() {
+// sum_total_histories against an independent brute-force sum, for 1 and 3 rings
+void test_sum_total_histories_matches_brute_force() {
   RuntimeNamesGuard guard;
-  for (size_t variant_count = 1; variant_count <= 3; ++variant_count) {
-    for (size_t vax_count = 0; vax_count <= 3; ++vax_count) {
-      for (size_t ring_count = 0; ring_count <= 3; ++ring_count) {
-        Histories histories = make_histories(
-            1, variant_count, vax_count, ring_count);
-        const size_t ring_lanes = std::max<size_t>(ring_count, 1);
-        const size_t expected = 2 * (4 + vax_count + variant_count)
-                              * ring_lanes * Agegrp::count;
-        CHECK(histories.sim_history_count == expected);
-        histories.validate_history_indexing();
+  for (size_t nr : {size_t{1}, size_t{3}}) {
+    install_counts(2, 2, nr);
+    auto pop = make_pop(30, nr);
+    Histories h(5, pop);
+    for (size_t i = 0; i < h.sim_history_count; ++i)
+      for (size_t d = 1; d <= 5; ++d) h.history_vectors_[i].data[d] = static_cast<HistoryValue>((i * 7 + d * 3) % 11);
+    h.sum_total_histories();
+    int bad = 0;
+    std::string first;
+    for (const auto& [k, idx] : h.sim_totals_map) {
+      for (size_t d = 1; d <= 5; ++d) {
+        HistoryValue want = 0;
+        for (uint8_t r = 1; r <= nr; ++r)
+          for (uint8_t a = 1; a <= Agegrp::count; ++a)
+            if ((k.ring == RING_ALL || k.ring == r) && (k.age == 0 || k.age == a))
+              want += h.at(static_cast<TraitID>(k.trait), static_cast<Phase>(k.phase), k.trval, Agegrp{a}, r)[d];
+        if (h.history_vectors_[idx].data[d] != want && bad++ == 0)
+          first = fmt::format("{} day {}: {} want {}", k, d, h.history_vectors_[idx].data[d], want);
       }
     }
+    CHECK_MSG(bad == 0, "rings {}: {} total cells wrong; first: {}", nr, bad, first);
+    for (size_t d = 1; d <= 5; ++d)
+      CHECK_EQ(h.aggregate_value(TraitID::vax, Phase::new_, 2, d),
+               test_support::total(h, TraitID::vax, Phase::new_, 2, d));
   }
 }
 
-void test_case_1_atomic_column_count() {
+// select_indices with 5-field selectors {trait, phase, value, age, ring}
+void test_select_indices() {
   RuntimeNamesGuard guard;
-  // case-1 has six variants, vaccination disabled, and rings disabled.
-  Histories histories = make_histories(1, 6, 0, 0);
-  CHECK(histories.sim_history_count == 100);
+  install_counts(1, 1, 2);
+  auto pop = make_pop(10, 2);
+  Histories h(2, pop);
+  auto one = [&](HistorySelector s) {
+    const auto v = h.select_indices(HistorySelectorSet{s});
+    return v.size() == 1 ? v[0] : size_t(-1);
+  };
+  CHECK_EQ(one({"status", "now", "dead", "age60_79", "ring_2"}),
+           h.history_vector_idx(TraitID::status, Phase::now, DEAD.v, AGE60_79, 2));
+  CHECK_EQ(one({"vax", "new_", "vax_1", "total", "total"}),
+           h.history_vector_idx(TraitID::vax, Phase::new_, 1, Agegrp{0}, RING_ALL, true));
+  CHECK_EQ(one({"variant", "now", "variant_1", "total", "ring_1"}),
+           h.history_vector_idx(TraitID::variant, Phase::now, 1, Agegrp{0}, 1, true));
+  CHECK_EQ(one({"status", "now", "recovered", "age0_19", "total"}),
+           h.history_vector_idx(TraitID::status, Phase::now, RECOVERED.v, AGE0_19, RING_ALL, true));
+
+  const auto all = h.select_indices({}, "all");
+  CHECK_EQ(all.size(), h.all_history_count);
+  const auto tot = h.select_indices({}, "total");
+  REQUIRE(tot.size() == h.total_history_count);
+  CHECK_EQ(tot.front(), h.sim_history_count);
+
+  // order of the selection is kept; a key that does not exist is skipped
+  const auto two = h.select_indices(HistorySelectorSet{{"status", "now", "none", "total", "total"},
+                                                       {"status", "now", "dead", "total", "total"}});
+  CHECK_EQ(two.size(), size_t{1});
+  // unknown names are an error
+  CHECK_THROWS(std::invalid_argument,
+               (void)h.select_indices(HistorySelectorSet{{"status", "now", "deceased", "total", "total"}}), "");
+  CHECK_THROWS(std::invalid_argument,
+               (void)h.select_indices(HistorySelectorSet{{"status", "now", "dead", "age0_19", "ring_9"}}), "");
 }
 
-void test_day_one_seed_uses_atomic_age_and_ring_cells() {
+// CSV output: header = labels in selection order, one row per day, values from the vectors
+void test_serialize_histories_round_trip() {
   RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 1, 0, 2);
+  install_counts(1, 0, 2);
+  auto pop = make_pop(10, 2);
+  Histories h(3, pop);
+  h.at(TraitID::status, Phase::now, INFECTIOUS.v, AGE0_19, 1)[2] = 4;
+  h.at(TraitID::status, Phase::now, INFECTIOUS.v, AGE20_39, 2)[3] = 5;
+  h.sum_total_histories();
+  const auto path = test_support::fs::temp_directory_path() / test_support::unique_name("epi_series_") / "h.csv";
+  const HistorySelectorSet sel{{"status", "now", "infectious", "total", "total"},
+                               {"status", "now", "infectious", "age0_19", "ring_1"}};
+  serialize_histories(h, sel, "", path);
+  const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(path));
+  REQUIRE(lines.size() == 4);
+  CHECK_EQ(lines[0], string("status|now|infectious|total|total,status|now|infectious|ring_1|age0_19"));
+  CHECK_EQ(lines[1], string("0,0"));
+  CHECK_EQ(lines[2], string("4,4"));
+  CHECK_EQ(lines[3], string("5,0"));
 
-  for (size_t person = 1; person <= 5; ++person) {
-    const Agegrp age{static_cast<uint8_t>(person)};
-    const uint8_t ring = static_cast<uint8_t>((person - 1) % 2 + 1);
-    CHECK(histories.at(TraitID::status, Phase::now, uint8_t(UNEXPOSED),
-                       age, ring)[1] == 1);
-  }
-  CHECK(histories.aggregate_value(
-            TraitID::status, Phase::now, uint8_t(UNEXPOSED), 1) == 5);
-  CHECK(histories.aggregate_value(
-            TraitID::status, Phase::new_, uint8_t(UNEXPOSED), 1) == 0);
-
-  Histories no_rings = make_histories(1, 1, 0, 0);
-  CHECK(no_rings.at(TraitID::status, Phase::now, uint8_t(UNEXPOSED),
-                    AGE40_59, RING_ALL)[1] == 1);
+  serialize_histories(h, {}, "all", path);
+  const auto all = test_support::split_trimmed_lines(test_support::read_file_text(path));
+  REQUIRE(all.size() == 4);
+  CHECK_EQ(static_cast<size_t>(std::ranges::count(all[0], ',')) + 1, h.all_history_count);
+  test_support::fs::remove_all(path.parent_path());
 }
 
-void test_atomic_update_and_stock_carry_forward() {
+void test_print_and_enumerate() {
   RuntimeNamesGuard guard;
-  Histories histories = make_histories(3, 1, 1, 0);
-
-  histories.update(TraitID::status, Phase::now, uint8_t(INFECTIOUS),
-                   RING_ALL, AGE20_39, 1, 2);
-  histories.update(TraitID::status, Phase::new_, uint8_t(INFECTIOUS),
-                   RING_ALL, AGE20_39, 1, 2);
-  histories.update(TraitID::vax, Phase::now, 1,
-                   RING_ALL, AGE20_39, 1, 3);
-  histories.update(TraitID::vax, Phase::new_, 1,
-                   RING_ALL, AGE20_39, 1, 3);
-
-  CHECK(histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE20_39, RING_ALL)[1] == 2);
-  CHECK(histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE0_19, RING_ALL)[1] == 0);
-  histories.init_history_newday(2);
-  CHECK(histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS),
-                     AGE20_39, RING_ALL)[2] == 2);
-  CHECK(histories.at(TraitID::vax, Phase::now, 1, AGE20_39, RING_ALL)[2] == 3);
-  CHECK(histories.at(TraitID::status, Phase::new_, uint8_t(INFECTIOUS),
-                     AGE20_39, RING_ALL)[2] == 0);
-  CHECK(histories.at(TraitID::vax, Phase::new_, 1, AGE20_39, RING_ALL)[2] == 0);
+  install_counts(1, 0, 1);
+  auto pop = make_pop(10, 1);
+  Histories h(2, pop);
+  h.sum_total_histories();
+  std::ostringstream out;
+  print_total_status_histories(h, 15, out);
+  CHECK(out.str().contains("status|now|unexposed|total|total"));
+  CHECK(out.str().contains("      10"));
+  const auto sel = enumerate_history_selections(h);
+  REQUIRE(sel.size() == h.all_history_count);
+  CHECK_EQ(sel[0].trait, string("status"));
+  CHECK_EQ(sel[0].ring, Ring::names[1]);
+  CHECK_EQ(sel.back().age, string("total"));
 }
-
-void test_resolver_materializes_age_ring_and_vaccine_totals() {
-  RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 2, 2, 2);
-
-  histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
-  histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS), AGE20_39, 2)[1] = 3;
-  histories.at(TraitID::vax, Phase::now, 1, AGE0_19, 1)[1] = 4;
-  histories.at(TraitID::vax, Phase::now, 2, AGE20_39, 2)[1] = 5;
-  histories.at(TraitID::variant, Phase::new_, 2, AGE60_79, 2)[1] = 7;
-
-  auto total_status = create_history_set(
-      HistorySelectorSet{{"now", "infectious", "total"}}, histories);
-  CHECK(only_history(total_status).data[1] == 5);
-  CHECK(only_history(total_status).source_history_idxs.size() == 10);
-
-  auto age_total_rings = create_history_set(
-      HistorySelectorSet{{"now", "infectious", "age0_19"}}, histories);
-  CHECK(only_history(age_total_rings).data[1] == 2);
-  CHECK(only_history(age_total_rings).source_history_idxs.size() == 2);
-
-  auto ring_total_ages = create_history_set(
-      HistorySelectorSet{{"now", "infectious", "total", "", "ring_2"}}, histories);
-  CHECK(only_history(ring_total_ages).data[1] == 3);
-  CHECK(only_history(ring_total_ages).source_history_idxs.size() == 5);
-
-  auto vaccinated = create_history_set(
-      HistorySelectorSet{{"now", "vaccinated", "total"}}, histories);
-  CHECK(only_history(vaccinated).data[1] == 9);
-  CHECK(only_history(vaccinated).source_history_idxs.size() == 20);
-
-  auto brand = create_history_set(
-      HistorySelectorSet{{"now", "vax:vax_1", "total"}}, histories);
-  CHECK(only_history(brand).data[1] == 4);
-  CHECK(only_history(brand).source_history_idxs.size() == 10);
-
-  auto variant = create_history_set(
-      HistorySelectorSet{{"new_", "variant:variant_2", "total"}}, histories);
-  CHECK(only_history(variant).data[1] == 7);
-  CHECK(only_history(variant).label == "new_variant:variant_2:total");
-}
-
-void test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder() {
-  RuntimeNamesGuard guard;
-
-  Histories no_vax = make_histories(1, 1, 0, 0);
-  auto none = create_history_set(
-      HistorySelectorSet{{"now", "vaccinated", "total"}}, no_vax);
-  CHECK(only_history(none).data[1] == 0);
-  CHECK(only_history(none).source_history_idxs.empty());
-
-  Histories one_vax = make_histories(1, 1, 1, 0);
-  one_vax.at(TraitID::vax, Phase::now, 1, AGE0_19, RING_ALL)[1] = 4;
-  auto one = create_history_set(
-      HistorySelectorSet{{"now", "vaccinated", "total"}}, one_vax);
-  CHECK(only_history(one).data[1] == 4);
-  CHECK(only_history(one).source_history_idxs.size() == 5);
-
-  Histories many_vax = make_histories(1, 1, 3, 0);
-  many_vax.at(TraitID::vax, Phase::now, 1, AGE0_19, RING_ALL)[1] = 1;
-  many_vax.at(TraitID::vax, Phase::now, 2, AGE0_19, RING_ALL)[1] = 2;
-  many_vax.at(TraitID::vax, Phase::now, 3, AGE0_19, RING_ALL)[1] = 3;
-  auto many = create_history_set(
-      HistorySelectorSet{{"now", "vaccinated", "total"}}, many_vax);
-  CHECK(only_history(many).data[1] == 6);
-  CHECK(only_history(many).source_history_idxs.size() == 15);
-
-  auto mixed = create_history_set(
-      HistorySelectorSet{{"new_", "unexposed", "total"},
-                           {"now", "unexposed", "total"}},
-      many_vax);
-  CHECK(mixed.invalid_selections ==
-        std::vector<std::string>{"new_|unexposed|total"});
-  REQUIRE(mixed.history_vectors.size() == 1);
-  CHECK(mixed.history_vectors[0].data[1] == 5);
-
-  // HistorySelectorSet all_total("all", "total");
-  // CHECK(all_total.selections.size() == 17);
-  // CHECK(std::ranges::find(all_total.selections,
-  //                         HistorySelector{"new_", "unexposed", "total"})
-  //       == all_total.selections.end());
-
-}
-
-void test_print_and_serialization_use_materialized_totals() {
-  RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 1, 2, 2);
-  histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
-  histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS), AGE20_39, 2)[1] = 3;
-  histories.at(TraitID::vax, Phase::now, 1, AGE0_19, 1)[1] = 4;
-  histories.at(TraitID::vax, Phase::now, 2, AGE20_39, 2)[1] = 5;
-
-  const HistorySelectorSet selections(std::vector<HistorySelector>{
-      {"now", "unknown_history", "total"},
-      {"now", "infectious", "total"},
-      {"now", "vaccinated", "total"},
-  });
-
-  std::ostringstream printed;
-  // replace with function use new api
-  // print_selected_histories(selections, histories, 15, printed);
-
-  CHECK(printed.str().contains("Skipping invalid history selections"));
-  CHECK(printed.str().contains("now_infectious:total"));
-  CHECK(printed.str().contains("       5"));
-  CHECK(printed.str().contains("now_vaccinated:total"));
-  CHECK(printed.str().contains("       9"));
-
-  std::ostringstream total_status;
-  print_total_status_histories(histories, 15, total_status);
-  CHECK(total_status.str().contains("infected"));
-  CHECK(total_status.str().contains("       5"));
-
-  const auto temp_dir = test_support::fs::temp_directory_path()
-                      / test_support::unique_name("epi_sim_series_");
-  const auto csv_path = temp_dir / "totals.csv";
-}
-  // replace with function with new api
-//   serialize_selected_histories(selections, histories, csv_path);
-//   CHECK(test_support::read_file_text(csv_path) ==
-//         "now_infectious:total,now_vaccinated:total\n5,9\n0,0\n");
-//   test_support::fs::remove_all(temp_dir);
-// }
-
-void test_variant_invariant_uses_materialized_totals() {
-  RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 2, 0, 2);
-  histories.at(TraitID::status, Phase::now, uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
-  histories.at(TraitID::variant, Phase::now, 1, AGE0_19, 1)[1] = 1;
-  histories.at(TraitID::variant, Phase::now, 2, AGE0_19, 1)[1] = 1;
-  histories.validate_variant_invariant();
-
-  histories.at(TraitID::variant, Phase::now, 2, AGE0_19, 1)[1] = 0;
-  bool threw = false;
-  try {
-    histories.validate_variant_invariant();
-  } catch (const std::runtime_error&) {
-    threw = true;
-  }
-  CHECK(threw);
-}
-}
-
-
-void test_fixed_selection_metadata_and_validation() {
-  RuntimeNamesGuard guard;
-  Histories histories = make_histories(1, 1, 1, 0);
-  CHECK((phase_names == std::array<std::string_view, 2>{"now", "new_"}));
-  for (const auto trait : Tracked_Traits) {
-    CHECK(magic_enum::enum_cast<TraitID>(magic_enum::enum_name(trait)) == trait);
-  }
-  for (const auto phase : all_phases) {
-    CHECK(magic_enum::enum_cast<Phase>(magic_enum::enum_name(phase)) == phase);
-  }
-  CHECK(!magic_enum::enum_cast<TraitID>("COUNT").has_value());
-  CHECK(!magic_enum::enum_cast<Phase>("COUNT").has_value());
-  CHECK(!histories.valid_history_coordinates(
-      static_cast<TraitID>(3), Phase::now, 1, AGE0_19));
-  CHECK(!histories.valid_history_coordinates(
-      TraitID::status, static_cast<Phase>(2), 1, AGE0_19));
-  CHECK(!age_history_idx_from_string("unknown").has_value());
-  CHECK(!age_history_idx_from_string("AGE0_19").has_value());
-  CHECK(!age_history_idx_from_string("age80up").has_value());
-  CHECK(age_history_idx_from_string("total") == HISTORY_AGE_TOTAL);
-
-  const HistorySelectorSet invalid{
-      {"now", "none", "total"},
-      {"now", "INFECTIOUS", "total"},
-      {"NOW", "infectious", "total"},
-      {"new", "infectious", "total"},
-      {"COUNT", "infectious", "total"},
-      {"now", "infectious", "unknown"},
-      {"new_", "unexposed", "total"},
-      {"now", "vax:none", "total"},
-      {"now", "variant:none", "total"}};
-  const auto rejected = create_history_set(invalid, histories);
-  CHECK(rejected.history_vectors.empty());
-  CHECK(rejected.invalid_selections.size() == invalid.selections.size());
-
-  const auto valid = create_history_set(
-      HistorySelectorSet{{"new_", "dead", "total"}}, histories);
-  CHECK(only_history(valid).label == "new_dead:total");
-}
-
 
 void write_series_artifacts(const test_support::TestRunOptions& options) {
   if (!options.write_artifacts) return;
   RuntimeNamesGuard guard;
-  Histories histories = make_histories(2, 2, 2, 2);
-  histories.at(TraitID::status, Phase::now,
-               uint8_t(INFECTIOUS), AGE0_19, 1)[1] = 2;
-  histories.at(TraitID::status, Phase::now,
-               uint8_t(INFECTIOUS), AGE20_39, 2)[1] = 3;
-
+  install_counts(2, 2, 2);
+  auto pop = make_pop(10, 2);
+  Histories h(2, pop);
   std::ostringstream summary;
-  summary << "Atomic histories summary\n"
-          << "========================\n\n"
-          << "columns: " << histories.sim_history_count << "\n"
-          << "materialized now_infectious total: "
-          << histories.aggregate_value(
-                 TraitID::status, Phase::now, uint8_t(INFECTIOUS), 1)
-          << "\n\n";
-  histories.dump_history_layout(summary);
-  test_support::write_artifact_text(
-      options, GROUP, "series_summary.txt", summary.str());
-
+  summary << fmt::format("sim vectors {} total vectors {}\n\n", h.sim_history_count, h.total_history_count);
+  h.dump_history_layout(summary);
+  test_support::write_artifact_text(options, GROUP, "history_layout.txt", summary.str());
+}
 
 }  // namespace
 
 void run_series_tests(const test_support::TestRunOptions& options) {
-  fmt::println("Running series tests...");
-  test_atomic_layout_formula_and_introspection();
-  test_layout_all_zero_one_many_cardinalities();
-  test_case_1_atomic_column_count();
-  test_day_one_seed_uses_atomic_age_and_ring_cells();
-  test_atomic_update_and_stock_carry_forward();
-  test_resolver_materializes_age_ring_and_vaccine_totals();
-  test_vaccinated_aggregate_zero_one_many_and_invalid_placeholder();
-  test_print_and_serialization_use_materialized_totals();
-  // test_variant_invariant_uses_materialized_totals();
-  // test_fixed_selection_metadata_and_validation();
-  // write_series_artifacts(options);
-  if (options.write_artifacts) {
-    fmt::println("series artifacts written under '{}'",
-                 test_support::artifact_group_dir(options, GROUP).string());
-  }
-  fmt::println("series tests passed.");
+  using tst::run_test;
+  run_test("layout_counts_across_cardinalities", test_layout_counts_across_cardinalities);
+  run_test("sim_map_metadata_and_order", test_sim_map_metadata_and_order);
+  run_test("totals_map_multi_ring", test_totals_map_multi_ring);
+  run_test("totals_map_single_ring_aliases", test_totals_map_single_ring_aliases);
+  run_test("constructor_seeds_unexposed", test_constructor_seeds_unexposed_by_ring_and_age);
+  run_test("newday_carries_now_not_new", test_newday_carries_now_but_not_new);
+  run_test("sum_total_histories_brute_force", test_sum_total_histories_matches_brute_force);
+  run_test("select_indices", test_select_indices);
+  run_test("serialize_histories_round_trip", test_serialize_histories_round_trip);
+  run_test("print_and_enumerate", test_print_and_enumerate);
+  run_test("artifact", [&] { write_series_artifacts(options); });
 }

@@ -43,7 +43,8 @@ int child_exit_code(Fn fn) {
   const pid_t pid = fork();
   REQUIRE(pid >= 0);
   if (pid == 0) {
-    fn();
+    // the child must never return into the test runner (run_test would catch and continue)
+    try { fn(); } catch (...) { _exit(70); }
     _exit(EXIT_SUCCESS);
   }
 
@@ -363,23 +364,44 @@ void test_existing_managed_case_dir_gets_structural_dirs_without_template_overwr
   test_support::fs::remove_all(project_dir, ec);
 }
 
+
+// the managed-case path (/init-case + /run-case): a case created in the active project
+// builds through use_managed_case and runs
+void test_managed_case_builds_and_runs() {
+  ProjectConfigGuard project_config_guard;
+  test_support::RuntimeNamesGuard names_guard;
+  const auto project_dir = home_dir() / unique_name("epi_sim_managed_project_");
+  const std::string case_label = unique_name("case_");
+  set_project_dir(project_dir.string());
+  init_case(case_label);
+  test_support::edit_config(project_dir / case_label, [](json& c) { c["days"] = 20; });
+  test_support::require_inputs_verify(project_dir / case_label);
+  Model model = [&] {
+    test_support::StdoutCapture quiet;
+    return use_managed_case(case_label);
+  }();
+  CHECK_EQ(model.output_dir, project_dir / case_label / "output");
+  CHECK_EQ(model.ndays, 20);
+  model.headless = true;
+  Histories h = test_support::run_quiet(model);
+  CHECK_EQ(h.day_cnt, size_t{20});
+  std::error_code ec;
+  test_support::fs::remove_all(project_dir, ec);
+}
+
 }  // namespace
 
 void run_template_tests(const test_support::TestRunOptions& options) {
-  fmt::println("Running template scaffold tests...");
-  test_project_and_explicit_case_scaffolding(options);
-  test_existing_active_project_dir_is_used_without_overwriting();
-  test_missing_active_project_dir_is_created();
-  test_different_existing_project_dir_is_activated_without_overwriting();
-  test_different_missing_project_dir_is_created_and_activated();
-  test_invalid_existing_project_path_does_not_repoint_config();
-  test_read_project_dir_rejects_missing_configured_directory();
-  test_show_project_dir_reports_missing_configured_directory_without_exit();
-  test_existing_case_dir_gets_structural_dirs_without_template_overwrite();
-  test_existing_managed_case_dir_gets_structural_dirs_without_template_overwrite();
-  if (options.write_artifacts) {
-    fmt::println("template scaffold artifacts written under '{}'",
-                 test_support::artifact_group_dir(options, GROUP).string());
-  }
-  fmt::println("template scaffold tests passed.");
+  using tst::run_test;
+  run_test("project_and_explicit_case_scaffolding", [&] { test_project_and_explicit_case_scaffolding(options); });
+  run_test("existing_active_project_dir_is_used_without_overwriting", test_existing_active_project_dir_is_used_without_overwriting);
+  run_test("missing_active_project_dir_is_created", test_missing_active_project_dir_is_created);
+  run_test("different_existing_project_dir_is_activated_without_overwriting", test_different_existing_project_dir_is_activated_without_overwriting);
+  run_test("different_missing_project_dir_is_created_and_activated", test_different_missing_project_dir_is_created_and_activated);
+  run_test("invalid_existing_project_path_does_not_repoint_config", test_invalid_existing_project_path_does_not_repoint_config);
+  run_test("read_project_dir_rejects_missing_configured_directory", test_read_project_dir_rejects_missing_configured_directory);
+  run_test("show_project_dir_reports_missing_configured_directory_without_exit", test_show_project_dir_reports_missing_configured_directory_without_exit);
+  run_test("existing_case_dir_gets_structural_dirs_without_template_overwrite", test_existing_case_dir_gets_structural_dirs_without_template_overwrite);
+  run_test("existing_managed_case_dir_gets_structural_dirs_without_template_overwrite", test_existing_managed_case_dir_gets_structural_dirs_without_template_overwrite);
+  run_test("managed_case_builds_and_runs", test_managed_case_builds_and_runs);
 }

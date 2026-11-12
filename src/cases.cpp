@@ -13,11 +13,12 @@ Seed Cases
 */
 ////////////////////////////////
 
-// Allowed trait names for Filter and Change terms, validated at load time.
+// Allowed trait names for Filter and Change terms.
 const std::unordered_set<string> FILTER_TRAITS = {
     "status", "agegrp", "cond", "variant", "vaxstatus", "quar", "tested", "ring"};
+// Seed cases may only make people infectious (see SeedCase constructor).
 const std::unordered_set<string> CHANGE_TRAITS = {
-    "status", "cond", "duration", "variant", "vaxstatus", "quar"};
+    "status", "cond", "duration", "variant"};
 
 // Parse a single Term value from JSON given its trait name.
 // Throws std::runtime_error on unknown or disallowed values.
@@ -143,20 +144,66 @@ void apply_change(AgentView person, const Change& chg, Histories& histories) {
 }
 
 
-// SeedCase::operator(): find candidates via filter, apply change to up to change.count of them.
-vector<size_t> SeedCase::operator()(PopData& pop, Histories& histories) {
-  vector<size_t> seeded;
-  int matched = 0;
-  for (size_t i = 1; i <= pop.popn && matched < change.count; ++i) {
-    auto person = pop.agent(i);
-    if (matches_filter(person, filter)) {
-      apply_change(person, change, histories);
-      seeded.push_back(i);
-      ++matched;
+// SeedCase constructor: the single enforcement point for seed invariants.
+SeedCase::SeedCase(int triggerday, bool startofday, Filter filt, Change chg)
+    : triggerday(triggerday), startofday(startofday),
+      filter(std::move(filt)), change(std::move(chg)) {
+  auto fail = [triggerday](std::string msg) {
+    throw std::runtime_error(fmt::format("Seed case on triggerday {}: {}", triggerday, msg));
+  };
+  // name lookup that can't throw on an out-of-range value
+  auto name_of = [](const std::vector<std::string>& names, int32_t v) {
+    return (v >= 0 && static_cast<size_t>(v) < names.size()) ? names[v] : fmt::format("{}", v);
+  };
+
+  if (triggerday < 1) fail(fmt::format("triggerday must be >= 1 (got {})", triggerday));
+  if (change.count < 1) fail(fmt::format("change count must be >= 1 (got {})", change.count));
+
+  bool has_status = false, has_variant = false;
+  std::unordered_set<string> seen;
+  for (const auto& t : change.terms) {
+    if (!CHANGE_TRAITS.count(t.trait))
+      fail(fmt::format("change trait '{}' is not allowed; seeds may only set status, variant, cond, duration", t.trait));
+    if (!seen.insert(t.trait).second)
+      fail(fmt::format("change trait '{}' appears more than once", t.trait));
+
+    if (t.trait == "status") {
+      if (t.val != int32_t(uint8_t(INFECTIOUS)))
+        fail(fmt::format("status change must be 'infectious' (got '{}')", name_of(Status::names, t.val)));
+      has_status = true;
+    } else if (t.trait == "variant") {
+      if (t.val < 1 || static_cast<size_t>(t.val) >= Variant::names.size())
+        fail(fmt::format("variant must be a loaded variant other than 'none' (got '{}')",
+                         name_of(Variant::names, t.val)));
+      has_variant = true;
+    } else if (t.trait == "cond") {
+      if (t.val < int32_t(uint8_t(NIL)) || t.val > int32_t(uint8_t(SEVERE)))
+        fail(fmt::format("cond must be nil, mild, sick, or severe (got '{}')", name_of(Condition::names, t.val)));
+    } else if (t.trait == "duration") {
+      if (t.val < 1 || t.val > DURATIONLIM)
+        fail(fmt::format("duration must be in 1..{} (got {})", DURATIONLIM, t.val));
     }
   }
-  if (seeded.empty())
-    fmt::println("WARNING: no agents matched filter criteria for seedcase on triggerday {}", triggerday);
+  if (!has_status || !has_variant)
+    fail("change terms must include status 'infectious' and a variant");
+}
+
+// SeedCase::operator(): make up to change.count eligible matching people infectious.
+// Only UNEXPOSED or RECOVERED people count, so mid-run seeds still reach count when
+// earlier matches are already infectious or dead.
+vector<size_t> SeedCase::operator()(PopData& pop, Histories& histories) {
+  vector<size_t> seeded;
+  for (size_t i = 1; i <= pop.popn && static_cast<int>(seeded.size()) < change.count; ++i) {
+    auto person = pop.agent(i);
+    if (person.status() != UNEXPOSED && person.status() != RECOVERED) continue;
+    if (!matches_filter(person, filter)) continue;
+    apply_change(person, change, histories);
+    seeded.push_back(i);
+  }
+  if (static_cast<int>(seeded.size()) < change.count)
+    fmt::println("WARNING: seedcase on triggerday {} seeded {} of {} requested; "
+                 "not enough unexposed or recovered agents matched the filter",
+                 triggerday, seeded.size(), change.count);
   return seeded;
 }
 
@@ -184,7 +231,7 @@ SeedCase load_seed_case(const json& sc, const ModelParams& mp) {
     chg.terms.push_back({trait, parse_term_val(trait, t["val"], mp)});
   }
 
-  return SeedCase(triggerday, startofday, std::move(filt), std::move(chg));
+  return SeedCase(triggerday, startofday, std::move(filt), std::move(chg));  // validates invariants
 }
 
 vector<SeedCase> load_seed_cases(const json& jdata,  const ModelParams& mp) {
@@ -232,6 +279,15 @@ vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& so
       throw std::runtime_error(fmt::format(
           "SocialDistancing '{}' touch_delta must have 2 elements, got {}",
           sdc.name, sdc.touch_delta.size()));
+    if (sdc.comply < 0.0f || sdc.comply > 1.0f)
+      throw std::runtime_error(fmt::format(
+          "SocialDistancing '{}' comply must be in [0, 1], got {}", sdc.name, sdc.comply));
+    // apply_sd_cases_for_day tags on startday and clears on endday (else-if), so the
+    // case needs startday >= 1 and endday after startday
+    if (sdc.startday < 1 || sdc.endday <= sdc.startday)
+      throw std::runtime_error(fmt::format(
+          "SocialDistancing '{}' needs 1 <= startday < endday, got startday {} endday {}",
+          sdc.name, sdc.startday, sdc.endday));
 
     sdc.contactfactors = social.contactfactors;
     shifter(sdc.contactfactors, sdc.contact_delta[0], sdc.contact_delta[1]);

@@ -1,0 +1,5 @@
+row,status,agegrp,cond,duration,variant,variant_hist,sickday,sickday_hist,recovday,recovday_hist,deadday,ring,sdcase,testday_hist,testday,quar,quarday,vaxstatus,vax,vax_hist,vaxday,vaxday_hist
+1,recovered,age20_39,uninfected,0,alpha,alpha,2,2,9,9,0,population,false,-,-,false,0,none,-,-,-,-
+2,infectious,age40_59,mild,5,delta,alpha|delta,11,4|11,-,-,0,r3,false,6|12,12,true,8,booster,moderna,pfizer|moderna,14,5|14
+3,unexposed,age80_up,uninfected,0,none,-,-,-,-,-,0,population,false,-,-,false,0,none,-,-,-,-
+4,dead,age60_79,uninfected,0,none,-,-,-,-,-,22,population,true,-,-,false,0,none,-,-,-,-

@@ -153,7 +153,8 @@ size_t spread_and_count(PopData& pop, Histories& histories, AgentView person,
   const Condition spr_cond = person.cond();
   const float indoor_factor = indoor_seq[static_cast<size_t>(thisday - 1)];
 
-  const float contact_factor = contactfactors[zidx(spr_cond)][zidx(spr_agegrp)];
+  // rows are nil..severe (0..3); Condition nil..severe is 2..5, so subtract 2
+  const float contact_factor = contactfactors[spr_cond - 2][zidx(spr_agegrp)];
   const float contact_scale = density_factor * indoor_factor * contact_factor;
   const int num_contacts = xo::gamma_int(gammashape, contact_scale, 12);
 
@@ -228,11 +229,11 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
     // loop over gen 1 spreaders
     for (size_t p : gen1_spreaders) {
       auto person = r0pop.agent(p);
+      if (person.status() != INFECTIOUS) continue;  // only infectious people can spread
       const Duration spr_duration = person.duration();
       const Variant spr_variant = person.variant();
       const float sendrisk = infectparams[idx(spr_variant)].sendrisk[spr_duration];
       if (sendrisk <= 0.0f) continue;
-      if (person.status() != INFECTIOUS) continue;
 
       const size_t infected = spread_and_count(r0pop, r0_histories, person, socialparams,
                               infectparams, vaxset, dovax, contacts, density_factor, indoor_seq);

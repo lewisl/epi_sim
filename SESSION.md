@@ -1,5 +1,109 @@
 # Session Notes
 
+## RESUME HERE (2026-11-12): only B4 remains -- vaccine supply not enforced
+
+- State: test suite revision complete and green (sniff 1733 / deep 195 / templates 192).
+  Runner's KNOWN list contains only B4. Read design/test_suite_revision.md first.
+- B4 problem: src/vaccination.cpp vaccinate_sched builds doses_today[i] =
+  floor(sched.spreadfunc(today) * starting_doses) (~line 194). It never looks at the
+  remaining spec.doses, which doshots decrements (lines ~100, 136, 156) and which can go
+  negative. Delivery stays within supply only if the pattern is normalized
+  (VaxSched::init_spreadfunc in parameters.h ~line 324: total over the window ~=
+  targetpct x integral of pattern), targetpct <= 1, and pattern.back() == 0. Otherwise
+  the window extension (dayrange.second + maxdelay, ~line 181) also hands out first shots.
+  Template patterns are normalized; user has never seen over-delivery.
+- Evidence: test vaccination/supply_is_never_exceeded -- pattern {1,1,1,1} (area 3)
+  delivered 3000 shots from 1000. Second KNOWN_BUG there: input_verify::check_vax_sched
+  (input_verify.cpp ~line 430) does not check pattern.
+- Likely fix (CONFIRM WITH USER before editing src; user approves each src change):
+  (a) cap each brand's daily allotment at max(spec.doses, 0) in vaccinate_sched;
+  (b) validate pattern in BOTH input_verify (short user-facing message naming the file)
+      and load_vax_sched (parameters.cpp ~line 473, backstop throw) -- user's rule for all
+      inputs. Open questions for user: exact pattern rule (non-negative? area ~= 1 by the
+      trapezoid used in init_spreadfunc, or sum == 1? last value 0?), targetpct in (0,1]?
+- After the fix: change both KNOWN_BUG("B4", ...) in test/test_vaccination.cpp
+  (~lines 292, 299) to CHECK_MSG; add pattern-rule tests for input_verify + loader in
+  test/test_parameters.cpp (pattern like the G1-G4 tests). Run `xmake run test`,
+  `xmake run test runsim`; vax/all_on goldens should NOT change for normalized templates
+  -- if they do, show the user before refreshing test/fixtures/runsim/*.
+- Other loose ends (not requested): every dovax load prints 18 "exhausted ... missing"
+  warnings (Vaxstat::exhausted never assigned); input_verify.h says it exits but it
+  throws; pretty pop view truncates ring names to 4 chars; random seed selection was
+  called desirable but not authorized; design/running_tests.md is stale.
+- Untracked files the user must commit: test/test_invariants.h, test/test_social_
+  distancing.cpp, test/fixtures/{pop_serialize,runsim}/*, design/test_*.md.
+
+## 2026-11-12: test suite revised (implementation done)
+
+- Summary + assessment: design/test_suite_revision.md (how to run, per-group changes,
+  known bugs, mutation results). Plan: design/test_revision_plan.md.
+- Tiers: `xmake run test` sniff (~0.3 s, 9 groups incl. new social_distancing in
+  test/test_social_distancing.cpp; xmake.lua now uses add_files("test/*.cpp"));
+  `xmake run test runsim` deep (~5 s, 5 scenarios via setup_dir/use_dir/runsim/
+  post_simulation + goldens); `templates` explicit (touches ~/.config, restored).
+- Harness: run_test isolation, CHECK_EQ/NEAR/MSG/THROWS, KNOWN_BUG list (not exit code),
+  crash handler. test_invariants.h = whole-run checks. Goldens in test/fixtures/
+  {pop_serialize,runsim}; refresh by copying test_output/<group>/actual_*.
+- B5 FIXED (user spec): setup.cpp throws only if do_rings && rings path empty; rings file
+  optional/unread when do_rings false; do_rings true + no tag or rings [] rejected.
+  Test setup/rings_config_rules; KNOWN B5 removed.
+- G1-G5 FIXED (user-directed): input_verify + loader guards for recvrisk len 5, filtervec
+  age names, SD comply [0,1], SD 1<=startday<endday; runsim end-of-day seed pass (lambda
+  run_seed_cases in sim.cpp). Harness fix: CHECK_THROWS substring now std::string.
+  User cases pass new rules (only their pending 25-value sendrisk edits flag).
+- All groups green (sniff 1733 checks, deep 195, templates 192); KNOWN list: B4 only. Mutation testing (repo copy only): 18/18 injected bugs caught; M12 originally
+  deep-only -> added vaccination/per_brand_daily_allotment. Script + results in
+  test_output/mutation/. New untracked files to commit: test/test_invariants.h,
+  test/fixtures/{pop_serialize,runsim}/*, design/test_*.md.
+- Next: B4 fix during vaccination work; then flip KNOWN_BUG -> CHECK.
+
+## 2026-11-12: test-suite review; B2/B3 src fixes authorized and applied
+
+- Task: revise tests per design/test_review.md. Plan in design/test_revision_plan.md.
+- Review found src bugs B1-B4 (+ gaps), listed to user. User authorized fixes 1-3 if agreed.
+- TODO B4 (vax supply, user-deferred to vaccination-test work): doses_today =
+  floor(spreadfunc*starting_doses) is never capped by remaining spec.doses; only a
+  normalized pattern (trapezoid integral 1) with targetpct<=1 and pattern[last]==0 keeps
+  delivery <= supply (also covers the dayrange+maxdelay extension). input_verify does not
+  check pattern. User has not seen over-delivery; confirm with a test, then fix.
+- B1 FIXED (user-approved): contactfactors row = spr_cond - 2 at spread.cpp:31 and
+  r0_simulation.cpp:156 (spread.cpp:23 zidx(spr_sd) was already correct). Template case
+  now: unexposed 14813, infected 80813, recovered 79944, dead 864, 5 still infected.
+  Previously mild used sick row, sick used severe row, severe read out of bounds.
+- User decision: known-bug checks reported in a separate list, not failing exit code.
+- template.cpp sendrisk lists now 26 values (user edited); scaffold validates.
+- Test implementation started after these decisions.
+- B2 REVISED (supersedes next bullet): user calibrated deaths against observed data, so
+  keep sendrisk[duration] (virtual 1-indexed: [0] unused, days 1..DURATIONLIM). zidx
+  reverted at all 5 sites (r0 status-before-sendrisk reorder kept). load_variants_data
+  throws and input_verify::check_variants reports unless sendrisk has DURATIONLIM+1 (26)
+  values (empty [] still derives from base). Old run's 1,132 OOB reads all returned 0, so
+  26-entry files with trailing 0 reproduce old results exactly (25304/69475/847, verified).
+  USER will update src/template.cpp (+ show_help.h examples) and their own case files;
+  until then freshly scaffolded cases fail validation. Tests using template strings too.
+- (superseded) B2 first attempt: sendrisk[zidx(duration)] in
+  sim.cpp, disease_modeling.cpp infectrisk, r0_simulation.cpp (3 sites). r0 gen1 loop now
+  checks status before reading sendrisk (recovered duration 0 would wrap zidx).
+  Effect: infectiousness curve shifts one day later; default case final counts changed
+  (unexposed 35178, recovered 59700, dead 651, 97 still infected at day 180).
+  design/"inventory of data structures by indexing" sendrisk row is now stale.
+- B3 applied: load_seed_case now allows only status=infectious (required), variant
+  (required), cond nil..severe, duration 1..DURATIONLIM; clear throws. apply_change left
+  general. cases.h comment updated. Verified 3 bad seeds rejected; all ~/epi-sim-project
+  seeds comply.
+- (superseded: B1 later FIXED) B1 NOT applied: user's proposal (drop zidx) is wrong for the 0-based 4-row
+  contactfactors array; correct index is cond-2 (spread.cpp:23,31; r0_simulation.cpp:156).
+  Awaiting user decision. B4 (vax supply) deferred by user.
+- Seed follow-up (user-approved: constructor with current term list + counting fix;
+  NO struct default changes; random selection noted as desirable, not authorized yet):
+  SeedCase constructor (now in cases.cpp) enforces triggerday>=1, count>=1, allowed
+  traits status/variant/cond/duration each at most once, status=infectious, real
+  variant, cond nil..severe, duration 1..DURATIONLIM. load_seed_case only parses.
+  operator() counts only UNEXPOSED/RECOVERED matches actually made sick; warns when
+  fewer than count. Verified: default results unchanged (35178/59700/651); duplicate
+  day-1 seed now infects 3 new people (day-1 infectious 9); bad seeds rejected.
+  (later fixed: runsim now has an end-of-day seed pass)
+
 ## 2026-11-09: social-distancing acceptance cases prepared
 
 - User needs a social-distancing case for manual acceptance after runtime trait

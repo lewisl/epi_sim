@@ -139,6 +139,12 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
     } else {
       sendrisk = raw_sendrisk;
     }
+    // virtual 1-indexed by illness duration: [0] unused, [1..DURATIONLIM] are illness days
+    if (sendrisk.size() != size_t{DURATIONLIM} + 1) {
+      throw std::runtime_error(fmt::format(
+          "variants: '{}' sendrisk must have exactly {} values (index 0 unused, then illness "
+          "days 1..{}); got {}.", variant.key(), DURATIONLIM + 1, DURATIONLIM, sendrisk.size()));
+    }
 
     const auto raw_recvrisk = variant.value()["spread"]["recvrisk"].get<vector<float>>();
     vector<float> recvrisk;
@@ -153,6 +159,12 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
       std::transform(recvrisk.begin(), recvrisk.end(), recvrisk.begin(), [base](float x) {return x * base;} );
     } else {
       recvrisk = raw_recvrisk;
+    }
+    // indexed by zidx(agegrp): one value per real age group
+    if (recvrisk.size() != Agegrp::count) {
+      throw std::runtime_error(fmt::format(
+          "variants: '{}' recvrisk must have exactly {} values (one per age group {}..{}); got {}.",
+          variant.key(), Agegrp::count, Agegrp::names[1], Agegrp::names[Agegrp::count], recvrisk.size()));
     }
 
     infectparams.emplace_back(InfectParams{
@@ -496,8 +508,14 @@ VaxSched load_vax_sched(const string &fname) {
   // other members
   sched.dayrange = {jdata["dayrange"][0], jdata["dayrange"][1]}; // vector of 2 set to pair
   sched.targetpct = jdata["targetpct"];
-  for (const auto& f : jdata["filtervec"])
-    sched.filtervec.push_back(agegrp_from_string(f.get<string>()));
+  for (const auto& f : jdata["filtervec"]) {
+    const Agegrp age = agegrp_from_string(f.get<string>());
+    if (age == UNKNOWN) {  // an unknown age group would silently vaccinate nobody
+      throw std::runtime_error(fmt::format(
+          "vax schedule '{}': filtervec has unknown age group '{}'.", fname, f.get<string>()));
+    }
+    sched.filtervec.push_back(age);
+  }
   sched.shotmode = jdata["shotmode"];
   sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
   sched.init_spreadfunc();

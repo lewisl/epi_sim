@@ -26,8 +26,9 @@ ModelParams setup_model_params(bool dovax, bool do_rings, string geo_path, strin
 
   RingTraits ringtraits{};
   Ring::names.clear();
-  // if (do_rings) {       // TODO we should always load rings to handle special case of 1 is "population"
-    if (rings_path.empty()) {
+  // Always call the loader: with do_rings false it ignores the file (missing, empty,
+  // or any content) and registers ring 1 = "population".
+    if (do_rings && rings_path.empty()) {
       throw std::runtime_error("do_rings is true but rings is not configured.");
     }
     ringtraits = load_ring_traits(rings_path, do_rings);

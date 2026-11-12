@@ -1,14 +1,26 @@
+overall:
+- separation by focus is good
+- construction of artifacts need to be reviewed for compatibility with latest code
+- ability to save artifact with input flag is desirable
+- but there is too much testing of isolated fragmentary fixtures and not enough testing of the code that is in the source files
+- existing tests tend to focus too much on testing happy path, which is important because it is good for regression testing to make sure the developer didn't break code, but there is not enough testing for handling of bad inputs and bad logic in spread and progression that produces wrong mathematical results
+- a lot of the tests focused on the early development stages and emphasized atomic unit tests.  now we have a lot of complicated code that needs more macro testing on the process and its outputs. this are important but failure is hard to diagnose. some linkage between macro testing and suggested unit tests would be helpful.
+- we want a good sniff test that can be run quickly, including by ai agents, to catch breakage after significant edits
+- we want a very thorough test that might take longer to run and tests more deeply
+- we want tests that can find logic and calculation bugs that could produce incorrect results while running completion
+- try to provide some diagnostic information that is useful guidance on what failed, not just success or failure.  But, don't over achieve by creating absurdly long tests or too much test source.  Things like capturing assert outcomes may be sufficient.
+- you should recommend an overall approach and plan before proceeding to implement.
+- NEVER change the code in src to achieve better tests or produce passing results.
+- you must test the tests:  do they run; do they produce correct assessment results; do they have reasonable coverage but at the right level focused on results rather than minutia. the tests should not abend even when testing very buggy code.
+
+
+What follows are assessments by test areas, mostly focused on the limitations of the current limitations of the tests. You should take more account of the overall goals than these details, which mostly reinforce the goals.
+
 test_disease_modeling
 - correct the total AI to use 5 coordinate selection: trait, phase, trait_value, ring, agegrp
 - need test for recoveffect
 
-overall:
-- separation by focus is good
-- construction of artifacts need to be reviewed for compatibility with latest good
-- ability to save artifact with input flag is desirable
-- but there is too much testing of isolated fragmentary fixtures and not enough testing of the code is the source files
-- existing tests tend to focus too much on testing happy path, which is important because it is good for regression testing to make sure the developer didn't break code, but there is not enough testing for handling of bad inputs and bad logic in spread and progression that produces wrong mathematical results
-- a lot of the tests focused on the early development stages and emphasized atomic unit tests.  now we have a lot of complicated code that needs more macro testing on the process and its outputs. this are important but failure is hard to diagnose. some linkage between macro testing and suggested unit tests would be helpful.
+
 
 test_parameters
 - loaders of parameter json files have been changed to make sure corresponding trait is virtual 1-indexed. make sure tests comply

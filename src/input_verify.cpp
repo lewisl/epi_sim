@@ -1,4 +1,5 @@
 #include "input_verify.h"
+#include "disease_constants.h"
 
 #include <fmt/format.h>
 
@@ -93,6 +94,20 @@ std::string lower_copy(std::string_view s) {
   std::string out{s};
   for (char& c : out) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return out;
+}
+
+// Age-group name as the loaders accept it: case-insensitive, underscores optional
+// ("Age80_up", "age80up").
+bool is_age_name(std::string_view s) {
+  auto norm = [](std::string_view x) {
+    std::string out = lower_copy(x);
+    std::erase(out, '_');
+    return out;
+  };
+  const std::string n = norm(s);
+  for (const char* age : AGE_KEYS)
+    if (norm(age) == n) return true;
+  return false;
 }
 
 // Records names that collide case-insensitively with an earlier name.
@@ -266,6 +281,24 @@ void check_variants(const json& j, Errors& e) {
       continue;
     }
     need_object(body, "spread", vctx, e);
+    // sendrisk is virtual 1-indexed by illness duration; empty [] derives from base
+    if (body.contains("spread") && body["spread"].is_object() &&
+        body["spread"].contains("sendrisk") && body["spread"]["sendrisk"].is_array()) {
+      const size_t n = body["spread"]["sendrisk"].size();
+      if (n != 0 && n != size_t{DURATIONLIM} + 1)
+        e.add(fmt::format("{}: 'sendrisk' must have exactly {} values (index 0 unused, then "
+                          "illness days 1..{}) or be empty to derive from base (got {}).",
+                          vctx, DURATIONLIM + 1, DURATIONLIM, n));
+    }
+    // recvrisk has one value per age group; empty [] derives from base
+    if (body.contains("spread") && body["spread"].is_object() &&
+        body["spread"].contains("recvrisk") && body["spread"]["recvrisk"].is_array()) {
+      const size_t n = body["spread"]["recvrisk"].size();
+      if (n != 0 && n != AGE_KEYS.size())
+        e.add(fmt::format("{}: 'recvrisk' must have exactly {} values (one per age group "
+                          "age0_19..age80_up) or be empty to derive from base (got {}).",
+                          vctx, AGE_KEYS.size(), n));
+    }
     need_object(body, "immunity", vctx, e);
     need_object(body, "progression_factors", vctx, e);
 
@@ -407,6 +440,13 @@ void check_vax_sched(const json& j, std::string_view label, Errors& e) {
                       ctx, j["dayrange"].size()));
   need_number(j, "targetpct", ctx, e);
   need_array(j, "filtervec", ctx, e);
+  if (j.contains("filtervec") && j["filtervec"].is_array()) {
+    for (const auto& age : j["filtervec"]) {
+      if (!age.is_string() || !is_age_name(age.get<std::string>()))
+        e.add(fmt::format("{}: 'filtervec' entry {} is not an age group (use age0_19, age20_39, "
+                          "age40_59, age60_79, age80_up).", ctx, age.dump()));
+    }
+  }
   need_string(j, "shotmode", ctx, e);
   need_array(j, "pattern", ctx, e);
 
@@ -490,6 +530,17 @@ void check_soc_dist(const json& j, Errors& e) {
     need_number(el, "startday", ectx, e);
     need_number(el, "endday", ectx, e);
     need_number(el, "comply", ectx, e);
+    if (el.contains("comply") && el["comply"].is_number()) {
+      const double c = el["comply"].get<double>();
+      if (c < 0.0 || c > 1.0)
+        e.add(fmt::format("{}: 'comply' is a fraction of people and must be in [0, 1] (got {}).", ectx, c));
+    }
+    if (el.contains("startday") && el["startday"].is_number() && el.contains("endday") &&
+        el["endday"].is_number()) {
+      const double s = el["startday"].get<double>(), d = el["endday"].get<double>();
+      if (s < 1 || d <= s)
+        e.add(fmt::format("{}: needs 1 <= 'startday' < 'endday' (got startday {}, endday {}).", ectx, s, d));
+    }
     need_array(el, "contact_delta", ectx, e);
     if (el.contains("contact_delta") && el["contact_delta"].is_array() &&
         el["contact_delta"].size() != 2)

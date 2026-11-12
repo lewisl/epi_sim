@@ -1,0 +1,6 @@
+row     status      agegrp      cond        duration  ring
+----------------------------------------------------------
+     1  recovered   age20_39    uninfected  0         popu
+     2  infectious  age40_59    mild        5         r3  
+     3  unexposed   age80_up    uninfected  0         popu
+     4  dead        age60_79    uninfected  0         popu

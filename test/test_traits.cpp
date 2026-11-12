@@ -425,27 +425,154 @@ void write_traits_artifact(const test_support::TestRunOptions& options) {
   test_support::write_artifact_text(options, GROUP, "trait_summary.txt", artifact.str());
 }
 
+
+//
+// PopData initialization: every person starts in the documented zero/default state,
+// index 0 is unused, and age groups follow the apportioned age_dist.
+//
+void test_popdata_initial_state() {
+  test_support::RuntimeNamesGuard guard;
+  test_support::install_names({"base"});
+  const vector<double> age_dist{0.251, 0.271, 0.255, 0.184, 0.039};
+  PopData pop(1000, age_dist);
+
+  CHECK_EQ(pop.popz, pop.popn + 1);
+  CHECK_EQ(pop.status.size(), pop.popz);
+  CHECK_EQ(pop.vaxday_hist.size(), pop.popz);
+  CHECK_EQ(pop.all_idx.size(), pop.popn);
+  CHECK_EQ(pop.all_idx.front(), size_t{1});
+  CHECK_EQ(pop.all_idx.back(), pop.popn);
+  CHECK_EQ(pop.agegrp[0], UNKNOWN);
+
+  std::array<int, 6> ages{};
+  int bad = 0;
+  for (size_t p = 1; p <= pop.popn; ++p) {
+    ++ages[pop.agegrp[p].v];
+    bad += pop.status[p] != UNEXPOSED || pop.cond[p] != UNINFECTED || pop.duration[p] != 0 ||
+           pop.variant[p].v != 0 || pop.ring[p].v != 1 || pop.sdcase[p].v != 0 ||
+           pop.vaxstatus[p] != Vaxstat::none || pop.vax[p].v != 0 || pop.sickday[p] != 0 ||
+           pop.variant_hist[p].count != 0 || pop.quar[p] != 0;
+  }
+  CHECK_MSG(bad == 0, "{} people not in the default initial state", bad);
+  CHECK_EQ(ages[0], 0);
+  int sum = 0;
+  for (size_t a = 1; a <= 5; ++a) {
+    CHECK_EQ(ages[a], pop.agegrp_parts[a - 1]);
+    CHECK_NEAR(ages[a], 1000 * age_dist[a - 1], 1.0);
+    sum += ages[a];
+  }
+  CHECK_EQ(sum, 1000);
+}
+
+// PopData defaults every person to Ring{1}, so the Ring registry must exist first.
+void test_popdata_requires_ring_registry_and_positive_size() {
+  test_support::RuntimeNamesGuard guard;
+  Ring::names.clear();
+  Ring::count = 0;
+  CHECK_THROWS(std::out_of_range, PopData(5, {0.2, 0.2, 0.2, 0.2, 0.2}), "Invalid Ring value");
+  test_support::install_names({"base"});
+  CHECK_THROWS(std::invalid_argument, PopData(0, {0.2, 0.2, 0.2, 0.2, 0.2}), "");
+}
+
+void test_agentview_rejects_index_zero_and_past_end() {
+  test_support::RuntimeNamesGuard guard;
+  test_support::install_names({"base"});
+  PopData pop(5, {0.2, 0.2, 0.2, 0.2, 0.2});
+  CHECK_THROWS(std::runtime_error, (void)pop.agent(0), "");
+  CHECK_THROWS(std::runtime_error, (void)pop.agent(6), "");
+  CHECK_EQ(pop.agent(5).id, size_t{5});
+  pop.agent(3).status() = DEAD;  // AgentView writes through to PopData
+  CHECK_EQ(pop.status[3], DEAD);
+}
+
+// register_trait_name is the single gate the loaders use for runtime names.
+void test_register_trait_name_rules() {
+  vector<string> names;
+  CHECK_THROWS(std::logic_error, register_trait_name(names, "a"), "zero entry");
+  names = {"none"};
+  register_trait_name(names, "Alpha");
+  CHECK_EQ(names.size(), size_t{2});
+  CHECK_THROWS(std::invalid_argument, register_trait_name(names, ""), "empty");
+  CHECK_THROWS(std::invalid_argument, register_trait_name(names, "Alpha"), "Duplicate");
+  CHECK_THROWS(std::invalid_argument, register_trait_name(names, "ALPHA"), "Duplicate");
+  CHECK_THROWS(std::invalid_argument, register_trait_name(names, "None"), "reserved");
+  names = {"none"};
+  for (int i = 1; i < 255; ++i) register_trait_name(names, fmt::format("n{}", i));
+  CHECK_EQ(names.size(), size_t{255});
+  CHECK_THROWS(std::out_of_range, register_trait_name(names, "one_too_many"), "Too many");
+}
+
+// trait id/name lookups used by history selection
+void test_trait_value_lookups_and_bounds() {
+  test_support::RuntimeNamesGuard guard;
+  test_support::install_names({"base", "delta"}, {"pfizer"}, {"jail", "school"});
+  CHECK_EQ(trait_lookup(TraitID::variant), string("variant"));
+  CHECK_EQ(trait_lookup(string("status")), uint8_t(TraitID::status));
+  CHECK_EQ(trait_lookup(string("not_a_trait")), uint8_t{0});
+
+  CHECK_EQ(tr_val_to_id(TraitID::status, "dead"), uint8_t(DEAD));
+  CHECK_EQ(tr_val_to_id(TraitID::variant, "delta"), uint8_t{2});
+  CHECK_EQ(tr_val_to_id(TraitID::ring, "school"), uint8_t{2});
+  CHECK_EQ(tr_val_to_id(TraitID::agegrp, "age60_79"), uint8_t(AGE60_79));
+  CHECK_EQ(tr_val_to_string(TraitID::vax, 1), std::string_view("pfizer"));
+  CHECK_THROWS(std::invalid_argument, (void)tr_val_to_id(TraitID::variant, "omega"), "unknown name");
+  CHECK_THROWS(std::out_of_range, (void)tr_val_to_id(TraitID::duration, "x"), "no members");
+  CHECK_THROWS(std::out_of_range, (void)tr_val_to_id(uint8_t{0}, "x"), "out of range");
+  CHECK_THROWS(std::out_of_range, (void)tr_val_to_string(TraitID::vax, 2), "out of range");
+
+  // trait_table holds references, so it sees names installed at runtime
+  CHECK(&trait_table[std::to_underlying(TraitID::variant)].names == &Variant::names);
+  CHECK_EQ(trait_table[std::to_underlying(TraitID::ring)].count, uint16_t{2});
+}
+
+// Loaders must leave names and counts consistent (Histories sizes use count).
+void test_loaders_keep_runtime_names_and_counts_consistent() {
+  test_support::RuntimeNamesGuard guard;
+  const auto paths = test_support::sample_paths();
+  auto [ip, ps, vnames] = load_infect_params(paths.variants);
+  CHECK_EQ(Variant::names, vnames);
+  CHECK_EQ(size_t{Variant::count}, Variant::names.size() - 1);
+
+  VaxSet vs = load_vax_data(paths.vaccines, true);
+  CHECK_EQ(Vax::names, vs.names);
+  CHECK_EQ(size_t{Vax::count}, Vax::names.size() - 1);
+  VaxSet off = load_vax_data(paths.vaccines, false);
+  CHECK_MSG(Vax::names.empty() && Vax::count == 0 && off.size() == 0,
+            "dovax=false leaves names {} count {}", Vax::names, Vax::count);
+
+  (void)load_ring_traits(paths.rings, false);
+  CHECK_EQ(Ring::names, (vector<string>{"error", "population"}));
+  CHECK_EQ(Ring::count, uint16_t{1});
+  (void)load_ring_traits(paths.rings, true);
+  CHECK_EQ(Ring::names, (vector<string>{"error", "ring_1", "ring_2"}));
+  CHECK_EQ(Ring::count, uint16_t{2});
+
+  (void)load_sd_cases(json::parse(social_dist_json), load_social_params(paths.social));
+  CHECK_EQ(SDCase::names, (vector<string>{"none", "young", "old"}));
+}
+
 }  // namespace
 
 void run_traits_tests(const test_support::TestRunOptions& options) {
-  fmt::println("Running traits tests...");
-  test_primitive_wrappers();
-  test_wrapper_comparisons();
-  test_compile_time_trait_names_and_lookup();
-  test_fixed_metadata_round_trips();
-  test_agegrp_string_constructor_round_trips_all_names();
-  test_status_and_condition_string_constructors();
-  test_runtime_traits_resolve_existing_names();
-  test_ring_resolves_existing_names();
-  test_runtime_histories_render_values();
-  test_runtime_trait_lookup();
-  test_histories_empty_state();
-  test_runtime_histories_overflow();
-  test_scalar_histories_overflow();
-  write_traits_artifact(options);
-  if (options.write_artifacts) {
-    fmt::println("traits artifacts written under '{}'",
-                 test_support::artifact_group_dir(options, GROUP).string());
-  }
-  fmt::println("traits tests passed.");
+  using tst::run_test;
+  run_test("primitive_wrappers", test_primitive_wrappers);
+  run_test("wrapper_comparisons", test_wrapper_comparisons);
+  run_test("compile_time_trait_names_and_lookup", test_compile_time_trait_names_and_lookup);
+  run_test("fixed_metadata_round_trips", test_fixed_metadata_round_trips);
+  run_test("agegrp_string_constructor", test_agegrp_string_constructor_round_trips_all_names);
+  run_test("status_and_condition_string_constructors", test_status_and_condition_string_constructors);
+  run_test("runtime_traits_resolve_existing_names", test_runtime_traits_resolve_existing_names);
+  run_test("ring_resolves_existing_names", test_ring_resolves_existing_names);
+  run_test("runtime_histories_render_values", test_runtime_histories_render_values);
+  run_test("runtime_trait_lookup", test_runtime_trait_lookup);
+  run_test("histories_empty_state", test_histories_empty_state);
+  run_test("runtime_histories_overflow", test_runtime_histories_overflow);
+  run_test("scalar_histories_overflow", test_scalar_histories_overflow);
+  run_test("popdata_initial_state", test_popdata_initial_state);
+  run_test("popdata_requires_ring_registry", test_popdata_requires_ring_registry_and_positive_size);
+  run_test("agentview_bounds", test_agentview_rejects_index_zero_and_past_end);
+  run_test("register_trait_name_rules", test_register_trait_name_rules);
+  run_test("trait_value_lookups_and_bounds", test_trait_value_lookups_and_bounds);
+  run_test("loaders_keep_names_and_counts", test_loaders_keep_runtime_names_and_counts_consistent);
+  run_test("artifact", [&] { write_traits_artifact(options); });
 }

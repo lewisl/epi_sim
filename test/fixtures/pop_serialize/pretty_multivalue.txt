@@ -1,0 +1,7 @@
+row     variant     variant_hist  sickday  sickday_his  vax_hist    vaxday_hist
+-------------------------------------------------------------------------------
+     1  alpha       alpha         2        2            -           -          
+     2  delta       alpha         11       4            pfizer      5          
+     *              delta                  11           moderna     14         
+     3  none        -             -        -            -           -          
+     4  none        -             -        -            -           -          
