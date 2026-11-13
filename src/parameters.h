@@ -190,7 +190,7 @@ struct ProgressionSet {  // collection of all variants
     fmt::println("Total variants: {}", progression.size());
 
     for (size_t i = 0; i < progression.size(); ++i) {
-      std::string variant_name = variants[i].show();
+      std::string variant_name{variants[i].show()};
       progression[i].print(variant_name);
     }
     fmt::println("\n=== End ProgressionSet ===\n");
@@ -205,8 +205,10 @@ struct Vaxparam {
   int full_effect_days{15};
   float day1_effect{0.0};
 
-  vector<std::pair<string, float>> infectfactor {}; // per variant reduction in infection
-  vector<std::pair<string, vector<std::pair<string, float>>>> effectiveness {}; // by first, full, booster then variant=>infection reduction
+  // Tables indexed directly by trait ids; load_vax_data guarantees every row and column.
+  vector<float> infectfactor {};            // [variant]; [0] ("none") unused
+  vector<vector<float>> effectiveness {};   // [vaxstatus][variant]; row 0 ("none") and column 0 unused;
+                                            // row "exhausted" is all zeros by definition
 
   void print(const string& vax_name) const {
     fmt::println("  Vaccine: {}", vax_name);
@@ -222,8 +224,8 @@ struct Vaxparam {
       fmt::println("    Infect factor: <empty>");
     } else {
       fmt::println("    Infect factor by variant:");
-      for (const auto& [variant, factor] : infectfactor) {
-        fmt::println("      {:<15}: {:.2f}", variant, factor);
+      for (size_t var = 1; var < infectfactor.size(); ++var) {
+        fmt::println("      {:<15}: {:.2f}", Variant::names[var], infectfactor[var]);
       }
     }
 
@@ -232,10 +234,10 @@ struct Vaxparam {
       fmt::println("    Effectiveness: <empty>");
     } else {
       fmt::println("    Effectiveness by shot type:");
-      for (const auto& [shot_type, variant_effects] : effectiveness) {
-        fmt::println("      {}:", shot_type);
-        for (const auto& [variant, effect] : variant_effects) {
-          fmt::println("        {:<15}: {:.2f}", variant, effect);
+      for (size_t shot = 1; shot < effectiveness.size(); ++shot) {
+        fmt::println("      {}:", Vaxstatus::names[shot]);
+        for (size_t var = 1; var < effectiveness[shot].size(); ++var) {
+          fmt::println("        {:<15}: {:.2f}", Variant::names[var], effectiveness[shot][var]);
         }
       }
     }

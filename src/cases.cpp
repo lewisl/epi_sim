@@ -305,7 +305,7 @@ vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& so
 }
 
 void print_sd_cases(const vector<SocialDistancing>& sd_cases) {
-  std::vector<std::string> age_names;
+  std::vector<std::string_view> age_names;
   for (auto sdc : sd_cases) {
     fmt::println("\nname = \"{}\"", sdc.name);
     fmt::println("startday = {}", sdc.startday);

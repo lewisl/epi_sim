@@ -126,7 +126,7 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
     }
 
     const auto raw_sendrisk = variant.value()["spread"]["sendrisk"].get<vector<float>>();
-    vector<float> sendrisk;
+    vector<float> sendrisk = {0.0};  // element 0 to enforce virtual 1-indexing
     float base = variant.value()["spread"]["basemultiplier"].get<float>();
     if (raw_sendrisk.size() == 0) {
       if (infectparams.size() < 2) {
@@ -137,13 +137,13 @@ std::tuple<vector<string>, vector<InfectParams>> load_variants_data(json jdata) 
       sendrisk = infectparams[1].sendrisk;
       std::transform(sendrisk.begin(), sendrisk.end(), sendrisk.begin(), [base](float x) {return x * base;} );
     } else {
-      sendrisk = raw_sendrisk;
+      sendrisk.append_range(raw_sendrisk);     // dst.append_range(std::array{3, 4}); 
     }
     // virtual 1-indexed by illness duration: [0] unused, [1..DURATIONLIM] are illness days
     if (sendrisk.size() != size_t{DURATIONLIM} + 1) {
       throw std::runtime_error(fmt::format(
-          "variants: '{}' sendrisk must have exactly {} values (index 0 unused, then illness "
-          "days 1..{}); got {}.", variant.key(), DURATIONLIM + 1, DURATIONLIM, sendrisk.size()));
+          "variants: '{}' sendrisk must have exactly {} values (illness days 1..{}); got {}.",
+          variant.key(), DURATIONLIM, DURATIONLIM, raw_sendrisk.size()));
     }
 
     const auto raw_recvrisk = variant.value()["spread"]["recvrisk"].get<vector<float>>();
@@ -416,36 +416,38 @@ VaxSet load_vax_data(string fpath, bool dovax) {
       vx.full_effect_days = body["full_effect_days"];
       vx.day1_effect = body["day1_effect"];
 
-      // infectfactor vector
-      /*
-      infectfactor vector contains factors for 
-      Variants[1..] with no 0th position for "none".  
-      so to access it using zero based indexing,
-      where 0th index accesses the first variant's factor.
-      Used in disease_modeling.cpp functions.
-      */
-      for (const auto &variantname : Variant::names) {
-        if (body["infectfactor"].contains(variantname) )
-          vx.infectfactor.emplace_back(variantname, body["infectfactor"][variantname]);
-        else
-          if (variantname != "none")
-            fmt::println("\nWARNING: variant effectiveness missing for vax: {} variant {}\n",
-                vaxname, variantname);
+      // infectfactor[variant]: one factor per real variant; [0] ("none") unused.
+      // input_verify checks completeness; throwing here keeps the index invariant if it is bypassed.
+      const auto& infect_json = body["infectfactor"];
+      vx.infectfactor.assign(Variant::names.size(), 0.0f);
+      for (size_t var = 1; var < Variant::names.size(); ++var) {
+        const auto& variantname = Variant::names[var];
+        if (!infect_json.contains(variantname))
+          throw std::runtime_error(fmt::format(
+              "vaccines.json vaccine '{}': infectfactor missing for variant '{}'", vaxname, variantname));
+        vx.infectfactor[var] = infect_json[variantname].get<float>();
       }
 
-      // effectiveness vector of vector
-      for (size_t shot_idx = 1; shot_idx < Vaxstatus::names.size(); ++shot_idx) {
-        const auto& shot = Vaxstatus::names[shot_idx];
-        vector<std::pair<string, float>> variant_effectiveness {};
-        for (const auto &variantname : Variant::names) {
-          if (body["effectiveness"][shot].contains(variantname))
-            variant_effectiveness.emplace_back(variantname, body["effectiveness"][shot][variantname]);
-          else 
-            if (variantname != "none")
-              fmt::println("\nWARNING: variant effectiveness missing for vax: {} shot {} variant {}\n",
-                  vaxname, shot, variantname);
-        };
-        vx.effectiveness.emplace_back(shot, variant_effectiveness);
+      // effectiveness[vaxstatus][variant]: vaccine effectiveness against each variant by shot status.
+      // Row 0 ("none") and column 0 are unused. Row "exhausted" stays all zeros: effectiveness
+      // is 0 by definition, so users never supply it.
+      const auto& eff_json = body["effectiveness"];
+      vx.effectiveness.assign(Vaxstatus::names.size(), vector<float>(Variant::names.size(), 0.0f));
+      for (size_t shot = 1; shot < Vaxstatus::names.size(); ++shot) {
+        if (shot == Vaxstat::exhausted.v) continue;
+        const auto& shotname = Vaxstatus::names[shot];
+        if (!eff_json.contains(shotname))
+          throw std::runtime_error(fmt::format(
+              "vaccines.json vaccine '{}': effectiveness missing for shot '{}'", vaxname, shotname));
+        const auto& shot_json = eff_json[shotname];
+        for (size_t var = 1; var < Variant::names.size(); ++var) {
+          const auto& variantname = Variant::names[var];
+          if (!shot_json.contains(variantname))
+            throw std::runtime_error(fmt::format(
+                "vaccines.json vaccine '{}': effectiveness of shot '{}' against variant '{}' missing",
+                vaxname, shotname, variantname));
+          vx.effectiveness[shot][var] = shot_json[variantname].get<float>();
+        }
       }
       vaxset.params.push_back(vx);
     }

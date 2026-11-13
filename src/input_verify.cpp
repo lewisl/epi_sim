@@ -285,10 +285,10 @@ void check_variants(const json& j, Errors& e) {
     if (body.contains("spread") && body["spread"].is_object() &&
         body["spread"].contains("sendrisk") && body["spread"]["sendrisk"].is_array()) {
       const size_t n = body["spread"]["sendrisk"].size();
-      if (n != 0 && n != size_t{DURATIONLIM} + 1)
-        e.add(fmt::format("{}: 'sendrisk' must have exactly {} values (index 0 unused, then "
-                          "illness days 1..{}) or be empty to derive from base (got {}).",
-                          vctx, DURATIONLIM + 1, DURATIONLIM, n));
+      if (n != 0 && n != size_t{DURATIONLIM})
+        e.add(fmt::format("{}: 'sendrisk' must have exactly {} values (illness days 1..{}) "
+                          "or be empty to derive from base (got {}).",
+                          vctx, DURATIONLIM, DURATIONLIM, n));
     }
     // recvrisk has one value per age group; empty [] derives from base
     if (body.contains("spread") && body["spread"].is_object() &&

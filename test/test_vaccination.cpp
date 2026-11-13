@@ -321,11 +321,13 @@ VaxSet make_effect_vaxset() {
   p.halflife = 100;
   p.full_effect_days = 10;
   p.day1_effect = 0.5f;
-  p.infectfactor = {{"base", 0.9f}, {"delta", 0.6f}};
-  p.effectiveness = {{"first", {{"base", 0.5f}, {"delta", 0.4f}}},
-                     {"full", {{"base", 0.8f}, {"delta", 0.7f}}},
-                     {"booster", {{"base", 0.95f}, {"delta", 0.9f}}},
-                     {"exhausted", {}}};
+  // [variant] and [vaxstatus][variant]; index 0 unused, exhausted row all zeros
+  p.infectfactor = {0.0f, 0.9f, 0.6f};
+  p.effectiveness = {{0.0f, 0.0f, 0.0f},     // none
+                     {0.0f, 0.5f, 0.4f},     // first
+                     {0.0f, 0.8f, 0.7f},     // full
+                     {0.0f, 0.95f, 0.9f},    // booster
+                     {0.0f, 0.0f, 0.0f}};    // exhausted
   VaxSet vs;
   vs.names = {"none", "pfizer"};
   vs.params = {Vaxparam{}, p};
@@ -366,8 +368,8 @@ void test_vaccine_protects_against_infection() {
   RuntimeNamesGuard guard;
   install_names({"base"}, {"pfizer"});
   VaxSet vs = make_effect_vaxset();
-  vs.params[1].infectfactor = {{"base", 1.0f}};
-  vs.params[1].effectiveness[1].second = {{"base", 1.0f}};
+  vs.params[1].infectfactor = {0.0f, 1.0f};
+  vs.params[1].effectiveness[Vaxstat::full] = {0.0f, 1.0f};
   vs.params[1].halflife = 100000;
   const size_t N = 4000;
   auto pop = make_pop(N + 1);
@@ -398,8 +400,8 @@ void test_vaccine_reduces_progression_severity() {
   RuntimeNamesGuard guard;
   install_names({"base"}, {"pfizer"});
   VaxSet vs = make_effect_vaxset();
-  vs.params[1].infectfactor = {{"base", 1.0f}};
-  vs.params[1].effectiveness[1].second = {{"base", 1.0f}};
+  vs.params[1].infectfactor = {0.0f, 1.0f};
+  vs.params[1].effectiveness[Vaxstat::full] = {0.0f, 1.0f};
   vs.params[1].halflife = 100000;
   ProgressionSet ps;
   ps.progression.resize(2);

@@ -1,5 +1,97 @@
 # Session Notes
 
+## RESUME HERE (2026-11-13): next is B4 -- vaccine supply limit not enforced
+
+- All 11-13 work below is done, green, UNCOMMITTED (on top of the uncommitted 11-12 sendrisk work).
+- Next: B4 (user will look at it). See "RESUME HERE (2026-11-12): only B4 remains" below for the
+  problem statement (vaccinate_sched ignores remaining spec.doses; un-normalized pattern
+  over-delivers). Known-bug entries in the runner: test_vaccination.cpp:294 and :299.
+- Other open design items: when/how a person becomes Vaxstat::exhausted (never assigned yet).
+
+## 2026-11-13: vax effectiveness tables rebuilt (root cause of guard layers + exhausted warnings)
+
+- Vaxparam::infectfactor is now vector<float> [variant]; effectiveness is vector<vector<float>>
+  [vaxstatus][variant]; index 0 unused; row 'exhausted' all zeros (0 by definition, never input).
+- load_vax_data builds them by trait id and THROWS on a missing variant/shot (was: warn + skip,
+  which shifted later variants silently). The 18 'exhausted' warnings per load are gone.
+- vaxeffect: two direct table reads; deleted require_named_factor, require_effectiveness,
+  require_ordered_effectiveness, require_ordered_factor, the target_variant guard, vaxstat_txt.
+- Vaxparam::print uses Vaxstatus::names / Variant::names. Tests updated (test_parameters
+  vaccines contract, test_vaccination effect tables).
+- Tests: default sweep 1694/1694 (fewer checks: name-string checks gone), runsim 195/195 goldens
+  unchanged.
+- DECIDED (user): missing variant stays an ERROR (input_verify + loader). No defaults: a sendrisk-
+  style multiplier would be wrong because effectiveness must be <= 1.0 (sendrisk is a gamma
+  parameter and can exceed 1). If defaults are ever wanted, use base value unscaled.
+- DECIDED (user): NO range check on effectiveness/infectfactor values; rely on correct inputs.
+- vaxeffect now indexes vaxset.params[person.vax()] directly (VaxSet::at guard removed there;
+  at() kept for vaccination.cpp). Vaxstatus stays 0="none"-valid (user + prior agent: leave it).
+- design/zero and one based indexing.md: Vaxstatus line now documents its use as the
+  effectiveness row index.
+
+## 2026-11-13: name-backed trait show() now returns std::string_view
+
+- Agegrp/Status/Condition/Vaxstatus/Variant/Vax/SDCase::show() return a view into the static
+  names table (no copy). Fixes the dangling string_view at disease_modeling.cpp:249 (old
+  show() returned a std::string temporary). Ring and the day/Duration/Hist types still return
+  std::string (they format numbers). VariantHist/VaxHist join string_views.
+- Call sites that needed std::string: pop_serialize.cpp (format_*_name, render_*), cases.cpp
+  age_names -> vector<string_view>, vaccination.cpp spec_index -> fmt::format, parameters.h
+  ProgressionSet::print, test_runsim.cpp map key, test_utils.h tst::show.
+- Caveat: Variant/Vax/SDCase names are runtime registries; a held view dangles if names is
+  modified (loader registration). Fine for current uses (all transient).
+- Tests: full no-arg sweep 1757/1757 green. runsim NOT run (no numeric change expected).
+- The 11-12 vaxeffect hot-path TODO and 'exhausted' warning TODO are RESOLVED by the table
+  rebuild above (no strings in vaxeffect; exhausted row = zeros, so no early-out needed).
+
+## 2026-11-12: sendrisk user input is now 25 values (days 1..DURATIONLIM)
+
+- END OF DAY: all sendrisk work done, green, UNCOMMITTED (src, tests, fixtures, utility json).
+  User plans detailed code reviews before new features. Next candidates: B4, latency kernel.
+- TODO (user-requested, not started): clean up vaccine-effectiveness warnings. Wording is
+  backwards -- it is vaccine effectiveness against each variant, not "variant effectiveness".
+  Source: src/parameters.cpp ~432/445 (load_vaccines). Every vax load prints 18 lines
+  (3 vaxes x 6 variants) for shot 'exhausted', which has no effectiveness entry by design.
+  USER SPEC: 'exhausted' is a very recent Vaxstatus, added to model real waning of vaccine
+  effectiveness. At 'exhausted' effectiveness is 0 BY DEFINITION, so users never input it.
+  The timing varies by vaccine: flu roughly every 2 years or less, reportedly never for
+  measles/shingles/RSV. Fix is in loader + disease-modeling logic, not input: loader must
+  not expect or warn about 'exhausted' entries; effectiveness lookups for 'exhausted' yield
+  0. DISEASE MODELING is the other branch of the vax-effectiveness calc (user): src/
+  disease_modeling.cpp ~237 early-out handles only Vaxstat::none (and no vax / vaxday 0);
+  an 'exhausted' person falls through to require_ordered_effectiveness (~43-48), which indexes
+  params.effectiveness[zidx(vaxstat)] and THROWS (or reads the wrong shot) because exhausted
+  has no entry. Fix: add Vaxstat::exhausted to that early-out. NOTE vaxeffect returns a
+  risk MULTIPLIER (1.0 = no protection), so effectiveness 0 => return 1.0, same as none.
+- TODO HOT PATH (user flagged as bad): vaxeffect (disease_modeling.cpp:235) allocates up to 3
+  strings PER CALL, and it is called per CONTACT in infectrisk (disease_modeling.cpp:192) and
+  per person in progression (progression.cpp:99) when dovax. (1) variant_name =
+  Variant::names[...] copy, unused except in commented-out code; (2) vaxstat_txt =
+  vaxstatus().show(); (3) require_ordered_effectiveness eagerly builds
+  fmt::format("effectiveness('{}')", ...) as the context arg even on success. Fix: drop (1);
+  pass numeric ids and format names only inside the throw branches. Do together with the
+  exhausted early-out. Measure before/after on the vax runsim scenario; goldens must not change.
+  Also check vaccination.cpp for any Vaxstatus-indexed effectiveness use. Reword the
+  remaining real warnings ("vaccine X effectiveness against variant Y missing"). Check 'none'
+  handling too. Vaxstat::exhausted is never assigned yet: when/how a person reaches
+  'exhausted' (per-vaccine duration/decay) is a separate design question for the user.
+
+- User spec: users supply exactly DURATIONLIM (25) sendrisk values for days 1..25; the loader
+  owns the unused [0] (parameters.cpp: sendrisk = {0.0} then append_range). Internal
+  InfectParams::sendrisk is still DURATIONLIM+1 long, read as sendrisk[duration].
+- input_verify check_variants and loader messages now say 25.
+- Template data is the USER's edit: day 1 = 0 is intentional (clinically, almost no one is
+  contagious on day 1); the old extra LAST 0 was deleted. Curve is one day later than before.
+  DO NOT "fix" by dropping leading 0s. show_help.h + utility variants.json
+  sendrisk lists synced verbatim to template.cpp (days 1-2 = 0).
+- test_parameters: variants_contract compares p.sendrisk[d] to js[d-1]; "26" -> "25".
+- USER DECISION (Julia is the reference): sendrisk input = 25 values, days 1..25; leading zero
+  days are LATENCY (literature: min ~2 d, mode 3, median ~3.5; gamma-distributed, a
+  per-person latency kernel may come later). Template now: days 1-2 = 0 (user edit).
+- model_params_loading now derives expected sendrisk from parsed variants_json (no literals).
+- runsim goldens REFRESHED for days1-2=0 template: base total unexposed 23502, infected 72124,
+  dead 776, 1.08%. Sniff 1757/1757, deep 195/195.
+
 ## RESUME HERE (2026-11-12): only B4 remains -- vaccine supply not enforced
 
 - State: test suite revision complete and green (sniff 1733 / deep 195 / templates 192).

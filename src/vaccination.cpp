@@ -20,7 +20,7 @@ static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax) {
 static size_t spec_index(const vector<PerVaxSpec>& specs, Vax vax) {
     for (size_t i = 0; i < specs.size(); ++i)
         if (specs[i].vax == vax) return i;
-    throw std::runtime_error("spec_index: vax not in schedule: " + vax.show());
+    throw std::runtime_error(fmt::format("spec_index: vax not in schedule: {}", vax.show()));
 }
 
 static void record_vaccination(AgentView agent, Vax vax, int today) {

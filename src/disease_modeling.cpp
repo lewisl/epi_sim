@@ -8,48 +8,6 @@
 #include <stdexcept>
 #include "disease_modeling.h"
 
-namespace {
-
-float require_named_factor(const vector<std::pair<string, float>>& entries,
-                           const string& key, const string& context) {
-  const auto it = std::find_if(entries.begin(), entries.end(),
-                               [&](const auto& entry) { return entry.first == key; });
-  if (it == entries.end()) {
-    throw std::runtime_error(fmt::format("Missing {} factor for key '{}'", context, key));
-  }
-  return it->second;
-}
-
-// relies on invariant of vector order by variant
-float require_ordered_factor(const vector<std::pair<string, float>>& entries, uint8_t key, const string& context) {
-  if (key == 0 || key > entries.size())
-      throw std::runtime_error(fmt::format("Missing {} factor for key '{}'", context, key));
-  return entries[zidx(key)].second;
-}
-
-float require_effectiveness(const Vaxparam& params,
-                            const string& vaxstat_txt,
-                            const string& variant_name) {
-  const auto shot_it = std::find_if(params.effectiveness.begin(), params.effectiveness.end(),
-                                    [&](const auto& entry) { return entry.first == vaxstat_txt; });
-  if (shot_it == params.effectiveness.end()) {
-    throw std::runtime_error(fmt::format("Missing vaccine effectiveness for shot '{}'", vaxstat_txt));
-  }
-
-  return require_named_factor(shot_it->second, variant_name,
-                              fmt::format("effectiveness('{}')", vaxstat_txt));
-}
-
-float require_ordered_effectiveness(const Vaxparam& params, uint8_t vaxstat, const string& vaxstat_txt, uint8_t variant_key) {
-
-  if (vaxstat == 0 || vaxstat > params.effectiveness.size())
-    throw std::runtime_error(fmt::format("Missing vaccine effectiveness for shot '{}'", vaxstat_txt));
-
-  return require_ordered_factor(params.effectiveness[zidx(vaxstat)].second, variant_key, fmt::format("effectiveness('{}')", vaxstat_txt));
-  }
-
-} // namespace
-
 // make_sick: make one person sick
 // AgentView class declaration is in population.h
 [[clang::always_inline]]
@@ -238,21 +196,13 @@ float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
     return 1.0f;
   }
 
-  const auto& params = vaxset.at(person.vax());   // one instance of Vaxparam of the specific vax
+  // params is parallel to Vax::names (load_vax_data); vax 0 ("none") returned above
+  const auto& params = vaxset.params[person.vax()];
   const int16_t vaxday = person.vaxday();
 
-  if (target_variant >= Variant::names.size()) {
-    throw std::runtime_error(fmt::format("Invalid variant index in vaxeffect: {}", target_variant));
-  }
-
-  const string variant_name = Variant::names[target_variant];
-  const string vaxstat_txt = person.vaxstatus().show();
-
-  // const float infectfactor = require_named_factor(params.infectfactor, variant_name, "infectfactor");
-  const float infectfactor = require_ordered_factor(params.infectfactor, target_variant, "infectfactor");
-
-  // const float vaccine_effect = require_effectiveness(params, vaxstat_txt, variant_name);
-  const float vaccine_effect = require_ordered_effectiveness(params, person.vaxstatus(), vaxstat_txt, target_variant);
+  // tables are indexed by trait ids; load_vax_data guarantees every row and column
+  const float infectfactor = params.infectfactor[target_variant];
+  const float vaccine_effect = params.effectiveness[person.vaxstatus()][target_variant];
 
   const int days_after_vax = std::max<int>(static_cast<int>(thisday) - static_cast<int>(vaxday), 0);
   const int days_after_full_effect = std::max(days_after_vax - params.full_effect_days, 0);

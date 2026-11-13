@@ -146,8 +146,9 @@ struct Agegrp {
       return *value;
   }
 
-  std::string show() const {
-    return v < names.size() ? names[v] : std::string{};
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Agegrp&) const = default;
@@ -189,8 +190,9 @@ struct Status {
     return trait_name_to_id(names, name, true).value_or(0);
   }
 
-  std::string show() const {
-    return v < names.size() ? names[v] : std::string{};
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Status&) const = default;
@@ -230,8 +232,9 @@ struct Condition {
     return trait_name_to_id(names, name, true).value_or(1);
   }
 
-  std::string show() const {
-    return v < names.size() ? names[v] : std::string{};
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Condition&) const = default;
@@ -265,8 +268,9 @@ struct Vaxstatus {
     v = static_cast<uint8_t>(value);
   }
 
-  std::string show() const noexcept {
-    return v < names.size() ? names[v] : std::string{};
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Vaxstatus&) const = default;
@@ -508,9 +512,9 @@ struct Variant {
     v = *value;
   }
 
-  std::string show() const noexcept {
-    if (static_cast<size_t>(v) >= names.size()) return "";
-    return names[v];
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Variant &) const = default;
@@ -540,9 +544,9 @@ struct Vax {
     v = *value;
   }
 
-  std::string show() const noexcept {
-    if (static_cast<size_t>(v) >= names.size()) return "";
-    return names[v];
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const Vax &) const = default;
@@ -571,9 +575,9 @@ struct SDCase {
     v = *value;
   }
 
-  std::string show() const noexcept {
-    if (static_cast<size_t>(v) >= names.size()) return "";
-    return names[v];
+  // view into the static names table: no copy; valid while names is not modified
+  std::string_view show() const noexcept {
+    return v < names.size() ? std::string_view{names[v]} : std::string_view{};
   }
   constexpr operator uint8_t() const noexcept { return v; }
   constexpr bool operator==(const SDCase &) const = default;
@@ -609,7 +613,7 @@ struct VariantHist {
     const auto entry_count = stored_count();
     if (entry_count == 0) return "";
 
-    std::vector<std::string> rendered;
+    std::vector<std::string_view> rendered;
     rendered.reserve(entry_count);
     for (size_t idx = 0; idx < entry_count; ++idx) {
       rendered.push_back(arr[idx].show());
@@ -648,7 +652,7 @@ struct VaxHist {
     const auto entry_count = stored_count();
     if (entry_count == 0) return "";
 
-    std::vector<std::string> rendered;
+    std::vector<std::string_view> rendered;
     rendered.reserve(entry_count);
     for (size_t idx = 0; idx < entry_count; ++idx) {
       rendered.push_back(arr[idx].show());

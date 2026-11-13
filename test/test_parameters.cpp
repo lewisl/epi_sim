@@ -43,7 +43,7 @@ void expect_throws_containing(const std::function<void()>& action,
 // force the "no earlier variant to derive from" cases.
 json minimal_variant_body(bool empty_sendrisk = false, bool empty_recvrisk = false) {
   json body;
-  body["spread"]["sendrisk"] = empty_sendrisk ? json::array() : json(vector<float>(DURATIONLIM + 1, 0.1f));
+  body["spread"]["sendrisk"] = empty_sendrisk ? json::array() : json(vector<float>(DURATIONLIM, 0.1f));
   body["spread"]["recvrisk"] = empty_recvrisk ? json::array() : json(vector<float>(5, 0.1f));
   body["spread"]["basemultiplier"] = 1.0;
   body["immunity"]["recovery_immunity"] = json::object();
@@ -335,10 +335,16 @@ void test_model_params_loading(const test_support::TestRunOptions& options) {
   CHECK(variant_names[0] == "none");
   CHECK(variant_names[1] == "base");
   CHECK(variant_names[2] == "alpha");
-  CHECK(infectparams[1].sendrisk.size() > 20);
-  CHECK(approx_equal(infectparams[1].sendrisk[1], 0.3, 1e-6));
-  CHECK(approx_equal(infectparams[1].sendrisk[2], 0.65, 1e-6));
-  CHECK(approx_equal(infectparams[1].sendrisk[5], 0.85, 1e-6));
+  // expected sendrisk comes from the template itself: user days 1..DURATIONLIM at
+  // json[0..DURATIONLIM-1]; loader prepends the unused [0]
+  const auto tmpl_sendrisk =
+      json::parse(variants_json)["base"]["spread"]["sendrisk"].get<vector<float>>();
+  CHECK_EQ(tmpl_sendrisk.size(), size_t{DURATIONLIM});
+  REQUIRE(infectparams[1].sendrisk.size() == size_t{DURATIONLIM} + 1);
+  CHECK(approx_equal(infectparams[1].sendrisk[0], 0.0, 1e-6));   // loader-supplied, unused
+  for (size_t d = 1; d <= DURATIONLIM; ++d)
+    CHECK_MSG(approx_equal(infectparams[1].sendrisk[d], tmpl_sendrisk[d - 1], 1e-6),
+              "sendrisk[{}] = {} want {}", d, infectparams[1].sendrisk[d], tmpl_sendrisk[d - 1]);
   CHECK(approx_equal(infectparams[1].recvrisk[0], 0.1, 1e-6));
   CHECK(approx_equal(infectparams[1].recvrisk[4], 0.56, 1e-6));
   const auto& base_tree = progressionset.progression[1].tree;
@@ -773,8 +779,9 @@ void test_variants_contract_for_simulation() {
     const auto js = body["spread"]["sendrisk"].get<vector<float>>();
     const float mult = body["spread"]["basemultiplier"].get<float>();
     int bad = 0;
-    for (size_t d = 0; d <= DURATIONLIM; ++d) {
-      const float want = js.empty() ? ip[1].sendrisk[d] * mult : js[d];
+    // JSON holds days 1..DURATIONLIM at js[0..DURATIONLIM-1]; loader prepends unused [0]
+    for (size_t d = 1; d <= DURATIONLIM; ++d) {
+      const float want = js.empty() ? ip[1].sendrisk[d] * mult : js[d - 1];
       bad += std::abs(p.sendrisk[d] - want) > 1e-5f || p.sendrisk[d] < 0.0f;
     }
     CHECK_MSG(bad == 0, "{}: {} sendrisk values differ from JSON (or base x basemultiplier)", name, bad);
@@ -839,23 +846,20 @@ void test_vaccines_contract_for_simulation() {
     CHECK_EQ(p.delay2ndshot, jb["delay2ndshot"].get<int>());
     CHECK_EQ(p.halflife, jb["halflife"].get<int>());
     CHECK_EQ(p.full_effect_days, jb["full_effect_days"].get<int>());
-    // vaxeffect reads infectfactor[zidx(variant)]: one entry per variant, in variant order
-    REQUIRE(p.infectfactor.size() == Variant::count);
-    for (size_t i = 0; i < p.infectfactor.size(); ++i) {
-      CHECK_EQ(p.infectfactor[i].first, Variant::names[i + 1]);
-      CHECK_NEAR(p.infectfactor[i].second, jb["infectfactor"][Variant::names[i + 1]].get<float>(), 1e-6);
+    // vaxeffect reads infectfactor[variant]: indexed by Variant id, [0] unused
+    REQUIRE(p.infectfactor.size() == Variant::names.size());
+    for (size_t var = 1; var < Variant::names.size(); ++var) {
+      CHECK_NEAR(p.infectfactor[var], jb["infectfactor"][Variant::names[var]].get<float>(), 1e-6);
     }
-    // vaxeffect reads effectiveness[zidx(vaxstatus)][zidx(variant)]
-    REQUIRE(p.effectiveness.size() == Vaxstatus::names.size() - 1);
-    for (size_t k = 0; k < p.effectiveness.size(); ++k) {
-      const auto& shot = Vaxstatus::names[k + 1];
-      CHECK_EQ(p.effectiveness[k].first, shot);
-      if (shot == "exhausted") continue;  // not assigned anywhere in the simulation yet
-      REQUIRE(p.effectiveness[k].second.size() == Variant::count);
-      for (size_t i = 0; i < Variant::count; ++i) {
-        CHECK_EQ(p.effectiveness[k].second[i].first, Variant::names[i + 1]);
-        CHECK_NEAR(p.effectiveness[k].second[i].second,
-                   jb["effectiveness"][shot][Variant::names[i + 1]].get<float>(), 1e-6);
+    // vaxeffect reads effectiveness[vaxstatus][variant]: indexed by trait ids, row/column 0 unused
+    REQUIRE(p.effectiveness.size() == Vaxstatus::names.size());
+    for (size_t shot = 1; shot < Vaxstatus::names.size(); ++shot) {
+      REQUIRE(p.effectiveness[shot].size() == Variant::names.size());
+      for (size_t var = 1; var < Variant::names.size(); ++var) {
+        const float want = shot == Vaxstat::exhausted.v
+                               ? 0.0f  // exhausted: 0 by definition, never supplied
+                               : jb["effectiveness"][Vaxstatus::names[shot]][Variant::names[var]].get<float>();
+        CHECK_NEAR(p.effectiveness[shot][var], want, 1e-6);
       }
     }
   }
@@ -1084,10 +1088,10 @@ void test_variant_inputs_rejected_at_load() {
   test_support::RuntimeNamesGuard guard;
   json j = json::parse(variants_json);
   j["base"]["spread"]["sendrisk"].erase(j["base"]["spread"]["sendrisk"].size() - 1);
-  CHECK_THROWS(std::runtime_error, (void)load_variants_data(j), "sendrisk must have exactly 26 values");
+  CHECK_THROWS(std::runtime_error, (void)load_variants_data(j), "sendrisk must have exactly 25 values");
   input_verify_detail::Errors e;
   input_verify_detail::check_variants(j, e);
-  CHECK(has_error_containing(e, "'sendrisk' must have exactly 26 values"));
+  CHECK(has_error_containing(e, "'sendrisk' must have exactly 25 values"));
 
   j = json::parse(variants_json);
   j["base"]["spread"]["recvrisk"] = {0.1, 0.2, 0.3, 0.4};  // 4 ages: infectrisk would read past the end (was G1)

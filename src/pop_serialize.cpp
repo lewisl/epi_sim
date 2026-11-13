@@ -20,24 +20,24 @@ using RenderFn = RenderLines (*)(AgentView, bool);
 
 std::string format_variant_name(Variant value) {
   const auto rendered = value.show();
-  if (!rendered.empty()) return rendered;
+  if (!rendered.empty()) return std::string{rendered};
   return idx(value) == 0 ? std::string{"none"} :
                            fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
 std::string format_vax_name(Vax value) {
   const auto rendered = value.show();
-  if (!rendered.empty()) return rendered;
+  if (!rendered.empty()) return std::string{rendered};
   // return idx(value) == 0 ? std::string{"none"} :
   //                          fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
   return fmt::format("{}", static_cast<unsigned int>(static_cast<uint8_t>(value)));
 }
 
-RenderLines render_status(AgentView person, bool) { return {person.status().show()}; }
+RenderLines render_status(AgentView person, bool) { return {std::string{person.status().show()}}; }
 
-RenderLines render_agegrp(AgentView person, bool) { return {person.agegrp().show()}; }
+RenderLines render_agegrp(AgentView person, bool) { return {std::string{person.agegrp().show()}}; }
 
-RenderLines render_cond(AgentView person, bool) { return {person.cond().show()}; }
+RenderLines render_cond(AgentView person, bool) { return {std::string{person.cond().show()}}; }
 
 RenderLines render_duration(AgentView person, bool) { return {person.duration().show()}; }
 
@@ -107,7 +107,7 @@ RenderLines render_quar(AgentView person, bool) { return {bool_text(person.quar(
 
 RenderLines render_quarday(AgentView person, bool) { return {person.quarday().show()}; }
 
-RenderLines render_vaxstatus(AgentView person, bool) { return {person.vaxstatus().show()}; }
+RenderLines render_vaxstatus(AgentView person, bool) { return {std::string{person.vaxstatus().show()}}; }
 
 RenderLines render_vax(AgentView person, bool) {
   return {idx(person.vax()) == 0 ? std::string{"-"} : format_vax_name(person.vax())};

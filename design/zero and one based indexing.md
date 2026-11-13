@@ -10,7 +10,7 @@
   - 1 should always be "base"; it is required and corresponds to a real variant; it is often used to derive other variant parameters
 - MapEnum Vaxstatus
   - 0 is "none", which is a valid status
-  - Need to check on use as an index
+  - indexes the rows of `Vaxparam::effectiveness[vaxstatus][variant]`; row 0 ("none") is never read because `vaxeffect` returns 1.0 early for "none"; row "exhausted" is all zeros (effectiveness 0 by definition, never supplied by users)
 - Compile-time scoped enum Progressionmap (uint8_t underlying value)
   - specifically meant to be used as a zero-based index in the progression functions
   - valid values are in 0..5; use std::to_underlying at numeric index boundaries

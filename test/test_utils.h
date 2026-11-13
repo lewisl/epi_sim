@@ -96,7 +96,7 @@ std::string show(const T& v) {
   } else if constexpr (requires { v.show(); static_cast<int>(v); }) {
     return fmt::format("{}({})", v.show(), static_cast<int>(v));
   } else if constexpr (requires { v.show(); }) {
-    return v.show();
+    return std::string{v.show()};
   } else if constexpr (fmt::is_formattable<U>::value) {
     return fmt::format("{}", v);
   } else if constexpr (std::is_convertible_v<U, long long>) {

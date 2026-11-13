@@ -84,7 +84,7 @@ void check_output_files(const Model& m, const Histories& h, std::string_view nam
     REQUIRE(size_t(col) < header.size());
     std::map<string, size_t> csv_counts, pop_counts;
     for (size_t i = 1; i < lines.size(); ++i) ++csv_counts[split(lines[i], ',')[col]];
-    for (size_t p = 1; p <= m.pop.popn; ++p) ++pop_counts[m.pop.status[p].show()];
+    for (size_t p = 1; p <= m.pop.popn; ++p) ++pop_counts[string{m.pop.status[p].show()}];
     CHECK_MSG(csv_counts == pop_counts, "[{}] population CSV status counts differ from PopData", name);
   }
   // plots: 4 files; the cumulative outcome traces end at the final PopData counts
