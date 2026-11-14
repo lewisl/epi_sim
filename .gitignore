@@ -15,7 +15,8 @@ tempCode*
 .stignore
 .codegraph
 .kilo
-.claude
+.claude/settings.local.json
+.opencode
 # Serena configuration and caches are local to each machine.
 .serena/
 .pi
