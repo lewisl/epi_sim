@@ -8,6 +8,20 @@
   over-delivers). Known-bug entries in the runner: test_vaccination.cpp:294 and :299.
 - Other open design items: when/how a person becomes Vaxstat::exhausted (never assigned yet).
 
+## 2026-11-14: needed fix -- recovery_immunity completeness not enforced
+
+- Rule (user): every variant's `immunity.recovery_immunity` must have exactly one entry per
+  defined variant (the top-level keys of variants.json), and no other keys.
+- Gap: input_verify.cpp has NO recovery_immunity check. Loader (parameters.cpp ~120-125)
+  silently defaults a missing entry to 0.0 (= no immunity), so a typo'd or omitted variant
+  name passes unnoticed; extra/unknown keys are silently ignored.
+- Fix (confirm with user before editing src): check in BOTH input_verify (one pass, report
+  every variant's missing + unknown keys and the expected set, name the file) and the
+  loader (backstop throw instead of default 0.0). Add input_verify + loader tests in
+  test/test_parameters.cpp.
+- Decided, NOT doing: `all_variants` list key (redundant with top-level keys); single
+  top-level recovery_immunity matrix (doesn't reduce N x N entry work). File format unchanged.
+
 ## 2026-11-13: vax effectiveness tables rebuilt (root cause of guard layers + exhausted warnings)
 
 - Vaxparam::infectfactor is now vector<float> [variant]; effectiveness is vector<vector<float>>

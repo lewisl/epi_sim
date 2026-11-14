@@ -108,309 +108,364 @@ const std::string socialparams_json = R"TAG({
 )TAG";
 
 const std::string variants_json = R"TAG({
-    "base"         : {
-        "spread"             : {
-            "sendrisk"      : [
-                0.0  ,  0.0 , 0.3 , 0.65, 0.75, 0.85, 0.85, 0.75, 0.7 , 0.65, 0.6 , 0.5 , 0.2 , 0.1 , 0.1 , 0.1 , 0.05, 0.05,
-                0   , 0   , 0   , 0   , 0   , 0   , 0   
-            ],
-            "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
-            "basemultiplier": 1
+"base"         : {
+
+  "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
+
+  "_required_": "All Settings Are Required",
+
+  "_edit_base_": "base variant required; ok if only variant; all settings shown; other variants may derive from base",
+
+      "spread"             : {
+          "_edit_spread_": "parameters determining spread of pathgen",
+          "_edit_sendrisk_requires_": "25 entries required for illness days 1..25; keep between 0.0 and 1.5. do not sum to 1.0",
+
+              "sendrisk"      : [
+                  0.0  ,  0.0 , 0.3 , 0.65, 0.75, 0.85, 0.85, 0.75, 0.7 , 0.65, 
+                  0.6 ,   0.5 , 0.2 , 0.1 , 0.1 , 0.1 , 0.05, 0.05, 0.0 , 0.0 , 
+                  0.0 ,  0.0  , 0.0 , 0.0 , 0.0   
+              ],
+
+          "_edit_recvrisk_": "5 entries required, 1 per agegrp; do not sum to 1.0; not a probability but keep between 0.0 and 1.5",
+
+              "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
+
+          "_edit_basemultiplier_":   "floating point near 1.0",  
+          "_use_basemultiplier_": "other variants can adjust spread parameters of base by multiplying times basemultiplier",
+
+              "basemultiplier": 1.0
+      },
+      "immunity"           : {
+          "_edit_recovery_immunity_": "partial immunity to infection by this or other variants, after recovery from this one",
+          "_require_": "must provide entry for all of the defined variants",
+          "_edit_values_": "should be between 0.0 and 1.1; used value trimmed to be < 1.0",
+
+              "recovery_immunity": {
+                  "base"         : 0.8,
+                  "alpha"        : 0.8,
+                  "delta"        : 0.6,
+                  "omicron_ba1"  : 0.6,
+                  "omicron_ba2"  : 0.6,
+                  "omicron_ba4_5": 0.4
+              },
+
+          "_edit_immunehalflife_": "partial immunity from recovery declines by 1/2 for after half life days",
+          "_advised_values_": "realistically between 180 and 720 based on clinical assessments, if any",
+
+              "immunehalflife"   : 360
+      },
+
+
+      "_edit_progression_tree_": "Progression trees are complicated.",
+      "_note 1_": "Progression determines how status and condition evolve for those infected",
+      "_note 2_": "The hierarchy is agegrp, the day of illness and the person's current condition",
+      "_note 3_": "Then there is a progression matrix with rows for person's current condition. Do not change the 4 conditions",
+      "_note 4_": "Vectors are probabilities with values in 0.0..1.0 that must sum to 1.0",
+      "_note 5_": "6 elements are pr. of change to recovery, nil, mild, sick, severe, death.",
+      "_note 6_": "the final day for all branches MUST be the maximum length of being sick:  DURATIONLIM=25 for upper respiratory infections",
+      "_note 7_": "Day 25 probabilities must be only recovery and death and must sum to 1.0 so that no one lingers infected forever.",
+      "_note 8-": "The tree must be complete for variant \"base\". It can be replaced with null for other variants that use an adjustment of base.",
+
+      "progression_tree"   : {
+
+          "age0_19" : {
+              "5" : {
+                  "nil"   : [0, 0.4, 0.5, 0.1, 0, 0],
+                  "mild"  : [0, 0.3, 0.6, 0.1, 0, 0],
+                  "sick"  : [0, 0  , 0  , 1  , 0, 0],
+                  "severe": [0, 0  , 0  , 0  , 1, 0]
+              },
+              "9" : {
+                  "nil"   : [0.9, 0, 0  , 0.1 , 0   , 0],
+                  "mild"  : [0.4, 0, 0.6, 0   , 0   , 0],
+                  "sick"  : [0  , 0, 0  , 0.95, 0.05, 0],
+                  "severe": [0  , 0, 0  , 0   , 1   , 0]
+              },
+              "14": {
+                  "nil"   : [1    , 0, 0, 0   , 0    , 0    ],
+                  "mild"  : [1    , 0, 0, 0   , 0    , 0    ],
+                  "sick"  : [0.85 , 0, 0, 0.12, 0.03 , 0    ],
+                  "severe": [0.692, 0, 0, 0   , 0.302, 0.006]
+              },
+              "19": {
+                  "nil"   : [1    , 0, 0, 0, 0    , 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0    , 0    ],
+                  "sick"  : [0    , 0, 0, 1, 0    , 0    ],
+                  "severe": [0.891, 0, 0, 0, 0.106, 0.003]
+              },
+              "25": {
+                  "nil"   : [1    , 0, 0, 0, 0, 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0, 0    ],
+                  "sick"  : [0.976, 0, 0, 0, 0, 0.024],
+                  "severe": [0.91 , 0, 0, 0, 0, 0.09 ]
+              }
+          },
+          "age20_39": {
+              "5" : {
+                  "nil"   : [0, 0.2 , 0.7 , 0.1, 0, 0],
+                  "mild"  : [0, 0.15, 0.85, 0  , 0, 0],
+                  "sick"  : [0, 0   , 0   , 1  , 0, 0],
+                  "severe": [0, 0   , 0   , 1  , 0, 0]
+              },
+              "9" : {
+                  "nil"   : [0.9 , 0, 0, 0.1 , 0  , 0],
+                  "mild"  : [0.85, 0, 0, 0.15, 0  , 0],
+                  "sick"  : [0   , 0, 0, 0.9 , 0.1, 0],
+                  "severe": [0   , 0, 0, 0   , 1  , 0]
+              },
+              "14": {
+                  "nil"   : [1    , 0, 0, 0  , 0    , 0    ],
+                  "mild"  : [1    , 0, 0, 0  , 0    , 0    ],
+                  "sick"  : [0.83 , 0, 0, 0.1, 0.07 , 0    ],
+                  "severe": [0.474, 0, 0, 0  , 0.514, 0.012]
+              },
+              "19": {
+                  "nil"   : [1    , 0, 0, 0, 0    , 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0    , 0    ],
+                  "sick"  : [0.922, 0, 0, 0, 0.072, 0.006],
+                  "severe": [0.922, 0, 0, 0, 0.072, 0.006]
+              },
+              "25": {
+                  "nil"   : [1    , 0, 0, 0, 0, 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0, 0    ],
+                  "sick"  : [0.964, 0, 0, 0, 0, 0.036],
+                  "severe": [0.964, 0, 0, 0, 0, 0.036]
+              }
+          },
+          "age40_59": {
+              "5" : {
+                  "nil"   : [0, 0.2 , 0.7 , 0.1, 0, 0],
+                  "mild"  : [0, 0.15, 0.85, 0  , 0, 0],
+                  "sick"  : [0, 0   , 0   , 1  , 0, 0],
+                  "severe": [0, 0   , 0   , 0  , 1, 0]
+              },
+              "9" : {
+                  "nil"   : [0.9 , 0, 0   , 0.1, 0  , 0],
+                  "mild"  : [0.85, 0, 0.05, 0.1, 0  , 0],
+                  "sick"  : [0   , 0, 0   , 0.9, 0.1, 0],
+                  "severe": [0   , 0, 0   , 0  , 1  , 0]
+              },
+              "14": {
+                  "nil"   : [1    , 0, 0, 0   , 0    , 0    ],
+                  "mild"  : [0.9  , 0, 0, 0.1 , 0    , 0    ],
+                  "sick"  : [0.85 , 0, 0, 0.14, 0.01 , 0    ],
+                  "severe": [0.776, 0, 0, 0   , 0.206, 0.018]
+              },
+              "19": {
+                  "nil"   : [1    , 0, 0, 0, 0    , 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0    , 0    ],
+                  "sick"  : [0.856, 0, 0, 0, 0.126, 0.018],
+                  "severe": [0.856, 0, 0, 0, 0.126, 0.018]
+              },
+              "25": {
+                  "nil"   : [1    , 0, 0, 0, 0, 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0, 0    ],
+                  "sick"  : [0.958, 0, 0, 0, 0, 0.042],
+                  "severe": [0.958, 0, 0, 0, 0, 0.042]
+              }
+          },
+          "age60_79": {
+              "5" : {
+                  "nil"   : [0, 0.15, 0.6, 0.25, 0, 0],
+                  "mild"  : [0, 0   , 0.7, 0.3 , 0, 0],
+                  "sick"  : [0, 0   , 0  , 1   , 0, 0],
+                  "severe": [0, 0   , 0  , 0   , 1, 0]
+              },
+              "9" : {
+                  "nil"   : [0.62, 0, 0   , 0.38, 0   , 0],
+                  "mild"  : [0.5 , 0, 0.25, 0.25, 0   , 0],
+                  "sick"  : [0   , 0, 0   , 0.78, 0.22, 0],
+                  "severe": [0   , 0, 0   , 0   , 1   , 0]
+              },
+              "14": {
+                  "nil"   : [0.8  , 0.1, 0.1 , 0   , 0    , 0   ],
+                  "mild"  : [0.8  , 0  , 0.15, 0.05, 0    , 0   ],
+                  "sick"  : [0.8  , 0  , 0   , 0.1 , 0.1  , 0   ],
+                  "severe": [0.165, 0  , 0   , 0   , 0.715, 0.12]
+              },
+              "19": {
+                  "nil"   : [1   , 0, 0, 0, 0   , 0   ],
+                  "mild"  : [1   , 0, 0, 0, 0   , 0   ],
+                  "sick"  : [0.81, 0, 0, 0, 0.13, 0.06],
+                  "severe": [0.81, 0, 0, 0, 0.13, 0.06]
+              },
+              "25": {
+                  "nil"   : [1    , 0, 0, 0, 0, 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0, 0    ],
+                  "sick"  : [0.76 , 0, 0, 0, 0, 0.24 ],
+                  "severe": [0.688, 0, 0, 0, 0, 0.312]
+              }
+          },
+          "age80_up": {
+              "5" : {
+                  "nil"   : [0, 0.1, 0.5, 0.4, 0  , 0],
+                  "mild"  : [0, 0.1, 0.5, 0.4, 0  , 0],
+                  "sick"  : [0, 0.1, 0.5, 0.4, 0  , 0],
+                  "severe": [0, 0  , 0  , 0.4, 0.6, 0]
+              },
+              "9" : {
+                  "nil"   : [0.5, 0, 0  , 0.5, 0  , 0],
+                  "mild"  : [0  , 0, 0.4, 0.6, 0  , 0],
+                  "sick"  : [0  , 0, 0  , 0.6, 0.4, 0],
+                  "severe": [0  , 0, 0  , 0  , 1  , 0]
+              },
+              "14": {
+                  "nil"   : [0.7 , 0, 0.3, 0  , 0   , 0   ],
+                  "mild"  : [0.7 , 0, 0  , 0.3, 0   , 0   ],
+                  "sick"  : [0.7 , 0, 0  , 0.1, 0.2 , 0   ],
+                  "severe": [0.12, 0, 0  , 0  , 0.67, 0.21]
+              },
+              "19": {
+                  "nil"   : [1   , 0, 0, 0, 0   , 0   ],
+                  "mild"  : [1   , 0, 0, 0, 0   , 0   ],
+                  "sick"  : [0   , 0, 0, 0, 1   , 0   ],
+                  "severe": [0.49, 0, 0, 0, 0.24, 0.27]
+              },
+              "25": {
+                  "nil"   : [1    , 0, 0, 0, 0, 0    ],
+                  "mild"  : [1    , 0, 0, 0, 0, 0    ],
+                  "sick"  : [0.682, 0, 0, 0, 0, 0.318],
+                  "severe": [0.676, 0, 0, 0, 0, 0.324]
+              }
+          }
+      },
+
+      "progression_factors": { 
+          "_edit_progression_factors_": "2 short cut adjustments",
+          "_edit_riskadjust_": "see below for variant alpha; not used when full tree is present",
+
+              "riskadjust": [],
+
+          "_edit_vaxhalflifeadjust_": "This is loaded but currently not used. Meant to adjust vax halflife effectiveness based on variant person has.",
+
+              "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9} }
+},
+"alpha"        : {
+    "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.1},
+    "immunity"           : {
+        "recovery_immunity": {
+            "base"         : 0.8,
+            "alpha"        : 0.8,
+            "delta"        : 0.7,
+            "omicron_ba1"  : 0.6,
+            "omicron_ba2"  : 0.6,
+            "omicron_ba4_5": 0.4
         },
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.8,
-                "alpha"        : 0.8,
-                "delta"        : 0.6,
-                "omicron_ba1"  : 0.6,
-                "omicron_ba2"  : 0.6,
-                "omicron_ba4_5": 0.4
-            },
-            "immunehalflife"   : 360
-        },
-        "progression_tree"   : {
-            "age0_19" : {
-                "5" : {
-                    "nil"   : [0, 0.4, 0.5, 0.1, 0, 0],
-                    "mild"  : [0, 0.3, 0.6, 0.1, 0, 0],
-                    "sick"  : [0, 0  , 0  , 1  , 0, 0],
-                    "severe": [0, 0  , 0  , 0  , 1, 0]
-                },
-                "9" : {
-                    "nil"   : [0.9, 0, 0  , 0.1 , 0   , 0],
-                    "mild"  : [0.4, 0, 0.6, 0   , 0   , 0],
-                    "sick"  : [0  , 0, 0  , 0.95, 0.05, 0],
-                    "severe": [0  , 0, 0  , 0   , 1   , 0]
-                },
-                "14": {
-                    "nil"   : [1    , 0, 0, 0   , 0    , 0    ],
-                    "mild"  : [1    , 0, 0, 0   , 0    , 0    ],
-                    "sick"  : [0.85 , 0, 0, 0.12, 0.03 , 0    ],
-                    "severe": [0.692, 0, 0, 0   , 0.302, 0.006]
-                },
-                "19": {
-                    "nil"   : [1    , 0, 0, 0, 0    , 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0    , 0    ],
-                    "sick"  : [0    , 0, 0, 1, 0    , 0    ],
-                    "severe": [0.891, 0, 0, 0, 0.106, 0.003]
-                },
-                "25": {
-                    "nil"   : [1    , 0, 0, 0, 0, 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0, 0    ],
-                    "sick"  : [0.976, 0, 0, 0, 0, 0.024],
-                    "severe": [0.91 , 0, 0, 0, 0, 0.09 ]
-                }
-            },
-            "age20_39": {
-                "5" : {
-                    "nil"   : [0, 0.2 , 0.7 , 0.1, 0, 0],
-                    "mild"  : [0, 0.15, 0.85, 0  , 0, 0],
-                    "sick"  : [0, 0   , 0   , 1  , 0, 0],
-                    "severe": [0, 0   , 0   , 1  , 0, 0]
-                },
-                "9" : {
-                    "nil"   : [0.9 , 0, 0, 0.1 , 0  , 0],
-                    "mild"  : [0.85, 0, 0, 0.15, 0  , 0],
-                    "sick"  : [0   , 0, 0, 0.9 , 0.1, 0],
-                    "severe": [0   , 0, 0, 0   , 1  , 0]
-                },
-                "14": {
-                    "nil"   : [1    , 0, 0, 0  , 0    , 0    ],
-                    "mild"  : [1    , 0, 0, 0  , 0    , 0    ],
-                    "sick"  : [0.83 , 0, 0, 0.1, 0.07 , 0    ],
-                    "severe": [0.474, 0, 0, 0  , 0.514, 0.012]
-                },
-                "19": {
-                    "nil"   : [1    , 0, 0, 0, 0    , 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0    , 0    ],
-                    "sick"  : [0.922, 0, 0, 0, 0.072, 0.006],
-                    "severe": [0.922, 0, 0, 0, 0.072, 0.006]
-                },
-                "25": {
-                    "nil"   : [1    , 0, 0, 0, 0, 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0, 0    ],
-                    "sick"  : [0.964, 0, 0, 0, 0, 0.036],
-                    "severe": [0.964, 0, 0, 0, 0, 0.036]
-                }
-            },
-            "age40_59": {
-                "5" : {
-                    "nil"   : [0, 0.2 , 0.7 , 0.1, 0, 0],
-                    "mild"  : [0, 0.15, 0.85, 0  , 0, 0],
-                    "sick"  : [0, 0   , 0   , 1  , 0, 0],
-                    "severe": [0, 0   , 0   , 0  , 1, 0]
-                },
-                "9" : {
-                    "nil"   : [0.9 , 0, 0   , 0.1, 0  , 0],
-                    "mild"  : [0.85, 0, 0.05, 0.1, 0  , 0],
-                    "sick"  : [0   , 0, 0   , 0.9, 0.1, 0],
-                    "severe": [0   , 0, 0   , 0  , 1  , 0]
-                },
-                "14": {
-                    "nil"   : [1    , 0, 0, 0   , 0    , 0    ],
-                    "mild"  : [0.9  , 0, 0, 0.1 , 0    , 0    ],
-                    "sick"  : [0.85 , 0, 0, 0.14, 0.01 , 0    ],
-                    "severe": [0.776, 0, 0, 0   , 0.206, 0.018]
-                },
-                "19": {
-                    "nil"   : [1    , 0, 0, 0, 0    , 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0    , 0    ],
-                    "sick"  : [0.856, 0, 0, 0, 0.126, 0.018],
-                    "severe": [0.856, 0, 0, 0, 0.126, 0.018]
-                },
-                "25": {
-                    "nil"   : [1    , 0, 0, 0, 0, 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0, 0    ],
-                    "sick"  : [0.958, 0, 0, 0, 0, 0.042],
-                    "severe": [0.958, 0, 0, 0, 0, 0.042]
-                }
-            },
-            "age60_79": {
-                "5" : {
-                    "nil"   : [0, 0.15, 0.6, 0.25, 0, 0],
-                    "mild"  : [0, 0   , 0.7, 0.3 , 0, 0],
-                    "sick"  : [0, 0   , 0  , 1   , 0, 0],
-                    "severe": [0, 0   , 0  , 0   , 1, 0]
-                },
-                "9" : {
-                    "nil"   : [0.62, 0, 0   , 0.38, 0   , 0],
-                    "mild"  : [0.5 , 0, 0.25, 0.25, 0   , 0],
-                    "sick"  : [0   , 0, 0   , 0.78, 0.22, 0],
-                    "severe": [0   , 0, 0   , 0   , 1   , 0]
-                },
-                "14": {
-                    "nil"   : [0.8  , 0.1, 0.1 , 0   , 0    , 0   ],
-                    "mild"  : [0.8  , 0  , 0.15, 0.05, 0    , 0   ],
-                    "sick"  : [0.8  , 0  , 0   , 0.1 , 0.1  , 0   ],
-                    "severe": [0.165, 0  , 0   , 0   , 0.715, 0.12]
-                },
-                "19": {
-                    "nil"   : [1   , 0, 0, 0, 0   , 0   ],
-                    "mild"  : [1   , 0, 0, 0, 0   , 0   ],
-                    "sick"  : [0.81, 0, 0, 0, 0.13, 0.06],
-                    "severe": [0.81, 0, 0, 0, 0.13, 0.06]
-                },
-                "25": {
-                    "nil"   : [1    , 0, 0, 0, 0, 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0, 0    ],
-                    "sick"  : [0.76 , 0, 0, 0, 0, 0.24 ],
-                    "severe": [0.688, 0, 0, 0, 0, 0.312]
-                }
-            },
-            "age80_up": {
-                "5" : {
-                    "nil"   : [0, 0.1, 0.5, 0.4, 0  , 0],
-                    "mild"  : [0, 0.1, 0.5, 0.4, 0  , 0],
-                    "sick"  : [0, 0.1, 0.5, 0.4, 0  , 0],
-                    "severe": [0, 0  , 0  , 0.4, 0.6, 0]
-                },
-                "9" : {
-                    "nil"   : [0.5, 0, 0  , 0.5, 0  , 0],
-                    "mild"  : [0  , 0, 0.4, 0.6, 0  , 0],
-                    "sick"  : [0  , 0, 0  , 0.6, 0.4, 0],
-                    "severe": [0  , 0, 0  , 0  , 1  , 0]
-                },
-                "14": {
-                    "nil"   : [0.7 , 0, 0.3, 0  , 0   , 0   ],
-                    "mild"  : [0.7 , 0, 0  , 0.3, 0   , 0   ],
-                    "sick"  : [0.7 , 0, 0  , 0.1, 0.2 , 0   ],
-                    "severe": [0.12, 0, 0  , 0  , 0.67, 0.21]
-                },
-                "19": {
-                    "nil"   : [1   , 0, 0, 0, 0   , 0   ],
-                    "mild"  : [1   , 0, 0, 0, 0   , 0   ],
-                    "sick"  : [0   , 0, 0, 0, 1   , 0   ],
-                    "severe": [0.49, 0, 0, 0, 0.24, 0.27]
-                },
-                "25": {
-                    "nil"   : [1    , 0, 0, 0, 0, 0    ],
-                    "mild"  : [1    , 0, 0, 0, 0, 0    ],
-                    "sick"  : [0.682, 0, 0, 0, 0, 0.318],
-                    "severe": [0.676, 0, 0, 0, 0, 0.324]
-                }
-            }
-        },
-        "progression_factors": { 
-            "riskadjust": [],
-            "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9} }
+        "immunehalflife"   : 360
     },
-    "alpha"        : {
-        "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.1},
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.8,
-                "alpha"        : 0.8,
-                "delta"        : 0.7,
-                "omicron_ba1"  : 0.6,
-                "omicron_ba2"  : 0.6,
-                "omicron_ba4_5": 0.4
-            },
-            "immunehalflife"   : 360
-        },
+
+    "_edit_progression_tree_": "Note this tree is null. progression_factors/riskadjust must be provided.",
+
         "progression_tree"   : null,
-        "progression_factors": {
+
+    "progression_factors": {
+
+        "_edit_riskadjust_": "Use values close to 1.0! ",
+            
             "riskadjust"       : [1, 1, 1, 1.1, 1.1, 1.1],
-            "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
-        }
+
+        "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
+    }
+},
+"delta"        : {
+    "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.2},
+    "immunity"           : {
+        "recovery_immunity": {
+            "base"         : 0.8,
+            "alpha"        : 0.8,
+            "delta"        : 0.9,
+            "omicron_ba1"  : 0.6,
+            "omicron_ba2"  : 0.6,
+            "omicron_ba4_5": 0.4
+        },
+        "immunehalflife"   : 360
     },
-    "delta"        : {
-        "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.2},
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.8,
-                "alpha"        : 0.8,
-                "delta"        : 0.9,
-                "omicron_ba1"  : 0.6,
-                "omicron_ba2"  : 0.6,
-                "omicron_ba4_5": 0.4
-            },
-            "immunehalflife"   : 360
-        },
-        "progression_tree"   : null,
-        "progression_factors": {
-            "riskadjust"       : [1, 1, 1, 1.1, 1.1, 1.1],
-            "vaxhalflifeadjust": {"JnJ": 0.9, "Pfizer": 0.9, "Moderna": 0.9}
-        }
+    "progression_tree"   : null,
+    "progression_factors": {
+        "riskadjust"       : [1, 1, 1, 1.1, 1.1, 1.1],
+        "vaxhalflifeadjust": {"JnJ": 0.9, "Pfizer": 0.9, "Moderna": 0.9}
+    }
+},
+"omicron_ba1"  : {
+    "spread"             : {
+        "sendrisk"      : [
+            0.0  ,   0.0  ,   0.445, 0.975, 1.125, 1.275, 1.275, 1.125, 1.05 , 0.975, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
+            0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0 , 0.0
+        ],
+        "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
+        "basemultiplier": 1.2
     },
-    "omicron_ba1"  : {
-        "spread"             : {
-            "sendrisk"      : [
-                0.0  ,   0.0  ,   0.445, 0.975, 1.125, 1.275, 1.275, 1.125, 1.05 , 0.975, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
-                0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0 , 0.0
-            ],
-            "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
-            "basemultiplier": 1.2
+    "immunity"           : {
+        "recovery_immunity": {
+            "base"         : 0.95,
+            "alpha"        : 0.95,
+            "delta"        : 0.8 ,
+            "omicron_ba1"  : 0.8 ,
+            "omicron_ba2"  : 0.8 ,
+            "omicron_ba4_5": 0.6
         },
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.95,
-                "alpha"        : 0.95,
-                "delta"        : 0.8 ,
-                "omicron_ba1"  : 0.8 ,
-                "omicron_ba2"  : 0.8 ,
-                "omicron_ba4_5": 0.6
-            },
-            "immunehalflife"   : 360
-        },
-        "progression_tree"   : null,
-        "progression_factors": {
-            "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.7, 0.6],
-            "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
-        }
+        "immunehalflife"   : 360
     },
-    "omicron_ba2"  : {
-        "spread"             : {
-            "sendrisk"      : [
-                0.0,   0.0    , 0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25 , 1.075, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
-                0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0  
-            ],
-            "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
-            "basemultiplier": 1.3
-        },
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.95,
-                "alpha"        : 0.95,
-                "delta"        : 0.8 ,
-                "omicron_ba1"  : 0.8 ,
-                "omicron_ba2"  : 0.8 ,
-                "omicron_ba4_5": 0.6
-            },
-            "immunehalflife"   : 360
-        },
-        "progression_tree"   : null,
-        "progression_factors": {
-            "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.5, 0.6],
-            "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
-        }
+    "progression_tree"   : null,
+    "progression_factors": {
+        "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.7, 0.6],
+        "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
+    }
+},
+"omicron_ba2"  : {
+    "spread"             : {
+        "sendrisk"      : [
+            0.0,   0.0    , 0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25 , 1.075, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
+            0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0  
+        ],
+        "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
+        "basemultiplier": 1.3
     },
-    "omicron_ba4_5": {
-        "spread"             : {
-            "sendrisk"      : [
-                0.0    ,   0.0,   0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25 , 1.075, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
-                0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    
-            ],
-            "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
-            "basemultiplier": 1.4
+    "immunity"           : {
+        "recovery_immunity": {
+            "base"         : 0.95,
+            "alpha"        : 0.95,
+            "delta"        : 0.8 ,
+            "omicron_ba1"  : 0.8 ,
+            "omicron_ba2"  : 0.8 ,
+            "omicron_ba4_5": 0.6
         },
-        "immunity"           : {
-            "recovery_immunity": {
-                "base"         : 0.95,
-                "alpha"        : 0.95,
-                "delta"        : 0.8 ,
-                "omicron_ba1"  : 0.8 ,
-                "omicron_ba2"  : 0.8 ,
-                "omicron_ba4_5": 0.75
-            },
-            "immunehalflife"   : 360
+        "immunehalflife"   : 360
+    },
+    "progression_tree"   : null,
+    "progression_factors": {
+        "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.5, 0.6],
+        "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
+    }
+},
+"omicron_ba4_5": {
+    "spread"             : {
+        "sendrisk"      : [
+            0.0    ,   0.0,   0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25 , 1.075, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
+            0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    , 0.0    
+        ],
+        "recvrisk"      : [0.1, 0.39, 0.44, 0.54, 0.56],
+        "basemultiplier": 1.4
+    },
+    "immunity"           : {
+        "recovery_immunity": {
+            "base"         : 0.95,
+            "alpha"        : 0.95,
+            "delta"        : 0.8 ,
+            "omicron_ba1"  : 0.8 ,
+            "omicron_ba2"  : 0.8 ,
+            "omicron_ba4_5": 0.75
         },
-        "progression_tree"   : null,
-        "progression_factors": {
-            "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.5, 0.6],
-            "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
-        }
+        "immunehalflife"   : 360
+    },
+    "progression_tree"   : null,
+    "progression_factors": {
+        "riskadjust"       : [1.1, 1.05, 1.05, 0.9, 0.5, 0.6],
+        "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
     }
 }
+}
+
 )TAG";
 
 const std::string seed_json = R"TAG([

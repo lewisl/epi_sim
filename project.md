@@ -1,13 +1,14 @@
 ## TODO
 - test social distancing cases
 - use comments in jsonc files!
-- test using json schema for the project
+- should we have an annotated pretty print for parameter files independent of the model loading them?  as a diagnostic aid
 - overhaul tests:   especially test for bad inputs off the happy path.
     >When you get to it, the check we ran today would make a good first test for the new history code. Build Histories for one ring and for several rings, then assert:
         - the vector and key counts;
         - that every sim_totals_map key points at the column whose metadata matches it;
         - that the one-ring aliases share their target column.
 - distribution packaging
+- currently not using vaxhalflifeadjust per variant. should we use?  needs clinical data to get right. could matter if there are severe differences in vaccine effectiveness for different variants and vaccines.
 - revise readme for credibility
 - user documentation
 - should we ahve more consistency of structure for json files? should we have the category as the top key?  should we have a name descriptor?
@@ -28,6 +29,7 @@
 - opencode:
 
 ## Done
+- test using json schema for the project:  works but doesn't add that much value as an edit assist.
 - update print functions to latest approach
 - revise/simpify overall to selection of hisgtories for printing, serialization and plotting.  must complete before getting rid of the old crap
 - purge materialize_history_vector and everything associated with on-the-fly history totals.

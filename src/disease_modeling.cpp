@@ -150,7 +150,7 @@ bool isinfected(AgentView contact, AgentView spreader,
     float vaxfactor = dovax ? vaxeffect(thisday, contact, vaxset, spr_variant) : 1.0f;
     float risk = infectrisk(infectparams, spr_variant, spreader.duration(),
                             contact.agegrp(), recovfactor, vaxfactor);
-    return xo::bernoulli(risk) == 1;  // return a bool, not 0 or 1  1.0f 0.935f 0.763f
+    return xo::bernoulli(risk);  // this bernoulli returns bool, not 0 or 1;  1.0f 0.935f 0.763f
 }
 
 
@@ -190,6 +190,10 @@ float recoveffect(AgentView contact, size_t thisday,  uint8_t spr_variant,
   return factor;
 }
 
+/*
+vaxeffect lowers the risk of getting infected. It is a multiplicative factor of risk with a value between
+0.0 and 1.0.  1.0 means the vax has no effect. 0.0 provides complete protection.
+*/
 float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
                 uint8_t target_variant, float csig, float decay_lower) {
   if (person.vaxstatus() == Vaxstat::none || idx(person.vax()) == 0 || person.vaxday() == 0) {
@@ -207,12 +211,12 @@ float vaxeffect(size_t thisday, AgentView person, const VaxSet& vaxset,
   const int days_after_vax = std::max<int>(static_cast<int>(thisday) - static_cast<int>(vaxday), 0);
   const int days_after_full_effect = std::max(days_after_vax - params.full_effect_days, 0);
   const float rise = effect_rise(static_cast<size_t>(days_after_vax),
-                                 params.day1_effect,
-                                 static_cast<float>(params.full_effect_days));
+                                  params.day1_effect,
+                                  static_cast<float>(params.full_effect_days));
   const float decay = sigdecay(static_cast<size_t>(days_after_full_effect),
-                               static_cast<float>(params.halflife),
-                               csig,
-                               decay_lower);
+                                static_cast<float>(params.halflife),
+                                csig,
+                                decay_lower);
   const float time_mod = rise * decay;
 
   return std::max(1.0f - (time_mod * vaccine_effect * infectfactor), 0.0f);
