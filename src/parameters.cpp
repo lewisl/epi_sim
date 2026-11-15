@@ -50,6 +50,10 @@ GeoData load_geodata_csv(const std::string& filename) {
   std::vector<std::string> values; // hold cells per row
   values.reserve(20);  // saves allocations for most elements per row cases
   for (const auto& row : csv) {
+    std::string raw;  // parse out comment rows
+    row.read_raw_value(raw);
+    if (!raw.empty() && raw[0] == '#') continue;
+
     values.clear();   
     for (const auto& cell : row) {
         std::string value;
@@ -62,12 +66,11 @@ GeoData load_geodata_csv(const std::string& filename) {
     data.county.push_back(values[1]);
     data.city.push_back(values[2]);
     data.state.push_back(values[3]);
-    data.sizecat.push_back(std::stoi(values[4]));
-    data.pop.push_back(std::stoi(values[5]));
-    data.density.push_back(std::stof(values[6]));
-    data.anchor.push_back(values[7]);
-    data.indoor_st.push_back(values[8]);
-    data.indoor_end.push_back(values[9]);
+    data.pop.push_back(std::stoi(values[4]));
+    data.density.push_back(std::stof(values[5]));
+    data.anchor.push_back(values[6]);
+    data.indoor_st.push_back(values[7]);
+    data.indoor_end.push_back(values[8]);
       
     ++data.num_rows;
   }

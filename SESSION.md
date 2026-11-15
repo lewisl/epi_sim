@@ -1,5 +1,13 @@
 # Session Notes
 
+## 2026-11-15: removed unused geodata `sizecat` column (committed in cf3057c)
+
+- Removed from GeoData (parameters.h), loader (parameters.cpp; positional reads shifted to values[0..8]),
+  input_verify required cols (9), template.cpp + show_help.h + utility/parameter templates/geodata.csv,
+  design/params as loaded.md, test_support.h use_small_locale row.
+- Old geodata.csv files with sizecat would misload (positional); user has updated all saved files (2026-11-15).
+- Tests: default sweep 1694/1694 green; runsim run by user (out of band), OK.
+
 ## RESUME HERE (2026-11-13): next is B4 -- vaccine supply limit not enforced
 
 - All 11-13 work below is done, green, UNCOMMITTED (on top of the uncommitted 11-12 sendrisk work).

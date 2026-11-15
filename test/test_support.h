@@ -306,7 +306,7 @@ inline void edit_config(const fs::path& case_dir, const std::function<void(json&
 inline constexpr int SMALL_LOCALE = 99001;
 inline void use_small_locale(const fs::path& case_dir, int popn) {
   std::ofstream out(case_dir / "input" / "geodata.csv", std::ios::app);
-  out << fmt::format("{},Testcounty,Testville,TS,3,{},2157,2020-02-01,0001-09-15,0002-05-30\n",
+  out << fmt::format("{},Testcounty,Testville,TS,{},2157,2020-02-01,0001-09-15,0002-05-30\n",
                      SMALL_LOCALE, popn);
   out.close();
   edit_config(case_dir, [](json& c) { c["locale"] = SMALL_LOCALE; });

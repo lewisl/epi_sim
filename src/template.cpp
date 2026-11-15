@@ -1,110 +1,170 @@
 #include "template.h"
 
 const std::string config_json = R"TAG({
-    "days": 180,                      // number of days the simulation runs
-    "locale": 38015,                  // cusip location for population and other characteristics, must match a row in geodata
-    "calendar_start": "2020-01-01",   // day 1 of the simulation is set to this actual calendar date
-    "dovax": false,                   // adminster vaccines: true or false
-    "do_social_distancing": false,    // apply social distancing cases: true or false
-    "do_rings": false,                // assign ring membership and use ring contact rules: true or false
-    "debug": false,                   // print verbose debug diagnostics such as overflow warnings
-    "rt_sim_interval": 0,             // every interval days estimate Rt: 0 = never
-    "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],
+    "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
+    
+    "_required_": "All Settings Are Required",
+    
+    "_edit_days_": "set number of days to run the simulation",
 
-    "case_desc": "young: no distancing; old: rigorous; Moderna 50pct",
+        "days": 180,
 
-    "geodata":           "geodata.csv",
-    "variants":          "variants.json",
-    "social_params":     "socialparams.json",
-    "seed":              "seed.json",
+    "_edit_locale_": "use the fips number of a city/county in geodata.csv for population and other data",
+            "_or_create_fake_fips": "in geodata.csv: to enter specific data a for real or fictional location",
 
-    "vaccines":          "vaccines.json",
-    "vax_sched_dir":     "vaccine_100k",
-    "rings":             "rings.json",
-    "social_dist":       "soc_dist.json",
+        "locale": 38015,                  
 
-    "output":             "output"
+    "_edit_calendar_start_": "set day 1 of the simulation to this actual calendar date",
+    "_formatting_": "must use yyyy-mm-dd",
+
+        "calendar_start": "2020-01-01",
+
+    "_edit_dovax_": "administer vaccines during simulation: true or false",
+
+        "dovax": false,        
+            
+     "_edit_do_social_distancing_": "apply social distancing cases: true or false",     
+
+        "do_social_distancing": false,  
+        
+    "_edit_do_rings_": "assign ring membership and use ring contact rules: true or false",
+
+        "do_rings": false,
+        
+    "_edit_debug_": "print verbose debug diagnostics such as overflow warning: true or false",    
+
+        "debug": false,   
+        
+    "_edit_rt_sim_interval_": "estimate Rt every n days: 0 = never",  
+
+        "rt_sim_interval": 0,
+        
+    "_edit_age_dist_": "5 decimal values between 0.0 and 0.999, must sum to 1.0",   
+
+        "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],
+
+    "_edit_case_desc": "string for a simple description",    
+
+        "case_desc": "simple: no vax, no rings",
+
+    "_Parameter Files_": "prefer existing file names in same directory, as is",
+    "_all_files_required_": "yes, they are",
+    "_optional_": "may use other files in same dir or full paths to other files",
+
+        "geodata":           "geodata.csv",
+        "variants":          "variants.json",
+        "social_params":     "socialparams.json",
+        "seed":              "seed.json",
+        "vaccines":          "vaccines.json",
+        "vax_sched_dir":     "vaccine_100k",
+        "rings":             "rings.json",
+        "social_dist":       "soc_dist.json",
+
+        "_output_directory_": "subdirectory for output for a case",
+        "output":             "output"
 }
 )TAG";
 
 const std::string socialparams_json = R"TAG({
-  "gammashape": 1.0,
-  "indoor_uplift": 1.1,
-  "contactfactors": {
-      "age0_19": {
-          "nil": 1.045,
-          "mild": 1.045,
-          "sick": 0.665,
-          "severe": 0.475
-      },
-      "age20_39": {
-          "nil": 1.995,
-          "mild": 1.9,
-          "sick": 0.95,
-          "severe": 0.57
-      },
-      "age40_59": {
-          "nil": 1.995,
-          "mild": 1.9,
-          "sick": 0.95,
-          "severe": 0.57
-      },
-      "age60_79": {
-          "nil": 1.615,
-          "mild": 1.52,
-          "sick": 0.665,
-          "severe": 0.475
-      },
-      "age80_up": {
-          "nil": 0.95,
-          "mild": 0.855,
-          "sick": 0.57,
-          "severe": 0.475
-      }
-  },
-  "touchfactors": {
-      "age0_19": {
-          "unexposed": 0.55,
-          "recovered": 0.55,
-          "nil": 0.55,
-          "mild": 0.55,
-          "sick": 0.28,
-          "severe": 0.18
-      },
-      "age20_39": {
-          "unexposed": 0.63,
-          "recovered": 0.63,
-          "nil": 0.63,
-          "mild": 0.62,
-          "sick": 0.35,
-          "severe": 0.18
-      },
-      "age40_59": {
-          "unexposed": 0.61,
-          "recovered": 0.61,
-          "nil": 0.61,
-          "mild": 0.58,
-          "sick": 0.3,
-          "severe": 0.18
-      },
-      "age60_79": {
-          "unexposed": 0.41,
-          "recovered": 0.41,
-          "nil": 0.41,
-          "mild": 0.41,
-          "sick": 0.18,
-          "severe": 0.18
-      },
-      "age80_up": {
-          "unexposed": 0.35,
-          "recovered": 0.35,
-          "nil": 0.35,
-          "mild": 0.28,
-          "sick": 0.18,
-          "severe": 0.18
-      }
+"_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
+
+"_required_": "All Settings Are Required",
+
+"_edit_gammashape_":"input to gamma distribution for number of contacts; use value near 1.0",
+
+    "gammashape": 1.0,
+
+"_edit_indoor_uplift_": "Factor to increase contacts and touch probability for indoor months: > 1.0, but slightly",
+
+    "indoor_uplift": 1.1,
+
+"_edit_contactfactors_": "Multiplier for contacts made by an infectious person, by age group and condition",
+    "_required_factors": "all agegrps, all disease conditions for each age",
+    "_values_": "between 0.0 and 2.0",
+
+    "contactfactors": {
+        "age0_19": {
+            "nil": 1.045,
+            "mild": 1.045,
+            "sick": 0.665,
+            "severe": 0.475
+        },
+        "age20_39": {
+            "nil": 1.995,
+            "mild": 1.9,
+            "sick": 0.95,
+            "severe": 0.57
+        },
+        "age40_59": {
+            "nil": 1.995,
+            "mild": 1.9,
+            "sick": 0.95,
+            "severe": 0.57
+        },
+        "age60_79": {
+            "nil": 1.615,
+            "mild": 1.52,
+            "sick": 0.665,
+            "severe": 0.475
+        },
+        "age80_up": {
+            "nil": 0.95,
+            "mild": 0.855,
+            "sick": 0.57,
+            "severe": 0.475
+        }
+    },
+
+
+  "_edit_touchfactors_": "Multiplier for contacts being a signficant 'touch' made for the contacted person, by age group and condition",
+    "_required_touchfactors": "all agegrps, all disease conditions for each age and statuses unexposed and recovered",
+    "_values_range": "between 0.0 and 1.0",
+    "_exception_": "currently, already sick people are not 'touched'",
+
+    "touchfactors": {
+        "age0_19": {
+            "unexposed": 0.55,
+            "recovered": 0.55,
+            "nil": 0.55,
+            "mild": 0.55,
+            "sick": 0.28,
+            "severe": 0.18
+        },
+        "age20_39": {
+            "unexposed": 0.63,
+            "recovered": 0.63,
+            "nil": 0.63,
+            "mild": 0.62,
+            "sick": 0.35,
+            "severe": 0.18
+        },
+        "age40_59": {
+            "unexposed": 0.61,
+            "recovered": 0.61,
+            "nil": 0.61,
+            "mild": 0.58,
+            "sick": 0.3,
+            "severe": 0.18
+        },
+        "age60_79": {
+            "unexposed": 0.41,
+            "recovered": 0.41,
+            "nil": 0.41,
+            "mild": 0.41,
+            "sick": 0.18,
+            "severe": 0.18
+        },
+        "age80_up": {
+            "unexposed": 0.35,
+            "recovered": 0.35,
+            "nil": 0.35,
+            "mild": 0.28,
+            "sick": 0.18,
+            "severe": 0.18
+        }
   }
 }
+
 )TAG";
 
 const std::string variants_json = R"TAG({
@@ -465,7 +525,6 @@ const std::string variants_json = R"TAG({
     }
 }
 }
-
 )TAG";
 
 const std::string seed_json = R"TAG([
@@ -658,47 +717,59 @@ const std::string vaccines_json = R"TAG(
 }
 )TAG";
 
-const std::string geodata_csv = R"TAG(fips,county,city,state,sizecat,pop,density,anchor,indoor_st,indoor_end
-6075,San Francisco,San Francisco,CA,2,881549,17255,2020-02-01,0001-09-15,0002-05-30
-53033,Seattle,Seattle,WA,2,2252782,5175,2020-02-01,0001-09-15,0002-05-30
-36061,New York,New York,NY,1,8336817,40306,2020-02-01,0001-09-15,0002-05-30
-39035,Cuyahoga,Cleveland,OH,2,1235072,3063,2020-02-01,0001-09-15,0002-05-30
-48113,Dallas,Dallas,TX,2,2635516,4000,2020-02-01,0001-09-15,0002-05-30
-39151,Stark,Canton,OH,3,370606,1688,2020-02-01,0001-09-15,0002-05-30
-34013,Essex,Newark,NJ,3,798975,6396,2020-02-01,0001-09-15,0002-05-30
-13089,DeKalb,Atlanta,GA,2,1063937,2708,2020-02-01,0001-09-15,0002-05-30
-17167,Sangamon,Springfield,IL,3,194672,1747,2020-02-01,0001-09-15,0002-05-30
-38015,Burleigh,Bismarck,ND,3,95626,2157,2020-02-01,0001-09-15,0002-05-30
-4013,Maricopa,Phoenix,AZ,1,4485414,2798,2020-03-01,0001-09-15,0002-05-30
-42003,Allegheny,Pittsburgh,PA,2,1216045,5461,2020-02-01,0001-09-15,0002-05-30
-27053,Hennepin,Minneapolis,MN,2,1265843,7821,2020-02-01,0001-09-15,0002-05-30
-31055,Douglas,Omaha,NE,2,571327,3378,2020-02-01,0001-09-15,0002-05-30
-8031,Denver,Denver,CO,2,727211,4520,2020-02-01,0001-09-15,0002-05-30
+const std::string geodata_csv = R"TAG(fips,county,city,state,pop,density,anchor,indoor_st,indoor_end
+#dates are yyyy-mm-dd; anchor is start of simulation, indoor_st is when people spend time indoors, indoor_end is when people go back outdoors more often
+6075,San Francisco,San Francisco,CA,881549,17255,2020-02-01,0001-09-15,0002-05-30
+53033,Seattle,Seattle,WA,2252782,5175,2020-02-01,0001-09-15,0002-05-30
+36061,New York,New York,NY,8336817,40306,2020-02-01,0001-09-15,0002-05-30
+39035,Cuyahoga,Cleveland,OH,1235072,3063,2020-02-01,0001-09-15,0002-05-30
+48113,Dallas,Dallas,TX,2635516,4000,2020-02-01,0001-09-15,0002-05-30
+39151,Stark,Canton,OH,370606,1688,2020-02-01,0001-09-15,0002-05-30
+34013,Essex,Newark,NJ,798975,6396,2020-02-01,0001-09-15,0002-05-30
+13089,DeKalb,Atlanta,GA,1063937,2708,2020-02-01,0001-09-15,0002-05-30
+17167,Sangamon,Springfield,IL,194672,1747,2020-02-01,0001-09-15,0002-05-30
+38015,Burleigh,Bismarck,ND,95626,2157,2020-02-01,0001-09-15,0002-05-30
+4013,Maricopa,Phoenix,AZ,4485414,2798,2020-03-01,0001-09-15,0002-05-30
+42003,Allegheny,Pittsburgh,PA,1216045,5461,2020-02-01,0001-09-15,0002-05-30
+27053,Hennepin,Minneapolis,MN,1265843,7821,2020-02-01,0001-09-15,0002-05-30
+31055,Douglas,Omaha,NE,571327,3378,2020-02-01,0001-09-15,0002-05-30
+8031,Denver,Denver,CO,727211,4520,2020-02-01,0001-09-15,0002-05-30
 )TAG";
 
 const std::string rings_json = R"TAG({
-    "rings": [
+    "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
+
+    "_edit_rings_": "an array of curly bracketed ring objects or empty []",
+
+    "_edit_ring_object_": "3 required keys in within curly braces",
+        "_edit_name_": "string that names the ring",
+        "_edit_pct_of_population_": "percentage of population assigned to a ring; between 0.0 and 1.0; all rings must total to 1.0",
+        "_out_ring_prob_by_agegrp_": "probability a person in each agegrp contacts people outside this ring",
+        "_required_values_": "all 5 agegrps required, values between 0.0 and 1.0 do not sum to 1.0",
+            
+    "rings": 
+    [
         {
-            "name"                   : "ring_1",
-            "pct_of_population"      : 0.4,
-            "out_ring_prob_by_agegrp": {
-                "age0_19" : 0.05,
-                "age20_39": 0.10,
-                "age40_59": 0.15,
-                "age60_79": 0.10,
-                "age80_up": 0.05
+        "name"                   : "ring_1",
+        "pct_of_population"      : 0.4,
+        "out_ring_prob_by_agegrp": {
+            "age0_19" : 0.05,
+            "age20_39": 0.10,
+            "age40_59": 0.15,
+            "age60_79": 0.10,
+            "age80_up": 0.05
             }
         },
         {
-            "name"                   : "ring_2",
-            "pct_of_population"      : 0.6,
-            "out_ring_prob_by_agegrp": {
-                "age0_19" : 0.20,
-                "age20_39": 0.25,
-                "age40_59": 0.30,
-                "age60_79": 0.20,
-                "age80_up": 0.15
-            }
+        "name"                   : "ring_2",
+        "pct_of_population"      : 0.6,
+        "out_ring_prob_by_agegrp": {
+            "age0_19" : 0.20,
+            "age20_39": 0.25,
+            "age40_59": 0.30,
+            "age60_79": 0.20,
+            "age80_up": 0.15
+        }
         }
     ]
 }

@@ -481,7 +481,6 @@ void check_socialparams(const json& j, Errors& e) {
     return;
   }
   need_number(j, "gammashape", ctx, e);
-  need_number(j, "indoor_uplift", ctx, e);
   need_object(j, "contactfactors", ctx, e);
   need_object(j, "touchfactors", ctx, e);
 }
@@ -626,8 +625,8 @@ void check_geodata_csv(const fs::path& p, int locale, Errors& e) {
     return cols;
   };
   const std::vector<std::string> cols = split(header);
-  constexpr std::array<const char*, 10> required = {
-      "fips", "county", "city", "state", "sizecat",
+  constexpr std::array<const char*, 9> required = {
+      "fips", "county", "city", "state",
       "pop", "density", "anchor", "indoor_st", "indoor_end"};
   int fips_idx = -1;
   for (const char* col : required) {

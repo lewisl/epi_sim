@@ -19,7 +19,7 @@ using std::vector;
 struct GeoData {
     // Column metadata
     vector<string> column_names = {
-        "fips", "county", "city", "state", "sizecat",
+        "fips", "county", "city", "state",
         "pop", "density", "anchor", "indoor_st", "indoor_end"
     };
 
@@ -30,7 +30,6 @@ struct GeoData {
     vector<string> county;
     vector<string> city;
     vector<string> state;
-    vector<int> sizecat;
     vector<int> pop;
     vector<float> density;
     vector<string> anchor;      // Date stored as string (could parse to date type)
@@ -39,8 +38,7 @@ struct GeoData {
 
     // Helper to get type name for a column
     std::string get_type(const std::string& col_name) const {
-        if (col_name == "fips" || col_name == "sizecat" ||
-            col_name == "pop") return "int";
+        if (col_name == "fips" || col_name == "pop") return "int";
 
         if (col_name == "density") return "float";
         return "string";
@@ -48,20 +46,18 @@ struct GeoData {
 
     void print() {
       // Header
-      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10}{:<12}{:<12}{:<12}\n",
-                "", "fips", "county", "city", "state",
-                "sizecat", "pop", "density", "anchor", "indoor_st", "indoor_end");
+      fmt::print("{:<4}{:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<12}{:<12}{:<12}\n",
+                "", "fips", "county", "city", "state", "pop", "density", "anchor", "indoor_st", "indoor_end");
 
       // Rows
       for (size_t i = 0; i < num_rows; ++i) {
-          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10}{:<10.3}{:<12}{:<12}{:<12}\n",
+          fmt::print("{:>2}: {:<8}{:<18}{:<18}{:<8}{:<10}{:<10.3}{:<12}{:<12}{:<12}\n",
               //  fmt::format("{}:", i),
               i,
                 fips[i],
                 county[i],
                 city[i],
                 state[i],
-                sizecat[i],
                 pop[i],
                 density[i],
                 anchor[i],

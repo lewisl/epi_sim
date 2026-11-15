@@ -32,6 +32,8 @@
     "_edit_age_dist_": "5 decimal values between 0.0 and 0.999, must sum to 1.0",    
         "age_dist": [0.251, 0.271, 0.255, 0.184, 0.039],
 
+    "_edit_case_desc_": "string for a simple description",    
+
         "case_desc": "simple: no vax, no rings",
 
     "_Parameter Files_": "prefer existing file names in same directory, as is",

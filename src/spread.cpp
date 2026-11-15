@@ -80,7 +80,7 @@ void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& 
       auto c_status = contact.status();
       float touchprob {0.0};
 
-      // determine touchprob
+      // determine touchprob:  TODO NOTE: people who are already sick are excluded
       if ((c_status == UNEXPOSED) || (c_status == RECOVERED)) {
         // contact's touchfactors are overridden by their sdcase, if any
         const uint8_t c_sd = contact.sdcase();
@@ -95,7 +95,7 @@ void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& 
       }  else touchprob = 0.0f;
 
       // if touched; test if infected; if infected; make the contact sick
-      if (touchprob > 0.0f && xo::bernoulli(touchprob) == 1.0f) { //short circuit the bernoulli RNG draw
+      if (touchprob > 0.0f && xo::bernoulli(touchprob)) { //short circuit the bernoulli RNG draw, bernoulli returns bool ` == 1.0f` not needed
         // sim::ds.num_touched++;  // daily summary stat
 
         if (isinfected(contact, person, infectparams, vaxset, dovax, thisday)) {
