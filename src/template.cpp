@@ -718,7 +718,7 @@ const std::string vaccines_json = R"TAG(
 )TAG";
 
 const std::string geodata_csv = R"TAG(fips,county,city,state,pop,density,anchor,indoor_st,indoor_end
-#dates are yyyy-mm-dd; anchor is start of simulation, indoor_st is when people spend time indoors, indoor_end is when people go back outdoors more often
+# dates are yyyy-mm-dd; anchor is start of simulation; indoor_st is when people spend time indoors--use year 0001, indoor_end is when people go back outdoors more often--user year 0002
 6075,San Francisco,San Francisco,CA,881549,17255,2020-02-01,0001-09-15,0002-05-30
 53033,Seattle,Seattle,WA,2252782,5175,2020-02-01,0001-09-15,0002-05-30
 36061,New York,New York,NY,8336817,40306,2020-02-01,0001-09-15,0002-05-30
