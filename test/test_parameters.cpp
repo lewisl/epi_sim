@@ -594,6 +594,35 @@ void test_check_vaccines_rejects_missing_int_key() {
   CHECK(has_error_containing(e, "missing required key 'halflife'"));
 }
 
+void test_second_shot_brand_validation() {
+  test_support::RuntimeNamesGuard guard;
+  const json valid = json::parse(vaccines_json);
+  const auto expect_invalid = [&](const json& vaccines, std::string_view reason) {
+    Errors errors;
+    input_verify_detail::check_vaccines(vaccines, errors);
+    CHECK(has_error_containing(errors, fmt::format("vaccines.json vaccine 'Pfizer': {}", reason)));
+
+    const auto path = write_temp_json("allow2ndshot", vaccines.dump());
+    expect_throws_containing([&] { (void)load_vax_data(path.string(), true); },
+                             fmt::format("{} vaccine 'Pfizer': {}", path.string(), reason));
+    fs::remove_all(path.parent_path());
+  };
+
+  json invalid = valid;
+  invalid["Pfizer"].erase("allow2ndshot");
+  expect_invalid(invalid, "missing required key 'allow2ndshot'");
+  invalid["Pfizer"]["allow2ndshot"] = json::array();
+  expect_invalid(invalid, "'allow2ndshot' must be a nonempty array");
+  invalid["Pfizer"]["allow2ndshot"] = "Moderna";
+  expect_invalid(invalid, "'allow2ndshot' must be a nonempty array");
+  invalid["Pfizer"]["allow2ndshot"] = json::array({2});
+  expect_invalid(invalid, "'allow2ndshot' entries must be vaccine names");
+  invalid["Pfizer"]["allow2ndshot"] = json::array({"moderna"});
+  expect_invalid(invalid, "'allow2ndshot' names unknown vaccine \"moderna\"");
+  invalid["Pfizer"]["allow2ndshot"] = json::array({"none"});
+  expect_invalid(invalid, "'allow2ndshot' names unknown vaccine \"none\"");
+}
+
 void test_check_vaccine_variant_alignment_rejects_missing_factors() {
   Errors e;
   json variants = json::parse(variants_json);
@@ -867,6 +896,10 @@ void test_vaccines_contract_for_simulation() {
   CHECK_EQ(vs.size(), size_t{Vax::count});
   CHECK_EQ(vs.size(), jv.size());
   CHECK_THROWS(std::runtime_error, (void)vs.at(Vax{0}), "Invalid vaccine lookup");
+  const vector<Vax> allowed{Vax{"Pfizer"}, Vax{"Moderna"}};
+  CHECK(vs.at(Vax{"Pfizer"}).allow2ndshot == allowed);
+  CHECK(vs.at(Vax{"Moderna"}).allow2ndshot == allowed);
+  CHECK(vs.at(Vax{"JnJ"}).allow2ndshot.empty());
 
   for (size_t v = 1; v < vs.params.size(); ++v) {
     const auto& name = vs.names[v];
@@ -1156,6 +1189,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   run_test("check_variants_rejects_wrong_progression_row_length", test_check_variants_rejects_wrong_progression_row_length);
   run_test("check_variants_rejects_progression_row_bad_sum", test_check_variants_rejects_progression_row_bad_sum);
   run_test("check_vaccines_rejects_missing_int_key", test_check_vaccines_rejects_missing_int_key);
+  run_test("second_shot_brand_validation", test_second_shot_brand_validation);
   run_test("check_vaccine_variant_alignment_rejects_missing_factors", test_check_vaccine_variant_alignment_rejects_missing_factors);
   run_test("check_vax_sched_rejects_mix_bad_sum", test_check_vax_sched_rejects_mix_bad_sum);
   run_test("check_vax_sched_rejects_bad_dayrange_length", test_check_vax_sched_rejects_bad_dayrange_length);

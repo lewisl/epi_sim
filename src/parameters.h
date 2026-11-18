@@ -194,6 +194,7 @@ struct ProgressionSet {  // collection of all variants
 
 struct Vaxparam {
   int reqdshots{1};
+  vector<Vax> allow2ndshot {};
   int delay2ndshot{0}; // how to encode 'nothing'?
   int delaybooster{0}; // ditto
   int halflife{180}; // days to 50% decline in effectiveness

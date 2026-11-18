@@ -1,5 +1,6 @@
 #include "parameters.h"
 #include "helpers.h"    // for shifter range compressor
+#include "input_verify.h"
 #include <charconv>
 #include <cstdint>
 #include <csv2/reader.hpp>
@@ -399,20 +400,29 @@ VaxSet load_vax_data(string fpath, bool dovax) {
   vaxset.names.clear();  // instance variable vaxset updating "local" names member
   if (dovax) {
     json vaxdata = load_json_params(fpath); // read data from json file input
+    input_verify_detail::Errors errors;
+    input_verify_detail::check_allow2ndshot(vaxdata, fpath, errors);
+    if (errors.any()) throw std::runtime_error(errors.msgs.front());
+
     Vax::names.emplace_back("none");
-    vaxset.names.emplace_back("none");
-    vaxset.params.clear();
     vaxset.params.emplace_back(Vaxparam{});
 
-    // for each vax
-    for (const auto &[vaxname, body] : vaxdata.items()) {  
+    // Register all brands before resolving second-shot lists.
+    for (const auto& entry : vaxdata.items()) {
+      const auto& vaxname = entry.key();
       register_trait_name(Vax::names, vaxname);
       ++Vax::count;
-      vaxset.names.emplace_back(vaxname);  // add element to vaxset.names
+    }
+    vaxset.names = Vax::names;
 
+    for (const auto& [vaxname, body] : vaxdata.items()) {
       Vaxparam vx {};  // details for one vaccine
       // load items for each vax into struct
       vx.reqdshots = body["reqdshots"];
+      if (const auto allowed = body.find("allow2ndshot"); allowed != body.end()) {
+        for (const auto& brand : *allowed)
+          vx.allow2ndshot.push_back(find_vax(brand.get_ref<const std::string&>()).value());
+      }
       vx.delay2ndshot = body["delay2ndshot"];
       vx.delaybooster = body["delaybooster"];
       vx.halflife = body["halflife"];
@@ -452,7 +462,7 @@ VaxSet load_vax_data(string fpath, bool dovax) {
           vx.effectiveness[shot][var] = shot_json[variantname].get<float>();
         }
       }
-      vaxset.params.push_back(vx);
+      vaxset.params.push_back(std::move(vx));
     }
   }
   return vaxset;

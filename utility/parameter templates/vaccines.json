@@ -3,6 +3,7 @@
     "Pfizer": {
         "halflife": 360,
         "reqdshots": 2,
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,
         "delaybooster": 160,
         "full_effect_days": 14,
@@ -45,6 +46,7 @@
     "Moderna": {
         "halflife": 360,
         "reqdshots": 2,
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,
         "delaybooster": 160,
         "full_effect_days": 14,

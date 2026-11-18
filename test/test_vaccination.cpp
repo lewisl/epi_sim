@@ -34,6 +34,7 @@ VaxSet make_vaxset(int reqdshots, int delay2ndshot, int delaybooster, int brands
   for (int b = 0; b < brands; ++b) {
     Vaxparam p;
     p.reqdshots = reqdshots;
+    if (reqdshots > 1) p.allow2ndshot = {Vax{b + 1}};
     p.delay2ndshot = delay2ndshot;
     p.delaybooster = delaybooster;
     vs.params.push_back(p);
@@ -134,6 +135,103 @@ void test_second_shot_waits_for_delay() {
   CHECK_EQ(pop.vaxday[1], Vaxday{8});
   CHECK_EQ(pop.vax_hist[1].count, uint16_t{2});
   CHECK_EQ(vax_hist(h, Phase::new_, 1, 8), 0);  // histories count people, not shots
+}
+
+void test_second_shot_prefers_original_then_first_available_brand() {
+  RuntimeNamesGuard guard;
+  install_names({"base"}, {"pfizer", "moderna", "other"});
+  auto pop = make_pop(2);
+  all_ages(pop, AGE20_39);
+  Histories h(10, pop);
+  auto vs = make_vaxset(2, 1, 30, 3);
+  vs.params[1].allow2ndshot = {Vax{3}, Vax{2}, Vax{1}};
+  vs.params[1].delay2ndshot = 2;
+  vs.params[3].delaybooster = 3;
+
+  auto first = make_schedset({make_spec(1, 2)}, {1, 1});
+  vaccinate(1, first, vs, pop, h);
+  REQUIRE(pop.vaxstatus[1] == Vaxstat::first && pop.vaxstatus[2] == Vaxstat::first);
+
+  auto second = make_schedset({make_spec(1, 2), make_spec(2, 2, 0.0f, 0.0f),
+                              make_spec(3, 2, 0.0f, 0.0f)}, {2, 3});
+  h.init_history_newday(2);
+  vaccinate(2, second, vs, pop, h);
+  CHECK(pop.vaxstatus[1] == Vaxstat::first && pop.vaxstatus[2] == Vaxstat::first);
+  h.init_history_newday(3);
+  vaccinate(3, second, vs, pop, h);
+
+  const auto& specs = second.schedules[0].second.vaxesincluded;
+  CHECK_EQ(specs[0].doses, 1);
+  CHECK_EQ(specs[1].doses, 2);
+  CHECK_EQ(specs[2].doses, 1);
+  const size_t mixed = pop.vax[1] == Vax{3} ? 1 : 2;
+  const size_t same = 3 - mixed;
+  CHECK_EQ(pop.vax[same], Vax{1});
+  CHECK_EQ(pop.vaxstatus[same], Vaxstat::full);
+  CHECK_EQ(pop.vax[mixed], Vax{3});
+  CHECK_EQ(pop.vaxstatus[mixed], Vaxstat::full);
+  CHECK_EQ(pop.vaxday[mixed], Vaxday{3});
+  CHECK_EQ(pop.vax_hist[mixed].show(), "pfizer|other");
+  CHECK_EQ(pop.vaxday_hist[mixed].show(), "1|3");
+  CHECK_EQ(vax_hist(h, Phase::now, 1, 3), 2);
+  CHECK_EQ(vax_hist(h, Phase::now, 3, 3), 0);
+  CHECK_EQ(vax_hist(h, Phase::new_, 1, 3), 0);
+  CHECK_EQ(vax_hist(h, Phase::new_, 3, 3), 0);
+
+  auto booster = make_schedset({make_spec(3, 2)}, {5, 6});
+  vaccinate(5, booster, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[mixed], Vaxstat::full);
+  auto no_latest_brand = make_schedset({make_spec(1, 1)}, {6, 6});
+  vaccinate(6, no_latest_brand, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[mixed], Vaxstat::full);
+  vaccinate(6, booster, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[mixed], Vaxstat::booster);
+  CHECK_EQ(pop.vaxstatus[same], Vaxstat::full);
+  CHECK_EQ(pop.vax_hist[mixed].show(), "pfizer|other|other");
+  CHECK_EQ(pop.vaxday_hist[mixed].show(), "1|3|6");
+  CHECK_EQ(booster.schedules[0].second.vaxesincluded[0].doses, 1);
+}
+
+void test_second_shot_requires_source_entry_consent_and_compatible_stock() {
+  RuntimeNamesGuard guard;
+  install_names({"base"}, {"pfizer", "moderna", "jnj"});
+  auto pop = make_pop(1);
+  all_ages(pop, AGE20_39);
+  Histories h(10, pop);
+  auto vs = make_vaxset(2, 1, 30, 3);
+  vs.params[1].allow2ndshot = {Vax{2}};
+
+  auto first = make_schedset({make_spec(1, 1)}, {1, 1});
+  vaccinate(1, first, vs, pop, h);
+  REQUIRE(pop.vaxstatus[1] == Vaxstat::first);
+
+  auto no_source = make_schedset({make_spec(2, 1)}, {2, 2});
+  vaccinate(2, no_source, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[1], Vaxstat::first);
+
+  auto no_consent = make_schedset({make_spec(1, 0, 1.0f, 0.0f), make_spec(2, 1, 0.0f)}, {3, 3});
+  vaccinate(3, no_consent, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[1], Vaxstat::first);
+
+  auto pfizer = make_spec(1, 2);
+  pfizer.alternate = {Vax{3}};
+  auto no_compatible_brand = make_schedset({pfizer, make_spec(3, 2, 0.0f)}, {3, 3});
+  vaccinate(3, no_compatible_brand, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[1], Vaxstat::first);
+
+  auto second = make_schedset({pfizer, make_spec(2, 1, 0.0f), make_spec(3, 2, 0.0f)}, {4, 5});
+  vaccinate(4, second, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[1], Vaxstat::first);
+  CHECK_EQ(pop.vaxday[1], Vaxday{1});
+  CHECK_EQ(pop.vax_hist[1].count, uint16_t{1});
+  CHECK_EQ(second.schedules[0].second.vaxesincluded[1].doses, 1);
+
+  vaccinate(5, second, vs, pop, h);
+  CHECK_EQ(pop.vaxstatus[1], Vaxstat::full);
+  CHECK_EQ(pop.vax[1], Vax{2});
+  CHECK_EQ(second.schedules[0].second.vaxesincluded[0].doses, 2);
+  CHECK_EQ(second.schedules[0].second.vaxesincluded[1].doses, 0);
+  CHECK_EQ(second.schedules[0].second.vaxesincluded[2].doses, 2);
 }
 
 void test_no_new_allotment_after_schedule_end() {
@@ -462,6 +560,8 @@ void run_vaccination_tests(const test_support::TestRunOptions& options) {
   run_test("first_shot_respects_daily_supply", test_first_shot_respects_daily_supply_and_updates_histories);
   run_test("eligibility_filter_status_recovery", test_eligibility_filter_status_and_recent_recovery);
   run_test("second_shot_waits_for_delay", test_second_shot_waits_for_delay);
+  run_test("second_shot_brand_preference", test_second_shot_prefers_original_then_first_available_brand);
+  run_test("second_shot_schedule_and_stock", test_second_shot_requires_source_entry_consent_and_compatible_stock);
   run_test("no_new_allotment_after_schedule_end", test_no_new_allotment_after_schedule_end);
   run_test("booster_after_delay", test_booster_after_delay);
   run_test("mixed_brands_follow_mix", test_mixed_brands_follow_mix_and_track_per_brand);

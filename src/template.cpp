@@ -591,6 +591,7 @@ const std::string vaccines_json = R"TAG(
     "Pfizer": {
         "halflife": 360,
         "reqdshots": 2,
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,
         "delaybooster": 160,
         "full_effect_days": 14,
@@ -633,6 +634,7 @@ const std::string vaccines_json = R"TAG(
     "Moderna": {
         "halflife": 360,
         "reqdshots": 2,
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,
         "delaybooster": 160,
         "full_effect_days": 14,

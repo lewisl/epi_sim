@@ -283,14 +283,20 @@ variant and shot stage. Timing fields describe dose spacing, booster delay, and
 how many days it takes to reach full effect after a shot. The variant keys under
 infectfactor and effectiveness must stay aligned with variants.json.
 
+For each brand with reqdshots greater than 1, supply a nonempty allow2ndshot
+list using exact brand names from this file. The first-shot brand has priority
+if listed and available. Other listed brands are tried in order using the
+schedule's daily doses. The schedule must include the first-shot brand, whose
+delay2ndshot and pct2ndshot govern eligibility. Boosters use the latest brand.
+
 Template (JSONC):
 
 
 {  // vaccines.json is keyed by vaccine product name.
-    // Each vaccine entry uses the same fields.
     "Pfizer": {    
         "halflife": 360,        // Days for vaccine-derived protection to halve.
         "reqdshots": 2,         // Number of shots in the primary series.
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,     // Days after first shot before a second shot.
         "delaybooster": 160,    // Days after full vaccination before booster eligibility.
         "full_effect_days": 14, // Days after a shot to reach full effect.
@@ -338,6 +344,7 @@ Template (JSONC):
     "Moderna": {
         "halflife": 360,
         "reqdshots": 2,
+        "allow2ndshot": ["Pfizer", "Moderna"],
         "delay2ndshot": 21,
         "delaybooster": 160,
         "full_effect_days": 14,

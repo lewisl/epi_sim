@@ -6,8 +6,6 @@ struct Histories;
 // helpers
 static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax);
 
-static size_t spec_index(const vector<PerVaxSpec>& specs, Vax vax);
-
 static void doshots(
         int today,
         VaxSched& sched,

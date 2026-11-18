@@ -371,6 +371,38 @@ void check_vaccines(const json& j, Errors& e) {
     need_object(body, "infectfactor", vctx, e);
     need_object(body, "effectiveness", vctx, e);
   }
+  check_allow2ndshot(j, ctx, e);
+}
+
+void check_allow2ndshot(const json& vaccines, std::string_view filename, Errors& e) {
+  if (!vaccines.is_object()) return;
+
+  for (const auto& [name, body] : vaccines.items()) {
+    if (!body.is_object()) continue;
+
+    const auto allowed = body.find("allow2ndshot");
+    const auto shots = body.find("reqdshots");
+    const bool required = shots != body.end() && shots->is_number_integer() && *shots > 1;
+    if (allowed == body.end()) {
+      if (required)
+        e.add(fmt::format("{} vaccine '{}': missing required key 'allow2ndshot'.", filename, name));
+      continue;
+    }
+    if (!allowed->is_array() || (required && allowed->empty())) {
+      e.add(fmt::format("{} vaccine '{}': 'allow2ndshot' must be {}array of vaccine names.",
+                        filename, name, required ? "a nonempty " : "an "));
+      continue;
+    }
+
+    for (const auto& brand : *allowed) {
+      if (!brand.is_string()) {
+        e.add(fmt::format("{} vaccine '{}': 'allow2ndshot' entries must be vaccine names.", filename, name));
+      } else if (!vaccines.contains(brand.get_ref<const std::string&>())) {
+        e.add(fmt::format("{} vaccine '{}': 'allow2ndshot' names unknown vaccine {}.",
+                          filename, name, brand.dump()));
+      }
+    }
+  }
 }
 
 void check_vaccine_variant_alignment(const json& variants, const json& vaccines, Errors& e) {

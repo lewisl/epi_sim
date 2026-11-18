@@ -19,13 +19,6 @@ static const Vaxparam& vax_params(const VaxSet& vaxset, Vax vax) {
     return vaxset.at(vax);
 }
 
-// find index of a vax within sched.vaxesincluded
-static size_t spec_index(const vector<PerVaxSpec>& specs, Vax vax) {
-    for (size_t i = 0; i < specs.size(); ++i)
-        if (specs[i].vax == vax) return i;
-    throw std::runtime_error(fmt::format("spec_index: vax not in schedule: {}", vax.show()));
-}
-
 static void record_vaccination(AgentView agent, Vax vax, int today) {
     auto& vax_history = agent.vax_hist();
     auto& vaxday_history = agent.vaxday_hist();
@@ -65,6 +58,26 @@ static void doshots(
     int avail_doses = 0;
     for (int d : doses_today) avail_doses += d;
     if (avail_doses <= 0) return;
+
+    const size_t absent = specs.size();
+    vector<size_t> spec_indices(vaxset.params.size(), absent);
+    for (size_t i = 0; i < specs.size(); ++i)
+        spec_indices[idx(specs[i].vax)] = i;
+
+    vector<vector<size_t>> second_shot_candidates(specs.size());
+    for (size_t i = 0; i < specs.size(); ++i) {
+        const Vax first_brand = specs[i].vax;
+        const auto& allowed = vax_params(vaxset, first_brand).allow2ndshot;
+        auto& candidates = second_shot_candidates[i];
+        for (Vax brand : allowed) {
+            const size_t candidate = spec_indices[idx(brand)];
+            if (candidate == absent) continue;
+            if (brand == first_brand)
+                candidates.insert(candidates.begin(), candidate);
+            else
+                candidates.push_back(candidate);
+        }
+    }
 
     // mix weights for categorical brand draw
     vector<float> mix;
@@ -126,30 +139,36 @@ static void doshots(
         // ---- second shot ----
         } else if (vstatus == Vaxstat::first) {
 
-            const Vax last_vax = agent.vax();
-            size_t  sidx      = spec_index(specs, last_vax);
-
-            if (doses_today[sidx] < 1) continue;
+            const Vax first_brand = agent.vax();
+            const size_t first_idx = spec_indices[idx(first_brand)];
+            if (first_idx == absent) continue;
 
             const int16_t prev_day = agent.vaxday();
-            if ((today - prev_day) < delay2ndshot.at(idx(last_vax))) continue;
+            if ((today - prev_day) < delay2ndshot.at(idx(first_brand))) continue;
 
-            if (!xo::bernoulli(specs[sidx].pct2ndshot)) continue;
+            size_t choice_idx = absent;
+            for (size_t candidate : second_shot_candidates[first_idx]) {
+                if (doses_today[candidate] > 0) {
+                    choice_idx = candidate;
+                    break;
+                }
+            }
+            if (choice_idx == absent || !xo::bernoulli(specs[first_idx].pct2ndshot)) continue;
 
-            --specs[sidx].doses;  
-            --doses_today[sidx];
+            --specs[choice_idx].doses;
+            --doses_today[choice_idx];
             --avail_doses;
 
-            record_vaccination(agent, last_vax, today);
+            record_vaccination(agent, specs[choice_idx].vax, today);
             agent.vaxstatus() = Vaxstat::full;
 
         // ---- booster ----
         } else if (vstatus == Vaxstat::full || vstatus == Vaxstat::booster) {
 
             const Vax last_vax = agent.vax();
-            size_t  sidx      = spec_index(specs, last_vax);
+            const size_t sidx = spec_indices[idx(last_vax)];
 
-            if (doses_today[sidx] < 1) continue;
+            if (sidx == absent || doses_today[sidx] < 1) continue;
 
             const int16_t prev_day = agent.vaxday();
             if ((today - prev_day) < delaybooster.at(idx(last_vax))) continue;

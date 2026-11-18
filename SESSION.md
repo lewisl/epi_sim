@@ -1,5 +1,22 @@
 # Session Notes
 
+## 2026-11-17: Serena startup blocked by a missing Python interpreter
+
+- B4 is complete. See the vaccine supply, curve, and input-validation entries below.
+- Codex still lists the Serena MCP server as enabled with
+  `serena start-mcp-server --context=codex --project-from-cwd`. Its installed
+  Serena 1.6.1 tool environment points to `/opt/homebrew/opt/python@3.14/bin/python3.14`,
+  which is gone. The launcher fails with `bad interpreter` before MCP startup.
+  The earlier `.serena/project.yml` repair remains in place.
+- The user removed Homebrew Python 3.15 and fixed the interactive zsh PATH and
+  `UV_PYTHON` out of band. A fresh interactive login zsh resolves both `python`
+  and `python3` to uv-managed Python 3.13.11 under `~/.local/bin` and reports
+  `UV_PYTHON=3.13`.
+- `serena --help` still fails in that fresh shell. Pending repair from the project root:
+  `uv tool install --force --managed-python --python 3.13 'serena-agent==1.6.1'`.
+  Then run `serena project health-check .` and confirm Serena tools are available
+  in the next Codex session.
+
 ## 2026-11-17: B4 vaccine pattern input guard implemented
 
 - `input_verify` requires at least three non-negative JSON numbers in `pattern` and
@@ -37,15 +54,29 @@
   fell from 17 to 7. At the user's request, refreshed their four summary and series
   goldens from the reviewed outputs. The rerun of `runsim` passed 195/195 checks.
 
-## TODO: vaccine brand mixing for follow-up shots
+## 2026-11-17: vaccine brand mixing for second shots implemented
 
-- Add `allow2ndshot` to `vaccines.json` for brands with `reqdshots > 1`. Use explicit
-  permitted follow-up brand names, including the original brand when allowed. An empty
-  list is an input error for these brands. Check this in `input_verify` and the loader.
-- For a Pfizer or Moderna first shot, allow Pfizer and Moderna as second-shot options.
-  Express the JnJ exclusion through the configured lists.
-- Define the booster compatibility rule when revisiting follow-up brand selection.
-  Implement brand mixing after B4.
+- `input_verify` and `load_vax_data` require a nonempty `allow2ndshot` list for
+  `reqdshots > 1`. Names match vaccine keys exactly. Templates list Pfizer and
+  Moderna for both brands. Existing custom inputs need explicit lists.
+- Second shots require a schedule entry for the first brand and use its delay and
+  `pct2ndshot`. Prefer the first brand if listed and stocked, then use the list
+  order. Charge the administered brand's daily allotment and stock. Per-person
+  records and effectiveness use the latest brand. Aggregate histories count the
+  first brand. Boosters use the latest brand and skip schedules that omit it.
+- `epi_sim` builds. Parameters 620/620, vaccination 103/103, and the default
+  sweep 1760/1760 passed. `vax` and `all_on` first differed on their first day of
+  mixing, days 56 and 52 respectively. Each recorded one fewer first vaccination
+  that day. Refreshed their four goldens after review. `runsim` passed 195/195.
+
+## Deferred TODO: `same` and `any` for follow-up vaccine brands
+
+- Consider accepting `"same"` and `"any"` in `allow2ndshot` and a future booster
+  compatibility field. Keep explicit brand lists for restricted combinations.
+- `"same"` uses the brand of the previous dose. `"any"` allows any brand with
+  a daily dose available in the person's current campaign.
+- For seasonal vaccination, revisit how the current campaign sets booster
+  uptake when it no longer stocks the previous brand.
 
 ## 2026-11-15: removed unused geodata `sizecat` column (committed in cf3057c)
 
@@ -55,7 +86,7 @@
 - Old geodata.csv files with sizecat would misload (positional); user has updated all saved files (2026-11-15).
 - Tests: default sweep 1694/1694 green; runsim run by user (out of band), OK.
 
-## RESUME HERE (2026-11-13): next is B4 -- vaccine supply limit not enforced
+## DONE:2016-11-17 (2026-11-13): next is B4 -- vaccine supply limit not enforced
 
 - All 11-13 work below is done, green, UNCOMMITTED (on top of the uncommitted 11-12 sendrisk work).
 - Next: B4 (user will look at it). See "RESUME HERE (2026-11-12): only B4 remains" below for the
