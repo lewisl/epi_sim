@@ -449,6 +449,26 @@ void check_vax_sched(const json& j, std::string_view label, Errors& e) {
   }
   need_string(j, "shotmode", ctx, e);
   need_array(j, "pattern", ctx, e);
+  if (const auto pattern = j.find("pattern"); pattern != j.end() && pattern->is_array()) {
+    if (pattern->size() < 3) {
+      e.add(fmt::format("{}: 'pattern' must have at least 3 values (got {}).",
+                        ctx, pattern->size()));
+    } else {
+      double sum = 0.0;
+      bool valid_heights = true;
+      for (const auto& value : *pattern) {
+        if (!value.is_number() || !(value.get<double>() >= 0.0)) {
+          valid_heights = false;
+          break;
+        }
+        sum += value.get<double>();
+      }
+      if (!valid_heights)
+        e.add(fmt::format("{}: 'pattern' values must be non-negative numbers.", ctx));
+      else if (!near_one(sum))
+        e.add(fmt::format("{}: 'pattern' values must sum to 1.0 (got {}).", ctx, sum));
+    }
+  }
 
   // mix values across vaxesincluded must sum to ~1.0 (categorical_fast silently
   // falls back to brand index 0 otherwise).
@@ -734,7 +754,7 @@ void input_verify(const fs::path& input_dir) {
               if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 ++json_count;
                 const auto j = try_load_json(entry.path(), entry.path().filename().string(), err);
-                if (j) check_vax_sched(*j, entry.path().stem().string(), err);
+                if (j) check_vax_sched(*j, entry.path().filename().string(), err);
               }
             }
             if (json_count == 0)

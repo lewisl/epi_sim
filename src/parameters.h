@@ -4,7 +4,6 @@
 #include "ring_traits.h"
 #include "helpers.h"    // for shifter
 #include "disease_constants.h"
-#include <functional>
 #include "cases.h"
 #include "absl/container/flat_hash_map.h"
 
@@ -313,31 +312,10 @@ struct PerVaxSpec {
 struct VaxSched {
   vector<PerVaxSpec>         vaxesincluded {};
   std::pair<int, int>        dayrange {};
-  float                      targetpct {};
+  double                     targetpct {};
   vector<Agegrp>             filtervec {};   // was vector<string>
   string                     shotmode {};
   vector<float>              pattern {};
-  std::function<float(int)>  spreadfunc {};
-
-  void init_spreadfunc() {
-    int   schedlength = dayrange.second - dayrange.first + 1;
-    float scale       = (float)(pattern.size() - 1) / (float)schedlength;
-
-    spreadfunc = [dayrange  = this->dayrange,
-                  targetpct = this->targetpct,
-                  pattern   = this->pattern,
-                  scale](int day) -> float {
-
-      float p = (float)(day - dayrange.first + 1) * scale;
-      p = std::min(p, (float)(pattern.size() - 1));
-
-      int   lo   = (int)p;
-      int   hi   = std::min(lo + 1, (int)pattern.size() - 1);
-      float frac = p - (float)lo;
-
-      return (pattern[lo] + frac * (pattern[hi] - pattern[lo])) * scale * targetpct;
-    };
-  }
 
   void reset_doses() {
     for (auto& spec : vaxesincluded)
@@ -386,9 +364,6 @@ struct VaxSched {
       }
       fmt::println("]");
     }
-
-    // Print spread function
-    // fmt::println("  Spread func: {}", spreadfunc.empty() ? "null" : spreadfunc);
 
     fmt::println("=== End VaxSched ===\n");
   }

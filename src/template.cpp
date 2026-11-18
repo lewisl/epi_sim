@@ -832,8 +832,7 @@ const std::string loc38015_old_json = R"TAG({
     0.03,
     0.01,
     0
-],
-"spreadfunc": null
+  ]
 }
 )TAG";
   
@@ -894,8 +893,7 @@ const std::string loc38015_young_json = R"TAG({
       0.03,
       0.01,
       0
-  ],
-  "spreadfunc": null
+  ]
 }
 )TAG";
 

@@ -835,7 +835,8 @@ Template loc38015_old.json (JSONC):
 ],
 // Shot mode used by the vaccination logic.
 "shotmode": "all",
-// Relative daily distribution pattern within the schedule window.
+// Use at least three non-negative heights that sum to 1.0.
+// Set the first and last heights to zero for the curve to have area 1.
 "pattern": [
     0,
     0.02,
@@ -849,9 +850,7 @@ Template loc38015_old.json (JSONC):
     0.03,
     0.01,
     0
-],
-// Reserved for future/custom spread functions; null uses the built-in pattern.
-"spreadfunc": null
+]
 }
 
 Template loc38015_young.json (JSONC):
@@ -906,7 +905,8 @@ Template loc38015_young.json (JSONC):
   ],
   // Shot mode used by the vaccination logic.
   "shotmode": "all",
-  // Relative daily distribution pattern within the schedule window.
+  // Use at least three non-negative heights that sum to 1.0.
+  // Set the first and last heights to zero for the curve to have area 1.
   "pattern": [
       0,
       0.02,
@@ -920,9 +920,7 @@ Template loc38015_young.json (JSONC):
       0.03,
       0.01,
       0
-  ],
-  // Reserved for future/custom spread functions; null uses the built-in pattern.
-  "spreadfunc": null
+  ]
 }
 )TAG";
 

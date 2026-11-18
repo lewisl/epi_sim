@@ -1,5 +1,52 @@
 # Session Notes
 
+## 2026-11-17: B4 vaccine pattern input guard implemented
+
+- `input_verify` requires at least three non-negative JSON numbers in `pattern` and
+  uses the existing `near_one` tolerance (1e-6) to check their sum. Whole numbers such
+  as zero are accepted. Errors include the schedule's JSON filename.
+- File-based test accepts `[0, 1.0, 0]` and rejects too few points, a bad sum, a quoted
+  number, and a negative height. Removed the known B4 validation check from the
+  runtime stock-cap test. Help documents the sum check and zero endpoints for unit area.
+- Parameters 599/599, default sweep 1703/1703, and runsim 195/195 passed.
+
+## 2026-11-17: B4 runtime supply cap implemented
+
+- Trace confirmed that `doshots` enforces the daily allotment for the brand it gives.
+  The sampled spread curve can offer more than `starting_doses` cumulatively.
+- Approved patch caps each brand's daily allotment in `vaccinate_sched` at its remaining
+  `spec.doses`, with a zero lower bound on remaining stock. `starting_doses` stays the basis
+  for the curve.
+- `test/test_vaccination.cpp` now asserts exactly 1,000 shots and zero remaining doses
+  from a curve offering 3,000. The extension fixture starts with enough stock for ten shots.
+- Tests passed at this checkpoint: vaccination 61/61, default sweep 1696/1696, runsim
+  195/195 with existing goldens. Subsequent curve integration and pattern validation
+  are recorded separately.
+
+## 2026-11-17: Vaccine curve integration implemented
+
+- Removed the callable from `VaxSched` and put cumulative integration of
+  `pattern` in an anonymous namespace in `vaccination.cpp`. `targetpct` still
+  scales planned usage. Daily allotments are differences of rounded cumulative dose
+  counts. New allotment ends on the last scheduled day. The B4 stock cap stays in place.
+- Updated fixtures and removed the unused `spreadfunc` key from examples. All four
+  schedule template JSON payloads parse. The two-day template regression delivered
+  512 and 488 of 1,000 doses at `targetpct = 1.0`.
+- `epi_sim` builds. Vaccination tests 67/67 and default sweep 1698/1698 passed.
+  The curve change first affected `vax` and `all_on` on day 30, when newly vaccinated
+  fell from 17 to 7. At the user's request, refreshed their four summary and series
+  goldens from the reviewed outputs. The rerun of `runsim` passed 195/195 checks.
+
+## TODO: vaccine brand mixing for follow-up shots
+
+- Add `allow2ndshot` to `vaccines.json` for brands with `reqdshots > 1`. Use explicit
+  permitted follow-up brand names, including the original brand when allowed. An empty
+  list is an input error for these brands. Check this in `input_verify` and the loader.
+- For a Pfizer or Moderna first shot, allow Pfizer and Moderna as second-shot options.
+  Express the JnJ exclusion through the configured lists.
+- Define the booster compatibility rule when revisiting follow-up brand selection.
+  Implement brand mixing after B4.
+
 ## 2026-11-15: removed unused geodata `sizecat` column (committed in cf3057c)
 
 - Removed from GeoData (parameters.h), loader (parameters.cpp; positional reads shifted to values[0..8]),

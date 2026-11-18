@@ -8,6 +8,9 @@
 #include "series.h"
 #include "sim.h"
 
+#include <algorithm>
+#include <cmath>
+
 // ---------------------------------------------------------------
 // internal helpers
 // ---------------------------------------------------------------
@@ -164,6 +167,44 @@ static void doshots(
     }
 }
 
+namespace {
+
+// Return the fractions of starting stock released through yesterday and today.
+std::pair<double, double> cumulative_dose_fractions(const VaxSched& sched, int today) {
+    const auto& pattern = sched.pattern;
+    const auto [first_day, last_day] = sched.dayrange;
+    if (pattern.size() < 2 || first_day > last_day) return {};
+
+    const double days = static_cast<double>(last_day) - first_day + 1.0;
+    const double segments = static_cast<double>(pattern.size() - 1);
+    const auto area_through = [&](double elapsed_days) {
+        const double position = std::clamp(elapsed_days / days, 0.0, 1.0) * segments;
+        double area = 0.0;
+        for (size_t i = 0; i + 1 < pattern.size(); ++i) {
+            const double part = std::min(1.0, position - static_cast<double>(i));
+            if (part <= 0.0) break;
+
+            // Integral of the two linear endpoint weights over this segment.
+            const double tail = 1.0 - part;
+            const double left = pattern[i] * (1.0 - tail * tail);
+            const double right = pattern[i + 1] * (part * part);
+            area += (left + right) / 2.0;
+        }
+        return area;
+    };
+
+    const double total_area = area_through(days);
+    // Correct numeric drift around unit area while preserving larger input errors.
+    const double divisor = std::abs(total_area - 1.0) <= 1e-6 ? total_area : 1.0;
+    const double elapsed = static_cast<double>(today) - first_day;
+    return {
+        (area_through(elapsed) / divisor) * sched.targetpct,
+        (area_through(elapsed + 1.0) / divisor) * sched.targetpct,
+    };
+}
+
+}  // namespace
+
 static void vaccinate_sched(int today,
                             VaxSched& sched,
                             const VaxSet& vaxset,
@@ -173,7 +214,7 @@ static void vaccinate_sched(int today,
     auto& specs    = sched.vaxesincluded;
     auto& dayrange = sched.dayrange;
 
-    // extend window past schedule end to allow 2nd shots to complete
+    // Keep the follow-up window. The schedule releases doses within dayrange.
     int maxdelay = 0;
     for (const auto& spec : specs)
         maxdelay = std::max(maxdelay, vax_params(vaxset, spec.vax).delay2ndshot);
@@ -188,11 +229,16 @@ static void vaccinate_sched(int today,
         delaybooster[idx(spec.vax)] = vp.delaybooster;
     }
 
-    // doses available today per brand from the spread curve
+    // Round the cumulative amounts so fractions of a dose carry across day boundaries.
+    const auto [fraction_before, fraction_through] = cumulative_dose_fractions(sched, today);
     vector<int> doses_today(specs.size());
-    for (size_t i = 0; i < specs.size(); ++i)
-        doses_today[i] = static_cast<int>(
-            std::floor(sched.spreadfunc(today) * (float)specs[i].starting_doses));
+    for (size_t i = 0; i < specs.size(); ++i) {
+        const auto& spec = specs[i];
+        const double planned = std::floor(spec.starting_doses * fraction_through)
+                             - std::floor(spec.starting_doses * fraction_before);
+        const double remaining = std::max(0, spec.doses);
+        doses_today[i] = static_cast<int>(std::min(remaining, std::max(0.0, planned)));
+    }
 
     // eligible: correct agegrp AND (unexposed OR recovered >= 14 days ago)
     vector<size_t> eligible;

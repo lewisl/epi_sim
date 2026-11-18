@@ -523,7 +523,6 @@ VaxSched load_vax_sched(const string &fname) {
   }
   sched.shotmode = jdata["shotmode"];
   sched.pattern.assign(jdata["pattern"].begin(), jdata["pattern"].end());
-  sched.init_spreadfunc();
   sched.reset_doses();
 
   return sched;

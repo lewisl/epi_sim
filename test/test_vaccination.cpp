@@ -51,17 +51,15 @@ PerVaxSpec make_spec(uint8_t vax, int doses, float mix = 1.0f, float pct2nd = 1.
   return s;
 }
 
-// flat schedule: a fraction 1.0 of starting doses offered every day in the range
-VaxSchedSet make_schedset(vector<PerVaxSpec> specs, std::pair<int, int> dayrange = {1, 30},
-                          vector<Agegrp> filter = {AGE20_39}) {
+// Flat unit-area pattern distributes the starting stock across the window.
+VaxSchedSet make_schedset(vector<PerVaxSpec> specs, std::pair<int, int> dayrange) {
   VaxSched sched;
   sched.vaxesincluded = std::move(specs);
   sched.dayrange = dayrange;
   sched.targetpct = 1.0f;
-  sched.filtervec = std::move(filter);
+  sched.filtervec = {AGE20_39};
   sched.shotmode = "all";
   sched.pattern = {1.0f, 1.0f};
-  sched.spreadfunc = [](int) { return 1.0f; };
   VaxSchedSet ss;
   ss.schedules.push_back({"unit_test_sched", sched});
   return ss;
@@ -87,7 +85,7 @@ void test_first_shot_respects_daily_supply_and_updates_histories() {
   all_ages(pop, AGE20_39);
   Histories h(20, pop);
   VaxSet vs = make_vaxset(1, 0, 999);
-  VaxSchedSet ss = make_schedset({make_spec(1, 1)});
+  VaxSchedSet ss = make_schedset({make_spec(1, 1)}, {10, 10});
   xo::seed(1);
   vaccinate(10, ss, vs, pop, h);
   CHECK_EQ(vaccinated(pop), 1);
@@ -108,7 +106,7 @@ void test_eligibility_filter_status_and_recent_recovery() {
   pop.status[5] = DEAD;                              // dead: not eligible
   Histories h(30, pop);
   VaxSet vs = make_vaxset(1, 0, 999);
-  VaxSchedSet ss = make_schedset({make_spec(1, 100)});
+  VaxSchedSet ss = make_schedset({make_spec(1, 100)}, {20, 20});
   xo::seed(2);
   vaccinate(20, ss, vs, pop, h);
   const std::array<bool, 11> want{false, true, true, false, false, false, true, false, false, false, false};
@@ -126,7 +124,7 @@ void test_second_shot_waits_for_delay() {
   pop.agegrp[1] = AGE20_39;
   Histories h(20, pop);
   VaxSet vs = make_vaxset(2, 7, 999);
-  VaxSchedSet ss = make_schedset({make_spec(1, 5)}, {1, 30});
+  VaxSchedSet ss = make_schedset({make_spec(1, 8)}, {1, 8});
   vaccinate(1, ss, vs, pop, h);
   REQUIRE(pop.vaxstatus[1] == Vaxstat::first);
   vaccinate(7, ss, vs, pop, h);  // 6 days later: too early
@@ -138,21 +136,20 @@ void test_second_shot_waits_for_delay() {
   CHECK_EQ(vax_hist(h, Phase::new_, 1, 8), 0);  // histories count people, not shots
 }
 
-void test_second_shot_allowed_after_schedule_end_within_delay_window() {
+void test_no_new_allotment_after_schedule_end() {
   RuntimeNamesGuard guard;
   install_names({"base"}, {"pfizer"});
   auto pop = make_pop(5);
   all_ages(pop, AGE20_39);
   Histories h(40, pop);
   VaxSet vs = make_vaxset(2, 10, 999);
-  VaxSchedSet ss = make_schedset({make_spec(1, 5)}, {1, 5});
+  VaxSchedSet ss = make_schedset({make_spec(1, 10)}, {5, 5});
   vaccinate(5, ss, vs, pop, h);
-  vaccinate(15, ss, vs, pop, h);  // after dayrange end, inside end + delay2ndshot
-  int full = 0;
-  for (size_t p = 1; p <= 5; ++p) full += pop.vaxstatus[p] == Vaxstat::full;
-  CHECK_EQ(full, 5);
-  vaccinate(16, ss, vs, pop, h);  // window over: nothing happens
-  CHECK_EQ(pop.vaxday[1], Vaxday{15});
+  REQUIRE(vaccinated(pop) == 5);
+  vaccinate(15, ss, vs, pop, h);  // follow-up is due, but the schedule has ended
+  for (size_t p = 1; p <= pop.popn; ++p)
+    CHECK_EQ(pop.vaxstatus[p], Vaxstat::first);
+  CHECK_EQ(ss.schedules[0].second.vaxesincluded[0].doses, 5);
 }
 
 void test_booster_after_delay() {
@@ -168,7 +165,7 @@ void test_booster_after_delay() {
   pop.vaxday_hist[1].set(1);
   Histories h(30, pop);
   VaxSet vs = make_vaxset(2, 7, 10);
-  VaxSchedSet ss = make_schedset({make_spec(1, 2)});
+  VaxSchedSet ss = make_schedset({make_spec(1, 16)}, {5, 20});
   vaccinate(10, ss, vs, pop, h);
   CHECK_EQ(pop.vaxstatus[1], Vaxstat::full);  // 9 days: too early
   vaccinate(20, ss, vs, pop, h);
@@ -184,7 +181,7 @@ void test_mixed_brands_follow_mix_and_track_per_brand() {
   all_ages(pop, AGE20_39);
   Histories h(20, pop);
   VaxSet vs = make_vaxset(1, 0, 999, 2);
-  VaxSchedSet ss = make_schedset({make_spec(1, n, 0.7f), make_spec(2, n, 0.3f)});
+  VaxSchedSet ss = make_schedset({make_spec(1, n, 0.7f), make_spec(2, n, 0.3f)}, {10, 10});
   xo::seed(7);
   vaccinate(10, ss, vs, pop, h);
   int pf = 0, mo = 0;
@@ -210,7 +207,7 @@ void test_per_brand_daily_allotment_respected() {
   all_ages(pop, AGE20_39);
   Histories h(20, pop);
   VaxSet vs = make_vaxset(1, 0, 999, 2);
-  VaxSchedSet ss = make_schedset({make_spec(1, 5, 0.5f), make_spec(2, 100, 0.5f)});
+  VaxSchedSet ss = make_schedset({make_spec(1, 5, 0.5f), make_spec(2, 100, 0.5f)}, {10, 10});
   xo::seed(8);
   vaccinate(10, ss, vs, pop, h);
   int pf = 0, mo = 0;
@@ -231,7 +228,7 @@ void test_alternate_brand_used_when_first_choice_is_out() {
   VaxSet vs = make_vaxset(1, 0, 999, 2);
   auto pf = make_spec(1, 0, 1.0f);  // every draw picks pfizer, which has no doses
   pf.alternate = {Vax{2}};
-  VaxSchedSet ss = make_schedset({pf, make_spec(2, 10, 0.0f)});
+  VaxSchedSet ss = make_schedset({pf, make_spec(2, 10, 0.0f)}, {10, 10});
   vaccinate(10, ss, vs, pop, h);
   int mo = 0;
   for (size_t p = 1; p <= pop.popn; ++p) mo += pop.vax[p] == Vax{2};
@@ -239,8 +236,7 @@ void test_alternate_brand_used_when_first_choice_is_out() {
   CHECK_EQ(vaccinated(pop), 10);
 }
 
-// With a normalized pattern, the shots delivered over the schedule equal the daily
-// allotments floor(spreadfunc(d) * starting_doses) and total about targetpct * supply.
+// With a unit-area pattern and enough eligible people, the full target is delivered.
 void test_delivery_over_schedule_matches_supply_and_pattern() {
   RuntimeNamesGuard guard;
   install_names({"base"}, {"pfizer"});
@@ -251,27 +247,37 @@ void test_delivery_over_schedule_matches_supply_and_pattern() {
   VaxSched sched;
   sched.vaxesincluded = {make_spec(1, 3000, 1.0f, 0.0f, 0.0f)};
   sched.dayrange = {1, 60};
-  sched.targetpct = 0.9f;
+  sched.targetpct = 0.9;
   sched.filtervec = {AGE0_19, AGE20_39, AGE40_59, AGE60_79, AGE80_UP};
   sched.pattern = young["pattern"].get<vector<float>>();
-  sched.init_spreadfunc();
   VaxSchedSet ss;
   ss.schedules.push_back({"young_pattern", sched});
-  long expected = 0;
-  for (int d = 1; d <= 70; ++d) {
-    if (d <= 60) expected += static_cast<long>(std::floor(sched.spreadfunc(d) * 3000.0f));
+  for (int d = 1; d <= 70; ++d)
     vaccinate(d, ss, vs, pop, h);
-  }
-  const long delivered = vaccinated(pop);
-  CHECK_MSG(delivered == expected, "delivered {} shots, daily allotments sum to {}", delivered, expected);
-  CHECK_MSG(delivered <= 3000, "delivered {} > supply 3000", delivered);
-  CHECK_MSG(std::abs(delivered - 0.9 * 3000) < 0.03 * 3000, "delivered {}, want ~targetpct x supply = 2700",
-            delivered);
-  CHECK_EQ(ss.schedules[0].second.vaxesincluded[0].doses, int(3000 - delivered));
+  CHECK_EQ(vaccinated(pop), 2700);
+  CHECK_EQ(ss.schedules[0].second.vaxesincluded[0].doses, 300);
 }
 
-// B4: shots per day come from starting_doses x spreadfunc and are never capped by the
-// doses remaining, so a pattern whose area exceeds 1 delivers more than the supply.
+void test_short_pattern_uses_full_supply() {
+  RuntimeNamesGuard guard;
+  install_names({"base"}, {"pfizer"});
+  auto pop = make_pop(1000);
+  all_ages(pop, AGE20_39);
+  Histories h(2, pop);
+  VaxSet vs = make_vaxset(1, 0, 999);
+  auto ss = make_schedset({make_spec(1, 1000)}, {1, 2});
+  auto& sched = ss.schedules[0].second;
+  const json young = json::parse(vaxsched::loc38015_young_json);
+  sched.pattern = young["pattern"].get<vector<float>>();
+
+  vaccinate(1, ss, vs, pop, h);
+  CHECK_EQ(vaccinated(pop), 512);
+  vaccinate(2, ss, vs, pop, h);
+  CHECK_EQ(vaccinated(pop), 1000);
+  CHECK_EQ(sched.vaxesincluded[0].doses, 0);
+}
+
+// The pattern offers 3,000 shots over 30 days; the stock limit is 1,000 doses.
 void test_supply_is_never_exceeded() {
   RuntimeNamesGuard guard;
   install_names({"base"}, {"pfizer"});
@@ -284,19 +290,12 @@ void test_supply_is_never_exceeded() {
   sched.targetpct = 1.0f;
   sched.filtervec = {AGE0_19, AGE20_39, AGE40_59, AGE60_79, AGE80_UP};
   sched.pattern = {1.0f, 1.0f, 1.0f, 1.0f};  // area 3: un-normalized
-  sched.init_spreadfunc();
   VaxSchedSet ss;
   ss.schedules.push_back({"overlong", sched});
   for (int d = 1; d <= 30; ++d) vaccinate(d, ss, vs, pop, h);
   const int delivered = vaccinated(pop);
-  KNOWN_BUG("B4", delivered <= 1000 && ss.schedules[0].second.vaxesincluded[0].doses >= 0,
-            "un-normalized pattern delivered {} shots from a supply of 1000 (doses left {})", delivered,
-            ss.schedules[0].second.vaxesincluded[0].doses);
-  input_verify_detail::Errors e;
-  json js = json::parse(vaxsched::loc38015_old_json);
-  js["pattern"] = {1, 1, 1, 1};
-  input_verify_detail::check_vax_sched(js, "overlong", e);
-  KNOWN_BUG("B4", e.any(), "input_verify accepts a vax schedule pattern with area 3 (should be 1)");
+  CHECK_EQ(delivered, 1000);
+  CHECK_EQ(ss.schedules[0].second.vaxesincluded[0].doses, 0);
 }
 
 void test_vax_history_overflow_retains_latest() {
@@ -463,12 +462,13 @@ void run_vaccination_tests(const test_support::TestRunOptions& options) {
   run_test("first_shot_respects_daily_supply", test_first_shot_respects_daily_supply_and_updates_histories);
   run_test("eligibility_filter_status_recovery", test_eligibility_filter_status_and_recent_recovery);
   run_test("second_shot_waits_for_delay", test_second_shot_waits_for_delay);
-  run_test("second_shot_after_schedule_end", test_second_shot_allowed_after_schedule_end_within_delay_window);
+  run_test("no_new_allotment_after_schedule_end", test_no_new_allotment_after_schedule_end);
   run_test("booster_after_delay", test_booster_after_delay);
   run_test("mixed_brands_follow_mix", test_mixed_brands_follow_mix_and_track_per_brand);
   run_test("per_brand_daily_allotment", test_per_brand_daily_allotment_respected);
   run_test("alternate_brand_when_out", test_alternate_brand_used_when_first_choice_is_out);
   run_test("delivery_matches_supply_and_pattern", test_delivery_over_schedule_matches_supply_and_pattern);
+  run_test("short_pattern_uses_full_supply", test_short_pattern_uses_full_supply);
   run_test("supply_is_never_exceeded", test_supply_is_never_exceeded);
   run_test("vax_history_overflow", test_vax_history_overflow_retains_latest);
   run_test("vaxeffect_follows_parameters", test_vaxeffect_follows_parameters);

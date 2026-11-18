@@ -623,6 +623,36 @@ void test_check_vax_sched_rejects_bad_dayrange_length() {
   CHECK(has_error_containing(e, "'dayrange' must have exactly 2 entries"));
 }
 
+void test_input_verify_vax_schedule_patterns() {
+  const fs::path case_dir = test_support::make_case_dir("vax_patterns");
+  test_support::edit_config(case_dir, [](json& c) { c["dovax"] = true; });
+  const fs::path schedule_dir = "vaccine_100k";
+  json schedule = json::parse(vaxsched::loc38015_old_json);
+  const auto write_pattern = [&](const char* filename, const json& pattern) {
+    schedule["pattern"] = pattern;
+    test_support::write_case_json(case_dir, schedule_dir / filename, schedule);
+  };
+
+  write_pattern("three_points.json", {0, 1.0, 0});
+  test_support::require_inputs_verify(case_dir);
+
+  write_pattern("too_short.json", {0.5, 0.5});
+  write_pattern("bad_sum.json", {1, 1, 1, 1});
+  write_pattern("quoted_number.json", {0, "1.0", 0});
+  write_pattern("negative_height.json", {-0.1, 1.1, 0});
+  CHECK(test_support::child_exit_code([&] {
+    fs::current_path(case_dir);
+    input_verify(case_dir / "input");
+  }) != 0);
+
+  const auto report = test_support::read_file_text(case_dir / "input-error-log.txt");
+  CHECK(report.contains("'too_short.json': 'pattern' must have at least 3 values"));
+  CHECK(report.contains("'bad_sum.json': 'pattern' values must sum to 1.0"));
+  CHECK(report.contains("'quoted_number.json': 'pattern' values must be non-negative numbers"));
+  CHECK(report.contains("'negative_height.json': 'pattern' values must be non-negative numbers"));
+  fs::remove_all(case_dir);
+}
+
 void test_check_socialparams_rejects_missing_key() {
   Errors e;
   json sp = json::parse(socialparams_json);
@@ -892,19 +922,9 @@ void test_vax_schedules_contract_for_simulation() {
     CHECK_MSG(sched.targetpct > 0 && sched.targetpct <= 1, "{}: targetpct {}", sname, sched.targetpct);
     CHECK_MSG(!sched.filtervec.empty() && std::ranges::count(sched.filtervec, UNKNOWN) == 0,
               "{}: filtervec empty or has unknown ages", sname);
-    // daily fractions over the window add up to targetpct (pattern is normalized), are
-    // never negative, and are zero after the window (2nd-shot extension days)
-    double total = 0;
-    bool negative = false;
-    for (int d = sched.dayrange.first; d <= sched.dayrange.second; ++d) {
-      const float f = sched.spreadfunc(d);
-      negative |= f < 0;
-      total += f;
-    }
-    CHECK_MSG(!negative, "{}: negative daily fraction", sname);
-    CHECK_MSG(std::abs(total / sched.targetpct - 1.0) < 0.02,
-              "{}: daily fractions sum to {:.4f}, want targetpct {:.4f}", sname, total, sched.targetpct);
-    CHECK_NEAR(sched.spreadfunc(sched.dayrange.second + 10), 0.0, 1e-9);
+    CHECK_MSG(sched.pattern.size() >= 2 &&
+                  std::ranges::all_of(sched.pattern, [](float height) { return height >= 0.0f; }),
+              "{}: expected a pattern with at least two non-negative heights", sname);
   }
 }
 
@@ -1139,6 +1159,7 @@ void run_parameter_tests(const test_support::TestRunOptions& options) {
   run_test("check_vaccine_variant_alignment_rejects_missing_factors", test_check_vaccine_variant_alignment_rejects_missing_factors);
   run_test("check_vax_sched_rejects_mix_bad_sum", test_check_vax_sched_rejects_mix_bad_sum);
   run_test("check_vax_sched_rejects_bad_dayrange_length", test_check_vax_sched_rejects_bad_dayrange_length);
+  run_test("input_verify_vax_schedule_patterns", test_input_verify_vax_schedule_patterns);
   run_test("check_socialparams_rejects_missing_key", test_check_socialparams_rejects_missing_key);
   run_test("check_seed_rejects_entry_missing_key", test_check_seed_rejects_entry_missing_key);
   run_test("check_soc_dist_rejects_bad_contact_delta_length", test_check_soc_dist_rejects_bad_contact_delta_length);
