@@ -81,9 +81,9 @@ Population is struct-of-arrays (`status`, `agegrp`, `cond`, etc.) for hot-loop e
 
 Status/age/condition/etc. are small typed structs (`Status`, `Agegrp`, `Condition`, `Vaxstatus`, day wrappers, etc.) with names/show helpers. This improves semantics and serialization/debugging safety. 
 
-### 4) **Series is a first-class subsystem**
+### 4) **Histories is a first-class subsystem**
 
-`AllSeries` tracks now/new status/vax/variant across age buckets and days (also 1-based day slots), and drives printing/serialization/plot selection via `SeriesColSpec`. 
+`Histories` track now/new status/vax/variant by agerp and ring and days (also 1-based day slots), and drives printing/serialization/plot selection via `SeriesColSpec`. 
 
 ### 5) **Case system (seeding + social distancing) is declarative**
 

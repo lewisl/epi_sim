@@ -1,6 +1,8 @@
 #include "template.h"
 
-const std::string config_json = R"TAG({
+// config.json
+const std::string config_json = R"TAG(
+{
     "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
     
     "_required_": "All Settings Are Required",
@@ -65,7 +67,9 @@ const std::string config_json = R"TAG({
 }
 )TAG";
 
-const std::string socialparams_json = R"TAG({
+// socialparams.json
+const std::string socialparams_json = R"TAG(
+{
 "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
 
 "_required_": "All Settings Are Required",
@@ -167,7 +171,9 @@ const std::string socialparams_json = R"TAG({
 
 )TAG";
 
-const std::string variants_json = R"TAG({
+// variants.json
+const std::string variants_json = R"TAG(
+{
 "base"         : {
 
   "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
@@ -527,7 +533,10 @@ const std::string variants_json = R"TAG({
 }
 )TAG";
 
-const std::string seed_json = R"TAG([
+
+// seed.json
+const std::string seed_json = R"TAG(
+[
     {
         "triggerday": 1,
         "startofday": true,
@@ -563,7 +572,8 @@ const std::string seed_json = R"TAG([
 ]
 )TAG";
 
-const std::string social_dist_json = R"TAG([  
+const std::string social_dist_json = R"TAG(
+[  
     {
         "name": "young",
         "startday": 50,
@@ -585,7 +595,7 @@ const std::string social_dist_json = R"TAG([
 ]
 )TAG";
 
-
+// vaccines.json
 const std::string vaccines_json = R"TAG(
 {
     "Pfizer": {
@@ -719,6 +729,7 @@ const std::string vaccines_json = R"TAG(
 }
 )TAG";
 
+// geodata.csv    DO NOT START WITH BLANK LINE!
 const std::string geodata_csv = R"TAG(fips,county,city,state,pop,density,anchor,indoor_st,indoor_end
 # dates are yyyy-mm-dd; anchor is start of simulation; indoor_st is when people spend time indoors--use year 0001, indoor_end is when people go back outdoors more often--user year 0002
 6075,San Francisco,San Francisco,CA,881549,17255,2020-02-01,0001-09-15,0002-05-30
@@ -738,7 +749,9 @@ const std::string geodata_csv = R"TAG(fips,county,city,state,pop,density,anchor,
 8031,Denver,Denver,CO,727211,4520,2020-02-01,0001-09-15,0002-05-30
 )TAG";
 
-const std::string rings_json = R"TAG({
+// rings.json
+const std::string rings_json = R"TAG(
+{
     "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
 
     "_edit_rings_": "an array of curly bracketed ring objects or empty []",
@@ -777,8 +790,10 @@ const std::string rings_json = R"TAG({
 }
 )TAG";
 
+// vaxsched directory, each candidate <schedule name>.json
 namespace vaxsched {
-const std::string loc38015_old_json = R"TAG({
+const std::string loc38015_old_json = R"TAG(
+{
 "vaxesincluded": {
     "Pfizer": {
         "mix": 0.5,
@@ -838,7 +853,8 @@ const std::string loc38015_old_json = R"TAG({
 }
 )TAG";
   
-const std::string loc38015_young_json = R"TAG({
+const std::string loc38015_young_json = R"TAG(
+{
   "vaxesincluded": {
       "Pfizer": {
           "mix": 0.43,
