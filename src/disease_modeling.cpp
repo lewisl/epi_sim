@@ -14,21 +14,22 @@
 void AgentView::make_sick(Variant var, Histories& histories,
                           Condition condition, uint8_t spr_duration) {
   auto today = sim::get_day();
+  auto aday = sim::alt_day();
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
-  histories.update(TraitID::status, Phase::new_, INFECTIOUS, r, this_age, today, 1);
-  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, today, 1);
-  histories.update(TraitID::variant, Phase::now, var, r, this_age, today, 1);
-  histories.update(TraitID::variant, Phase::new_, var, r, this_age, today, 1);
+  histories.update(TraitID::status, Phase::new_, INFECTIOUS, r, this_age, aday, 1);
+  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, aday, 1);
+  histories.update(TraitID::variant, Phase::now, var, r, this_age, aday, 1);
+  histories.update(TraitID::variant, Phase::new_, var, r, this_age, aday, 1);
 
   if (status() == RECOVERED) {
     histories.update(TraitID::status, Phase::now, RECOVERED,
-                     r, this_age, today, -1);
+                     r, this_age, aday, -1);
   } else {
     if (status() == UNEXPOSED) {
       histories.update(TraitID::status, Phase::now, UNEXPOSED,
-                       r, this_age, today, -1);
+                       r, this_age, aday, -1);
     }
   }
   sim::history_timing.cum();
@@ -63,14 +64,15 @@ as a method of AgentView, the instance variable is not used to apply methods or 
 [[clang::always_inline]]
 void AgentView::make_well(Histories& histories) {    // the object is person--the implied argument
   auto today = sim::get_day();
+  auto aday = sim::alt_day();
   auto this_age = agegrp();
   auto r = ring().v;
   sim::history_timing.start();
   // should we use the Status enum values?
-  histories.update(TraitID::status, Phase::now, RECOVERED, r, this_age, today, 1);
-  histories.update(TraitID::status, Phase::new_, RECOVERED, r, this_age, today, 1);
-  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, today, -1);
-  histories.update(TraitID::variant, Phase::now, variant(), r, this_age, today, -1);
+  histories.update(TraitID::status, Phase::now, RECOVERED, r, this_age, aday, 1);
+  histories.update(TraitID::status, Phase::new_, RECOVERED, r, this_age, aday, 1);
+  histories.update(TraitID::status, Phase::now, INFECTIOUS, r, this_age, aday, -1);
+  histories.update(TraitID::variant, Phase::now, variant(), r, this_age, aday, -1);
   sim::history_timing.cum();
 
   cond() = UNINFECTED; // equivalent to person.cond() in other functions where person defined
@@ -93,15 +95,16 @@ void AgentView::make_well(Histories& histories) {    // the object is person--th
 [[clang::always_inline]]
 void AgentView::make_dead(Histories& histories) {
     auto today = sim::get_day();
+    auto aday = sim::alt_day();
     auto this_age = agegrp();
     auto r = ring().v;
     sim::history_timing.start();
-    histories.update(TraitID::status, Phase::now, DEAD, r, this_age, today, 1);
-    histories.update(TraitID::status, Phase::new_, DEAD, r, this_age, today, 1);
+    histories.update(TraitID::status, Phase::now, DEAD, r, this_age, aday, 1);
+    histories.update(TraitID::status, Phase::new_, DEAD, r, this_age, aday, 1);
     histories.update(TraitID::status, Phase::now, INFECTIOUS,
-                     r, this_age, today, -1);
+                     r, this_age, aday, -1);
     histories.update(TraitID::variant, Phase::now, variant(),
-                     r, this_age, today, -1);
+                     r, this_age, aday, -1);
     sim::history_timing.cum();
 
   // update the person: update deadday and status for the person

@@ -259,16 +259,42 @@ void test_print_and_enumerate() {
   install_counts(1, 0, 1);
   auto pop = make_pop(10, 1);
   Histories h(2, pop);
+  h.at(TraitID::status, Phase::now, INFECTIOUS.v, AGE20_39, 1)[2] = 3;
   h.sum_total_histories();
   std::ostringstream out;
   print_total_status_histories(h, 15, out);
   CHECK(out.str().contains("status|now|unexposed|total|total"));
   CHECK(out.str().contains("      10"));
+
+  std::ostringstream sel_out;
+  print_selected_histories({{"status", "now", "infectious", "age20_39", "ring_1"}}, h, 15, "Selected", sel_out);
+  CHECK(sel_out.str().contains("Selected histories:"));
+  CHECK(sel_out.str().contains("status|now|infectious|ring_1|age20_39"));
+  CHECK(sel_out.str().contains("       3"));
+
+  std::ostringstream empty_sel_out;
+  print_selected_histories({}, h, 15, "Empty", empty_sel_out);
+  CHECK(empty_sel_out.str().contains("No valid histories requested"));
+
+  Histories h_empty(0, pop);
+  std::ostringstream zero_day_out;
+  print_selected_histories({{"status", "now", "unexposed", "total", "total"}}, h_empty, 15, "Zero", zero_day_out);
+  CHECK(zero_day_out.str().contains("No history to print."));
+
   const auto sel = enumerate_history_selections(h);
   REQUIRE(sel.size() == h.all_history_count);
   CHECK_EQ(sel[0].trait, string("status"));
   CHECK_EQ(sel[0].ring, Ring::names[1]);
   CHECK_EQ(sel.back().age, string("total"));
+}
+
+void test_sanitize_filename_component() {
+  CHECK_EQ(sanitize_filename_component("base_case-1"), string("base_case-1"));
+  CHECK_EQ(sanitize_filename_component("  my  case / 2026!  "), string("my_case_2026"));
+  CHECK_EQ(sanitize_filename_component("a:b*c?d"), string("abcd"));
+  CHECK_EQ(sanitize_filename_component("   "), string("case"));
+  CHECK_EQ(sanitize_filename_component("___---"), string("case"));
+  CHECK_EQ(sanitize_filename_component(""), string("case"));
 }
 
 void write_series_artifacts(const test_support::TestRunOptions& options) {
@@ -297,5 +323,6 @@ void run_series_tests(const test_support::TestRunOptions& options) {
   run_test("select_indices", test_select_indices);
   run_test("serialize_histories_round_trip", test_serialize_histories_round_trip);
   run_test("print_and_enumerate", test_print_and_enumerate);
+  run_test("sanitize_filename_component", test_sanitize_filename_component);
   run_test("artifact", [&] { write_series_artifacts(options); });
 }

@@ -347,6 +347,59 @@ void test_spread_ring_selection() {
   }
 }
 
+// 3-ring sieve: an out-of-ring spreader in ring 2 reaches BOTH ring 1 (before) and ring 3 (after)
+void test_spread_multi_ring_sieve() {
+  RuntimeNamesGuard guard;
+  install_names({"base"}, {}, {"r1", "r2", "r3"});
+  World w(3000, 3);
+  for (auto& row : w.social.contactfactors) row.fill(4.0f);
+  w.rt.out_ring_prob.assign(4, vector<float>(Agegrp::names.size(), 1.0f));
+  w.rt.pct_of_population = {0.0f, 1.0f / 3, 1.0f / 3, 1.0f / 3};
+  w.members = build_ring_members(w.pop, 3);
+  w.lengths = {0, w.members[1].size(), w.members[2].size(), w.members[3].size()};
+  set_day(1);
+  REQUIRE(w.pop.ring[2].v == 2);
+  w.pop.agent(2).make_sick(Variant{1}, w.h);  // ring 2 spreader
+  set_day(2);
+  xo::seed(19);
+  w.spread_from(2, 60);
+  std::array<int, 4> inf{};
+  for (size_t p = 1; p <= w.pop.popn; ++p)
+    if (p != 2 && w.pop.status[p] == INFECTIOUS) ++inf[w.pop.ring[p].v];
+  CHECK_MSG(inf[2] == 0, "out_ring_prob 1 from ring 2 still infected {} in ring 2", inf[2]);
+  CHECK_MSG(inf[1] > 20 && inf[3] > 20,
+            "3-ring sieve from ring 2 infected r1={}, r3={} (want >20 in both)", inf[1], inf[3]);
+}
+
+// indoor_uplift and density_factor both scale spread infections upward
+void test_spread_scales_with_indoor_and_density() {
+  RuntimeNamesGuard guard;
+  install_names({"base"});
+  auto run_once = [](float indoor_val, float density_val) {
+    World w(4000);
+    for (auto& row : w.social.contactfactors) row.fill(1.5f);
+    for (auto& row : w.social.touchfactors) row.fill(0.4f);
+    w.indoor.assign(30, indoor_val);
+    set_day(1);
+    w.pop.agent(1).make_sick(Variant{1}, w.h);
+    set_day(2);
+    xo::seed(23);
+    for (int i = 0; i < 60; ++i)
+      spread(w.pop, w.h, w.pop.agent(1), w.social, w.ip, w.vaxset, false, w.contacts, density_val,
+             w.indoor, w.sd, w.rt, w.members, w.lengths);
+    return w.infected() - 1;
+  };
+  const int low_indoor = run_once(0.5f, 1.0f);
+  const int high_indoor = run_once(2.0f, 1.0f);
+  CHECK_MSG(high_indoor > low_indoor * 2,
+            "indoor_uplift 2.0 ({}) did not substantially exceed 0.5 ({})", high_indoor, low_indoor);
+
+  const int low_density = run_once(1.0f, 0.4f);
+  const int high_density = run_once(1.0f, 2.5f);
+  CHECK_MSG(high_density > low_density * 2,
+            "density_factor 2.5 ({}) did not substantially exceed 0.4 ({})", high_density, low_density);
+}
+
 //
 // progression: outcome frequencies follow the tree row; outcome k (1..4) -> Condition k+1
 //
@@ -395,15 +448,18 @@ void test_progression_outcome_frequencies() {
                atomic(h, S, NEW, DEAD.v, AGE80_UP, 1, 2),
            got[5]);
 
-  // not a breakday: only duration advances
-  auto q = pop.agent(1);
-  if (q.status() == INFECTIOUS) {
-    const auto cond = q.cond();
-    const auto dur = q.duration();
-    progression(q, h, ps, ip, false, vs);
-    CHECK_EQ(q.cond(), cond);
-    CHECK_EQ(q.duration(), Duration{static_cast<uint8_t>(dur.v + 1)});
+  // not a breakday: find an infectious agent and verify only duration advances
+  size_t inf_id = 0;
+  for (size_t p = 1; p <= N; ++p) {
+    if (pop.status[p] == INFECTIOUS) { inf_id = p; break; }
   }
+  REQUIRE(inf_id > 0);
+  auto q = pop.agent(inf_id);
+  const auto cond = q.cond();
+  const auto dur = q.duration();
+  progression(q, h, ps, ip, false, vs);
+  CHECK_EQ(q.cond(), cond);
+  CHECK_EQ(q.duration(), Duration{static_cast<uint8_t>(dur.v + 1)});
 }
 
 // prior recovery redistributes severe/dead probability toward recover/nil/mild;
@@ -465,6 +521,8 @@ void run_disease_modeling_tests(const test_support::TestRunOptions&) {
   run_test("spread_touch_factors_by_contact", test_spread_touch_factors_by_contact);
   run_test("spread_uses_social_distancing_factors", test_spread_uses_social_distancing_factors);
   run_test("spread_ring_selection", test_spread_ring_selection);
+  run_test("spread_multi_ring_sieve", test_spread_multi_ring_sieve);
+  run_test("spread_scales_with_indoor_and_density", test_spread_scales_with_indoor_and_density);
   run_test("progression_outcome_frequencies", test_progression_outcome_frequencies);
   run_test("progression_immunity_redistribution", test_progression_immunity_redistribution);
 }

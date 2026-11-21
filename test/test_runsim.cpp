@@ -49,9 +49,32 @@ string summary_block(const string& terminal) {
   return out;
 }
 
+struct ScenarioStats {
+  long infected{0};
+  long dead{0};
+  double cfr_0_19{0.0};
+  double cfr_80_up{0.0};
+};
+
+ScenarioStats compute_stats(const PopData& pop) {
+  ScenarioStats s;
+  long inf_young = 0, dead_young = 0, inf_old = 0, dead_old = 0;
+  for (size_t p = 1; p <= pop.popn; ++p) {
+    const bool ever_inf = pop.variant_hist[p].count > 0;
+    const bool is_dead = pop.status[p] == DEAD;
+    s.infected += ever_inf;
+    s.dead += is_dead;
+    if (pop.agegrp[p] == AGE0_19) { inf_young += ever_inf; dead_young += is_dead; }
+    if (pop.agegrp[p] == AGE80_UP) { inf_old += ever_inf; dead_old += is_dead; }
+  }
+  s.cfr_0_19 = inf_young > 0 ? double(dead_young) / double(inf_young) : 0.0;
+  s.cfr_80_up = inf_old > 0 ? double(dead_old) / double(inf_old) : 0.0;
+  return s;
+}
+
 void check_output_files(const Model& m, const Histories& h, std::string_view name) {
   const fs::path out = m.output_dir;
-  // totals CSV equals the total history vectors, column by column
+  // totals CSV equals the total history vectors, column by column (single split per row)
   const fs::path tot = one_output(out, "_total_series_", ".csv");
   if (!tot.empty()) {
     const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(tot));
@@ -59,11 +82,13 @@ void check_output_files(const Model& m, const Histories& h, std::string_view nam
     const auto header = split(lines[0], ',');
     REQUIRE(header.size() == h.total_history_count);
     int bad = 0;
-    for (size_t c = 0; c < header.size(); ++c) {
-      const size_t idx = h.sim_history_count + c;
-      bad += header[c] != h.label(idx);
-      for (size_t d = 1; d <= size_t(m.ndays); ++d)
-        bad += std::stol(split(lines[d], ',')[c]) != h.data(idx)[d];
+    for (size_t c = 0; c < header.size(); ++c)
+      bad += header[c] != h.label(h.sim_history_count + c);
+    for (size_t d = 1; d <= size_t(m.ndays); ++d) {
+      const auto row = split(lines[d], ',');
+      if (row.size() != header.size()) { ++bad; continue; }
+      for (size_t c = 0; c < header.size(); ++c)
+        bad += std::stol(row[c]) != h.data(h.sim_history_count + c)[d];
     }
     CHECK_MSG(bad == 0, "[{}] totals CSV: {} labels/values differ from histories", name, bad);
   }
@@ -73,19 +98,56 @@ void check_output_files(const Model& m, const Histories& h, std::string_view nam
     CHECK_EQ(lines.size(), size_t(m.ndays) + 1);
     if (!lines.empty()) CHECK_EQ(split(lines[0], ',').size(), h.all_history_count);
   }
-  (void)one_output(out, "_selected_series_", ".csv");
-  // population CSV: one row per person and the same status counts as PopData
+  // selected_series CSV: every header exists in Histories and values match day-by-day
+  const fs::path sel = one_output(out, "_selected_series_", ".csv");
+  if (!sel.empty()) {
+    const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(sel));
+    REQUIRE(lines.size() == size_t(m.ndays) + 1);
+    const auto header = split(lines[0], ',');
+    REQUIRE(!header.empty());
+    std::map<string, size_t> label_to_idx;
+    for (size_t i = 0; i < h.all_history_count; ++i) label_to_idx[string{h.label(i)}] = i;
+    vector<size_t> col_idx;
+    col_idx.reserve(header.size());
+    int bad = 0;
+    for (const auto& lbl : header) {
+      auto it = label_to_idx.find(lbl);
+      if (it == label_to_idx.end()) { ++bad; col_idx.push_back(size_t(-1)); }
+      else col_idx.push_back(it->second);
+    }
+    for (size_t d = 1; d <= size_t(m.ndays); ++d) {
+      const auto row = split(lines[d], ',');
+      if (row.size() != header.size()) { ++bad; continue; }
+      for (size_t c = 0; c < header.size(); ++c)
+        if (col_idx[c] != size_t(-1)) bad += std::stol(row[c]) != h.data(col_idx[c])[d];
+    }
+    CHECK_MSG(bad == 0, "[{}] selected_series CSV: {} labels/values differ from histories", name, bad);
+  }
+  // population CSV: one row per person; verify status, agegrp, ring, variant, vax, sdcase
   const fs::path popcsv = one_output(out, "_pop_", ".csv");
   if (!popcsv.empty()) {
     const auto lines = test_support::split_trimmed_lines(test_support::read_file_text(popcsv));
     REQUIRE(lines.size() == m.pop.popn + 1);
     const auto header = split(lines[0], ',');
-    const auto col = std::ranges::find(header, "status") - header.begin();
-    REQUIRE(size_t(col) < header.size());
-    std::map<string, size_t> csv_counts, pop_counts;
-    for (size_t i = 1; i < lines.size(); ++i) ++csv_counts[split(lines[i], ',')[col]];
-    for (size_t p = 1; p <= m.pop.popn; ++p) ++pop_counts[string{m.pop.status[p].show()}];
-    CHECK_MSG(csv_counts == pop_counts, "[{}] population CSV status counts differ from PopData", name);
+    auto find_col = [&](std::string_view col_name) {
+      const auto it = std::ranges::find(header, col_name);
+      REQUIRE(it != header.end());
+      return static_cast<size_t>(it - header.begin());
+    };
+    const size_t c_status = find_col("status"), c_age = find_col("agegrp"), c_ring = find_col("ring"),
+                 c_variant = find_col("variant"), c_vax = find_col("vax"), c_sd = find_col("sdcase");
+    int bad_rows = 0;
+    for (size_t p = 1; p <= m.pop.popn; ++p) {
+      const auto row = split(lines[p], ',');
+      if (row.size() != header.size()) { ++bad_rows; continue; }
+      const string want_vax = m.pop.vax[p].v == 0 ? "-" : string{m.pop.vax[p].show()};
+      const string want_sd = m.pop.sdcase[p].v != 0 ? "true" : "false";
+      const bool ok = row[c_status] == m.pop.status[p].show() && row[c_age] == m.pop.agegrp[p].show() &&
+                      row[c_ring] == m.pop.ring[p].show() && row[c_variant] == m.pop.variant[p].show() &&
+                      row[c_vax] == want_vax && row[c_sd] == want_sd;
+      if (!ok) ++bad_rows;
+    }
+    CHECK_MSG(bad_rows == 0, "[{}] population CSV: {} row(s) differ from PopData", name, bad_rows);
   }
   // plots: 4 files; the cumulative outcome traces end at the final PopData counts
   int html = 0;
@@ -94,8 +156,12 @@ void check_output_files(const Model& m, const Histories& h, std::string_view nam
   const fs::path cum = one_output(out, "Cumulative_Covid_Outcome", ".html");
   if (!cum.empty()) {
     const string text = test_support::read_file_text(cum);
-    const auto start = text.find("const data = ") + 13;
-    const json data = json::parse(text.substr(start, text.find('\n', start) - start));
+    const auto pos = text.find("const data = ");
+    REQUIRE(pos != string::npos);
+    const auto start = pos + 13;
+    const auto end = text.find('\n', start);
+    REQUIRE(end != string::npos);
+    const json data = json::parse(text.substr(start, end - start));
     REQUIRE(data.size() == 4);
     for (const auto& tr : data) {
       const string label = tr["name"];
@@ -110,8 +176,8 @@ void check_output_files(const Model& m, const Histories& h, std::string_view nam
   }
 }
 
-void run_scenario(std::string_view name, const std::function<void(const fs::path&)>& edit,
-                  const test_support::TestRunOptions& options) {
+ScenarioStats run_scenario(std::string_view name, const std::function<void(const fs::path&)>& edit,
+                           const test_support::TestRunOptions& options) {
   RuntimeNamesGuard guard;
   const fs::path dir = test_support::project_dir() / "test_output" / "runsim" / name;
   fs::remove_all(dir);
@@ -140,6 +206,7 @@ void run_scenario(std::string_view name, const std::function<void(const fs::path
   if (!tot.empty())
     test_support::compare_golden(test_support::read_file_text(tot), fmt::format("runsim/{}_total_series.csv", name),
                                  options, GROUP);
+  return compute_stats(m.pop);
 }
 
 void set_flags(const fs::path& d, bool vax, bool rings, bool sd) {
@@ -155,11 +222,21 @@ void set_flags(const fs::path& d, bool vax, bool rings, bool sd) {
 
 void run_runsim_tests(const test_support::TestRunOptions& options) {
   using tst::run_test;
-  run_test("scenario_base", [&] { run_scenario("base", {}, options); });
-  run_test("scenario_rings", [&] { run_scenario("rings", [](const fs::path& d) { set_flags(d, false, true, false); }, options); });
-  run_test("scenario_vax", [&] { run_scenario("vax", [](const fs::path& d) { set_flags(d, true, false, false); }, options); });
-  run_test("scenario_sd", [&] { run_scenario("sd", [](const fs::path& d) { set_flags(d, false, false, true); }, options); });
-  run_test("scenario_all_on", [&] { run_scenario("all_on", [](const fs::path& d) { set_flags(d, true, true, true); }, options); });
+  ScenarioStats base, rings, vax, sd, all_on;
+  run_test("scenario_base", [&] { base = run_scenario("base", {}, options); });
+  run_test("scenario_rings", [&] { rings = run_scenario("rings", [](const fs::path& d) { set_flags(d, false, true, false); }, options); });
+  run_test("scenario_vax", [&] { vax = run_scenario("vax", [](const fs::path& d) { set_flags(d, true, false, false); }, options); });
+  run_test("scenario_sd", [&] { sd = run_scenario("sd", [](const fs::path& d) { set_flags(d, false, false, true); }, options); });
+  run_test("scenario_all_on", [&] { all_on = run_scenario("all_on", [](const fs::path& d) { set_flags(d, true, true, true); }, options); });
+  run_test("cross_scenario_behavioral_guardrails", [&] {
+    CHECK_MSG(vax.infected < base.infected, "vax infected ({}) should be < base ({})", vax.infected, base.infected);
+    CHECK_MSG(vax.dead < base.dead, "vax dead ({}) should be < base ({})", vax.dead, base.dead);
+    CHECK_MSG(sd.infected < base.infected, "sd infected ({}) should be < base ({})", sd.infected, base.infected);
+    CHECK_MSG(all_on.infected < base.infected, "all_on infected ({}) should be < base ({})", all_on.infected, base.infected);
+    CHECK_MSG(base.cfr_80_up > base.cfr_0_19, "base age80_up CFR ({:.4f}) should exceed age0_19 ({:.4f})",
+              base.cfr_80_up, base.cfr_0_19);
+    (void)rings;
+  });
   fmt::println("runsim case directories and terminal output: {}",
                (test_support::project_dir() / "test_output" / "runsim").string());
 }

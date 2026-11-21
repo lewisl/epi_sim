@@ -1,5 +1,31 @@
 # Session Notes
 
+## Next Session: Open Items (as of 2026-11-20)
+
+- **Uncommitted work ready to review/commit:** `src/` (`sim.h`, `sim.cpp`, `spread.cpp`, `disease_modeling.cpp`, `r0_simulation.{h,cpp}`) and `test/` (P1–P3 suite improvements), plus `design/test_suite_review_gemini_neon.md`. All suites green (`1906/1906` sniff, `255/255` runsim, `188/188` templates).
+- **1. `seed_gen1` agent eligibility in `rt_sim` (`src/r0_simulation.cpp:113-135`):** `seed_gen1` does not check `person.status()`, so in `rtpop` it can overwrite already-`DEAD` or already-`INFECTIOUS` agents when seeding the challenge cohort. Decide whether to restrict to `UNEXPOSED || RECOVERED` (or non-`DEAD` / non-`INFECTIOUS`) and add a test if changed.
+- **2. `recovery_immunity` completeness enforcement (see 2026-11-14 entry below):** enforce in both `input_verify` and `load_infect_params` (`src/parameters.cpp`) that every variant's `immunity.recovery_immunity` has exact 1-to-1 keys with top-level `variants.json` variants (no silent `0.0` defaults or ignored unknown keys), plus tests in `test/test_parameters.cpp`.
+- **3. Low-priority cleanup — tautological unsigned check in `recoveffect` (`src/disease_modeling.cpp:171-173`):** `size_t days_post_recov = thisday - recovday; if (days_post_recov >= 0)` is always true (no live bug now that `rt_sim` uses `Counter<Rt>` so `thisday >= recovday` always holds); optionally simplify or guard with `if (thisday >= recovday)`.
+
+## 2026-11-20: `r0_simulation` + `sim::Counter<Tag>` day-counter isolation implemented
+
+- Resumed from [design/test_suite_review_gemini_neon.md](design/test_suite_review_gemini_neon.md).
+- User simplified `rt_sim(Model& model)` to a single `PopData rtpop{model.pop}` copy (`r0_simulation.h`, `r0_simulation.cpp`, `sim.cpp`) and fixed `run_r0_sim` to guard only `spread_and_count` with `if (sendrisk > 0.0f)` so `progression` runs on latency days and only for `INFECTIOUS` gen-1 spreaders.
+- Implemented tagged `sim::DayCounter{base, day}` + `sim::Counter<Mainline|R0|Rt>` + RAII `sim::UseCounter<Tag>` and `sim::alt_day()` in `src/sim.h`. `sim::get_day()` returns `base + day` (real/parallel-universe day for `recoveffect`, `vaxeffect`, `sickday`/`recovday`/`deadday`); `sim::alt_day()` returns `day` (local `1..ndays` or `1..DURATIONLIM` index for `histories.update` in `disease_modeling.cpp` and `indoor_seq` in `spread.cpp` / `r0_simulation.cpp`). Replaced `sim::ds.day` reads/writes in `sim.cpp` and `r0_simulation.cpp` with `sim::get_day()`.
+- `rt_sim` starts `Counter<Rt>` from `Counter<Mainline>` without mutating `Mainline`, slices `indoor_seq` 0-based from `start_day - 1`, pads to `DURATIONLIM` past `model.ndays`, and keeps loop 2 running into `throwaway_histories`.
+- Verified: `xmake build epi_sim` clean; `xmake run test` 1760/1760; `xmake run test runsim` 195/195 (goldens unchanged); direct CLI runs on isolated scaffold `test_output/tmp/rt_verify` gave `--r0-sim` = 1.48 (77 seeded, 114 infected) and `--use-dir` (`rt_sim_interval: 30`, 180 days) $R_t$ = 1.90, 1.60, 1.12, 0.71, 0.42, 0.38 (days 30..180, no final-day assert).
+- Implemented P1, P2, and P3 test-suite improvements from `design/test_suite_review_gemini_neon.md` (test files only; `src/disease_modeling.cpp` `recoveffect` unsigned `>= 0` guard and `recovery_immunity` completeness left untouched pending explicit approval):
+  - `test/test_setup.cpp`: added `r0_sim_behavior_and_day_isolation`, `rt_sim_in_runsim_and_immunity_decline`, `multi_variant_mini_simulation`, `sequential_case_isolation_without_guard`, and `full_run_zero_out_ring_prob_isolates_ring2`.
+  - `test/test_disease_modeling.cpp`: added `spread_multi_ring_sieve` (3 rings) and `spread_scales_with_indoor_and_density`; replaced conditional non-breakday duration check with infectious-agent search + `REQUIRE`.
+  - `test/test_vaccination.cpp`: added `Vaxstat::exhausted` assertions (`1.0`) in `test_vaxeffect_follows_parameters`.
+  - `test/test_runsim.cpp`: added `cross_scenario_behavioral_guardrails` (`vax`/`sd`/`all_on` < `base`, `age80_up` CFR > `age0_19` CFR), single-pass CSV parsing, `_selected_series_.csv` content check, multi-column `_pop_.csv` verification (`status`, `agegrp`, `ring`, `variant`, `vax`, `sdcase`), and `npos` guard on Plotly JSON extraction.
+  - `test/test_invariants.h`: checked day-1 `now_infectious` flow, added `now_unexposed` monotonicity, and tightened vaccination histories invariant to per-`(brand, age, ring)` cells.
+  - `test/test_series.cpp`: added `print_selected_histories` (normal, empty selection, zero-day) and `sanitize_filename_component` tests.
+  - `test/test_parameters.cpp`: added RAII `CwdGuard` around `fs::current_path(case_dir)` and removed two stale empty comment stubs.
+  - `test/test_templates.cpp`: deduplicated `child_exit_code` (using `test_support::child_exit_code`) and moved temp dirs from `$HOME` root to `test_output/tmp/templates/`.
+- Final verification: `xmake build test` clean; default sweep **1906/1906** passed; `runsim` **255/255** passed (all 5 goldens unchanged); `templates` **188/188** passed.
+- Remaining open items (not edited): `recoveffect` `thisday < recovday` unsigned underflow guard (`src/disease_modeling.cpp:171-173`), `recovery_immunity` completeness (`SESSION.md` 2026-11-14), and `seed_gen1` skipping `DEAD`/`INFECTIOUS` agents in `rt_sim`.
+
 ## 2026-11-17: Serena startup blocked by a missing Python interpreter
 
 - B4 is complete. See the vaccine supply, curve, and input-validation entries below.

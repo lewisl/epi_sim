@@ -454,6 +454,8 @@ void test_vaxeffect_follows_parameters() {
   CHECK_NEAR(at(Vaxstat::full, 130, 2), 1 - 0.5 * 0.7 * 0.6, 1e-5);       // variant selects both factors
   CHECK_NEAR(at(Vaxstat::first, 130, 1), 1 - 0.5 * 0.5 * 0.9, 1e-5);      // shot status selects row
   CHECK_NEAR(at(Vaxstat::booster, 130, 2), 1 - 0.5 * 0.9 * 0.6, 1e-5);
+  CHECK_NEAR(at(Vaxstat::exhausted, 130, 1), 1.0, 1e-6);  // exhausted row is zero effectiveness => risk multiplier 1.0
+  CHECK_NEAR(at(Vaxstat::exhausted, 130, 2), 1.0, 1e-6);
   CHECK_NEAR(at(Vaxstat::none, 130, 1), 1.0, 1e-6);
   pop.vaxday[1] = 0;
   CHECK_NEAR(at(Vaxstat::full, 130, 1), 1.0, 1e-6);  // no vaxday recorded

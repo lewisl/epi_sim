@@ -69,16 +69,19 @@ inline int check_run(const PopData& pop, const Histories& h, std::string_view la
   }
   // 3-4. flow balance: now changes equal the day's new events
   {
-    Report rd, ri, rn;
+    Report rd, ri, rn, ru;
     for (size_t d = 1; d <= nd; ++d) {
       auto prev = [&](uint8_t v) { return d == 1 ? HistoryValue{0} : all_cells(h, S, NOW, v, d - 1); };
       const auto nd_ = all_cells(h, S, NEW, DED, d), ni = all_cells(h, S, NEW, INF, d),
                  nr = all_cells(h, S, NEW, REC, d);
       if (all_cells(h, S, NOW, DED, d) - prev(DED) != nd_)
         rd.add(fmt::format("day {}: delta now_dead != new_dead {}", d, nd_));
-      if (d > 1 && all_cells(h, S, NOW, INF, d) - prev(INF) != ni - nr - nd_)
+      if (all_cells(h, S, NOW, INF, d) - prev(INF) != ni - nr - nd_)
         ri.add(fmt::format("day {}: delta now_infectious {} != new_inf - new_recov - new_dead = {}", d,
                            all_cells(h, S, NOW, INF, d) - prev(INF), ni - nr - nd_));
+      if (d > 1 && all_cells(h, S, NOW, UNEXP, d) > prev(UNEXP))
+        ru.add(fmt::format("day {}: now_unexposed increased from {} to {}", d, prev(UNEXP),
+                           all_cells(h, S, NOW, UNEXP, d)));
       for (uint8_t v = 1; v <= Status::count; ++v) {
         if (all_cells(h, S, NEW, v, d) < 0 || all_cells(h, S, NOW, v, d) < 0)
           rn.add(fmt::format("day {}: negative count for status {}", d, Status::names[v]));
@@ -87,6 +90,7 @@ inline int check_run(const PopData& pop, const Histories& h, std::string_view la
     }
     chk("now_dead flow", rd, "make_dead history updates (disease_modeling)");
     chk("now_infectious flow", ri, "make_sick/make_well/make_dead now+new pairs (disease_modeling)");
+    chk("now_unexposed monotonic", ru, "make_sick unexposed transitions and init_history_newday (disease_modeling, series)");
     chk("non-negative counts", rn, "unguarded transitions, e.g. make_well on a non-infectious person");
   }
   // 5. history event totals equal per-person event counts
@@ -146,24 +150,38 @@ inline int check_run(const PopData& pop, const Histories& h, std::string_view la
     chk("final histories match PopData", r,
         "age/ring coordinates passed to Histories::update (series: atomic_update_*) and ring assignment (setup)");
   }
-  // 7. vaccination: one history count per first shot, by brand
+  // 7. vaccination: one history count per first shot, by (brand, age, ring)
   {
     Report r;
-    std::vector<long> first_brand(Vax::count + 1, 0);
+    const size_t stride_a = Ring::count + 1;
+    const size_t stride_v = (Agegrp::count + 1) * stride_a;
+    auto vkey = [&](size_t v, size_t a, size_t ring) { return v * stride_v + a * stride_a + ring; };
+    std::vector<long> first_brand((Vax::count + 1) * stride_v, 0);
+    bool overflowed = false;
     for (size_t p = 1; p <= pop.popn; ++p) {
       const bool hist = pop.vax_hist[p].count > 0;
       if (hist != (pop.vaxstatus[p] != Vaxstat::none))
         r.add(fmt::format("person {}: vaxstatus {} but vax_hist.count {}", p, pop.vaxstatus[p].show(),
                           pop.vax_hist[p].count));
-      if (hist && pop.vax_hist[p].arr[0].v <= Vax::count) ++first_brand[pop.vax_hist[p].arr[0].v];
+      if (pop.vax_hist[p].count > 16) overflowed = true;
+      const size_t a = pop.agegrp[p].v, ring = pop.ring[p].v;
+      if (hist && pop.vax_hist[p].count <= 16 && pop.vax_hist[p].arr[0].v <= Vax::count &&
+          a >= 1 && a <= Agegrp::count && ring >= 1 && ring <= Ring::count) {
+        ++first_brand[vkey(pop.vax_hist[p].arr[0].v, a, ring)];
+      }
     }
-    for (uint8_t v = 1; v <= Vax::count; ++v) {
-      long news = 0;
-      for (size_t d = 1; d <= nd; ++d) news += all_cells(h, VX, NEW, v, d);
-      const auto now = all_cells(h, VX, NOW, v, nd);
-      if (news != first_brand[v] || now != first_brand[v])
-        r.add(fmt::format("vax {}: sum(new) {} / final now {} != people whose first shot was it {}",
-                          Vax::names[v], news, now, first_brand[v]));
+    if (!overflowed) {
+      for (uint8_t v = 1; v <= Vax::count; ++v)
+        for (uint8_t ring = 1; ring <= Ring::count; ++ring)
+          for (uint8_t a = 1; a <= Agegrp::count; ++a) {
+            long news = 0;
+            for (size_t d = 1; d <= nd; ++d) news += h.at(VX, NEW, v, Agegrp{a}, ring)[d];
+            const auto now = h.at(VX, NOW, v, Agegrp{a}, ring)[nd];
+            const long want = first_brand[vkey(v, a, ring)];
+            if (news != want || now != want)
+              r.add(fmt::format("vax {} age {} ring {}: sum(new) {} / final now {} != first-shot count {}",
+                                Vax::names[v], Agegrp::names[a], Ring::names[ring], news, now, want));
+          }
     }
     chk("vaccination histories", r, "vaccinate/doshots history updates and record_vaccination (vaccination)");
   }

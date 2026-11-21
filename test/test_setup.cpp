@@ -5,6 +5,7 @@
 #include "test_support.h"
 #include "test_invariants.h"
 
+#include "../src/r0_simulation.h"
 #include "../src/random.h"
 
 namespace {
@@ -273,6 +274,215 @@ void test_short_runs_hold_invariants() {
   }
 }
 
+// P1: r0_sim produces finite positive R0, 0 on zero sendrisk, monotonic in sendrisk,
+// and leaves Counter<Mainline> untouched.
+void test_r0_sim_behavior_and_day_isolation() {
+  RuntimeNamesGuard guard;
+  Model m = test_support::build_small_case("r0_sim_unit", 1000, 30);
+
+  sim::Counter<sim::Mainline>::state.reset();
+  for (int i = 0; i < 17; ++i) sim::incr_day();
+  REQUIRE(sim::get_day() == 17);
+
+  auto quiet_r0 = [](Model& mdl, uint64_t seed) {
+    xo::seed(seed);
+    test_support::StdoutCapture quiet;
+    return r0_sim(mdl);
+  };
+
+  const double r0_base = quiet_r0(m, 101);
+  CHECK_MSG(std::isfinite(r0_base) && r0_base > 0.5 && r0_base < 10.0,
+            "r0_sim on template params = {:.3f}, expected finite in (0.5, 10)", r0_base);
+  CHECK_EQ(sim::get_day(), 17);
+  CHECK_EQ(sim::alt_day(), 17);
+
+  Model m_zero = m;
+  m_zero.mp.infectparams[1].sendrisk.assign(DURATIONLIM + 1, 0.0f);
+  CHECK_NEAR(quiet_r0(m_zero, 101), 0.0, 1e-9);
+  CHECK_EQ(sim::get_day(), 17);
+
+  Model m_low = m, m_high = m;
+  for (float& s : m_low.mp.infectparams[1].sendrisk) s *= 0.5f;
+  for (float& s : m_high.mp.infectparams[1].sendrisk) s *= 2.0f;
+  const double r0_low = quiet_r0(m_low, 202);
+  const double r0_high = quiet_r0(m_high, 202);
+  CHECK_MSG(r0_high > r0_low, "r0_sim not monotonic in sendrisk: 2x ({:.3f}) <= 0.5x ({:.3f})", r0_high, r0_low);
+}
+
+// P1: rt_sim inside runsim (including rt_sim_interval dividing ndays to test final-day
+// extension), preserving Mainline clock and showing Rt decline as immunity builds.
+void test_rt_sim_in_runsim_and_immunity_decline() {
+  RuntimeNamesGuard guard;
+  Model m = test_support::build_small_case("rt_sim_run", 8000, 120, [](const fs::path& d) {
+    test_support::edit_config(d, [](json& c) { c["rt_sim_interval"] = 30; });
+  });
+  test_support::StdoutCapture cap;
+  Histories h = runsim(m);
+  const string out = cap.finish();
+
+  CHECK_MSG(invariants::check_run(m.pop, h, "rt_sim") == 0, "rt_sim run broke invariants");
+  CHECK_EQ(sim::get_day(), 120);
+  CHECK_EQ(sim::alt_day(), 120);
+
+  std::map<int, double> rts;
+  constexpr std::string_view prefix = "rt at simulation day ";
+  for (const auto& line : test_support::split_trimmed_lines(out)) {
+    if (!line.starts_with(prefix)) continue;
+    const auto eq = line.find(" = ");
+    REQUIRE(eq != string::npos);
+    const int day = std::stoi(line.substr(prefix.size(), eq - prefix.size()));
+    const double val = std::stod(line.substr(eq + 3));
+    rts[day] = val;
+  }
+  REQUIRE(rts.size() == 4);
+  for (int d : {30, 60, 90, 120}) {
+    REQUIRE(rts.contains(d));
+    CHECK_MSG(std::isfinite(rts[d]) && rts[d] >= 0.0, "rt at day {} invalid: {}", d, rts[d]);
+  }
+  CHECK_MSG(rts[30] > 0.5, "early rt at day 30 = {:.3f}, expected > 0.5", rts[30]);
+  CHECK_MSG(rts[120] < rts[30], "rt did not decline from day 30 ({:.3f}) to day 120 ({:.3f})", rts[30], rts[120]);
+}
+
+// P2: multi-variant mini-simulation exercising derived sendrisk/riskadjust, cross-variant
+// recovery_immunity, vaccination, rings, and multi-variant Histories invariants.
+void test_multi_variant_mini_simulation() {
+  RuntimeNamesGuard guard;
+  xo::seed(77);
+  Model m = test_support::build_small_case("multi_variant", 8000, 120, [](const fs::path& d) {
+    test_support::edit_config(d, [](json& c) {
+      c["dovax"] = true;
+      c["do_rings"] = true;
+    });
+    test_support::move_vax_schedules(d, 10, 60);
+    json seeds = test_support::read_case_json(d, "seed.json");
+    for (const char* age : {"Age20_39", "Age40_59"}) {
+      seeds.push_back(json{
+          {"triggerday", 35},
+          {"startofday", true},
+          {"filter", json::array({json{{"trait", "agegrp"}, {"val", age}}})},
+          {"change", json{
+              {"terms", json::array({
+                  json{{"trait", "status"}, {"val", "infectious"}},
+                  json{{"trait", "cond"}, {"val", "nil"}},
+                  json{{"trait", "variant"}, {"val", "omicron_ba4_5"}},
+                  json{{"trait", "duration"}, {"val", 1}},
+              })},
+              {"count", 5},
+          }},
+      });
+    }
+    test_support::write_case_json(d, "seed.json", seeds);
+  });
+  Histories h = test_support::run_quiet(m);
+  CHECK_MSG(invariants::check_run(m.pop, h, "multi_variant") == 0, "multi_variant broke run invariants");
+
+  const uint8_t base_id = Variant{"base"}.v;
+  const uint8_t omi_id = Variant{"omicron_ba4_5"}.v;
+  long base_new = 0, omi_new = 0;
+  for (size_t d = 1; d <= h.day_cnt; ++d) {
+    base_new += h.aggregate_value(TraitID::variant, Phase::new_, base_id, d);
+    omi_new += h.aggregate_value(TraitID::variant, Phase::new_, omi_id, d);
+  }
+  CHECK_MSG(base_new > 20, "multi_variant: base new infections = {}, expected > 20", base_new);
+  CHECK_MSG(omi_new > 20, "multi_variant: omicron_ba4_5 new infections = {}, expected > 20", omi_new);
+
+  int cross_reinf = 0;
+  for (size_t p = 1; p <= m.pop.popn; ++p) {
+    const auto& vh = m.pop.variant_hist[p];
+    const size_t n = vh.stored_count();
+    if (n < 2) continue;
+    bool diff = false;
+    for (size_t i = 1; i < n; ++i)
+      if (vh.arr[i] != vh.arr[0]) { diff = true; break; }
+    cross_reinf += diff;
+  }
+  CHECK_MSG(cross_reinf > 0, "multi_variant: expected cross-variant reinfections, got 0");
+}
+
+// P2: running all_on -> base -> all_on back-to-back in one process WITHOUT an intervening
+// RuntimeNamesGuard leaves no static registry holdover and reproduces a clean base run.
+void test_sequential_case_isolation_without_guard() {
+  RuntimeNamesGuard outer_guard;
+  auto status_totals = [](const PopData& pop) {
+    std::array<long, 5> c{};
+    for (size_t p = 1; p <= pop.popn; ++p) ++c[pop.status[p].v];
+    return c;
+  };
+  auto all_on_edit = [](const fs::path& d) {
+    test_support::edit_config(d, [](json& c) {
+      c["dovax"] = true;
+      c["do_rings"] = true;
+      c["do_social_distancing"] = true;
+    });
+    test_support::move_vax_schedules(d, 10, 50);
+  };
+
+  // Reference clean base run
+  std::array<long, 5> base_ref{};
+  {
+    RuntimeNamesGuard ref_guard;
+    xo::seed(77);
+    Model m = test_support::build_small_case("seq_base_ref", 3000, 60);
+    Histories h = test_support::run_quiet(m);
+    CHECK_EQ(invariants::check_run(m.pop, h, "seq_base_ref"), 0);
+    base_ref = status_totals(m.pop);
+  }
+
+  // Sequential runs without inner guard: all_on -> base -> all_on
+  xo::seed(77);
+  Model m_all1 = test_support::build_small_case("seq_all_1", 3000, 60, all_on_edit);
+  Histories h_all1 = test_support::run_quiet(m_all1);
+  CHECK_EQ(invariants::check_run(m_all1.pop, h_all1, "seq_all_1"), 0);
+  CHECK_MSG(Vax::count > 0 && Ring::count > 1 && SDCase::names.size() > 1,
+            "seq_all_1 did not populate optional registries");
+
+  xo::seed(77);
+  Model m_base = test_support::build_small_case("seq_base_after", 3000, 60);
+  Histories h_base = test_support::run_quiet(m_base);
+  CHECK_EQ(invariants::check_run(m_base.pop, h_base, "seq_base_after"), 0);
+  CHECK_EQ(Vax::count, uint16_t{0});
+  CHECK(Vax::names.empty());
+  CHECK_EQ(Ring::count, uint16_t{1});
+  CHECK_EQ(Ring::names, (vector<string>{"error", "population"}));
+  CHECK_EQ(SDCase::names, (vector<string>{"none"}));
+  CHECK_MSG(status_totals(m_base.pop) == base_ref,
+            "base run after all_on differed from clean base run (static registry holdover)");
+
+  xo::seed(77);
+  Model m_all2 = test_support::build_small_case("seq_all_2", 3000, 60, all_on_edit);
+  Histories h_all2 = test_support::run_quiet(m_all2);
+  CHECK_EQ(invariants::check_run(m_all2.pop, h_all2, "seq_all_2"), 0);
+  CHECK_MSG(Vax::count > 0 && Ring::count > 1 && SDCase::names.size() > 1,
+            "seq_all_2 did not repopulate optional registries");
+}
+
+// P2: full run with out_ring_prob == 0 and seeds restricted to ring_1 keeps ring_2 at 0 infections.
+void test_full_run_zero_out_ring_prob_isolates_ring2() {
+  RuntimeNamesGuard guard;
+  xo::seed(99);
+  Model m = test_support::build_small_case("zero_out_ring", 4000, 60, [](const fs::path& d) {
+    test_support::edit_config(d, [](json& c) { c["do_rings"] = true; });
+    json rings = test_support::read_case_json(d, "rings.json");
+    for (auto& r : rings["rings"])
+      for (auto& [k, v] : r["out_ring_prob_by_agegrp"].items()) v = 0.0;
+    test_support::write_case_json(d, "rings.json", rings);
+
+    json seeds = test_support::read_case_json(d, "seed.json");
+    for (auto& s : seeds) s["filter"].push_back(json{{"trait", "ring"}, {"val", "ring_1"}});
+    test_support::write_case_json(d, "seed.json", seeds);
+  });
+  Histories h = test_support::run_quiet(m);
+  CHECK_EQ(invariants::check_run(m.pop, h, "zero_out_ring"), 0);
+  int r1_inf = 0, r2_inf = 0;
+  for (size_t p = 1; p <= m.pop.popn; ++p) {
+    if (m.pop.variant_hist[p].count == 0) continue;
+    if (m.pop.ring[p].v == 1) ++r1_inf;
+    else if (m.pop.ring[p].v == 2) ++r2_inf;
+  }
+  CHECK_MSG(r1_inf > 20, "zero_out_ring: ring_1 had only {} infections", r1_inf);
+  CHECK_EQ(r2_inf, 0);
+}
+
 }  // namespace
 
 void run_setup_tests(const test_support::TestRunOptions&) {
@@ -283,4 +493,9 @@ void run_setup_tests(const test_support::TestRunOptions&) {
   run_test("rings_config_rules", test_rings_config_rules);
   run_test("input_verify_exits_with_log", test_input_verify_exits_with_log_for_bad_case);
   run_test("short_runs_hold_invariants", test_short_runs_hold_invariants);
+  run_test("r0_sim_behavior_and_day_isolation", test_r0_sim_behavior_and_day_isolation);
+  run_test("rt_sim_in_runsim_and_immunity_decline", test_rt_sim_in_runsim_and_immunity_decline);
+  run_test("multi_variant_mini_simulation", test_multi_variant_mini_simulation);
+  run_test("sequential_case_isolation_without_guard", test_sequential_case_isolation_without_guard);
+  run_test("full_run_zero_out_ring_prob_isolates_ring2", test_full_run_zero_out_ring_prob_isolates_ring2);
 }

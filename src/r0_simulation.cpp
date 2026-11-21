@@ -31,8 +31,7 @@ Simulates r0. This overload creates a population and tracks how many infections
 are caused by first generation spreaders and NOT spreaders who were infected by the
 first generation (or later). 
 */
-
-double r0_sim(Model & model) {
+double r0_sim(Model & model) {    // TODO we could take another variant as the input: verify that it is valid
   
   int scale = 3;
   Variant use_variant{1};  // this will be the required base variant
@@ -63,15 +62,17 @@ parameters. This simulates r(t).
 It will be called during a simulation run in function runsim so that it uses the
 context of the current simulation with its input parameters and current population state.
 */
-void rt_sim(PopData locdat, Model & model) {
+void rt_sim(Model & model) {
 
     // create the simulation population--> this is all we have to do in the front end function
-    PopData rtpop {locdat};
+    // PopData rtpop {locdat};
+    PopData rtpop{model.pop};
     int scale = 3;
     Variant use_variant{1};
 
-    const int saved_day = sim::current_day;
-    sim::reset_day();  // day back to 0--assume incremented at start of day loop
+    const int start_day = sim::Counter<sim::Mainline>::state.get();
+    assert(start_day >= 1);
+    const size_t start_idx = static_cast<size_t>(start_day - 1);
 
     // create a subset of the actual model indoor_seq for running the rt simulation
     vector<float> rt_indoor_seq{};
@@ -80,41 +81,33 @@ void rt_sim(PopData locdat, Model & model) {
     // create DURATIONLIM long vector of indoor_seq. 
     size_t seq_len = static_cast<size_t>(DURATIONLIM);
 
-    assert(saved_day < model.indoor_seq.size());
+    assert(start_idx < model.indoor_seq.size());
 
-    std::size_t available = model.indoor_seq.size() - saved_day;
+    std::size_t available = model.indoor_seq.size() - start_idx;
     std::size_t take = std::min(seq_len, available);
 
-    rt_indoor_seq.insert(rt_indoor_seq.end(), model.indoor_seq.begin() + saved_day, model.indoor_seq.begin() + saved_day + take);
+    rt_indoor_seq.insert(rt_indoor_seq.end(), model.indoor_seq.begin() + start_idx, model.indoor_seq.begin() + start_idx + take);
 
     if (take < seq_len) {
         rt_indoor_seq.resize(seq_len, model.indoor_seq.back());
     }
 
-
-    std::optional<double> rt = run_rt_sim(model, rtpop, use_variant, scale, rt_indoor_seq);
-    sim::current_day = saved_day;  // make sure both of these get the day reset properly for continuing the simulation
-    sim::ds.day = saved_day;
+    sim::Counter<sim::Rt>::state.start_from(sim::Counter<sim::Mainline>::state);
+    std::optional<double> rt;
+    {
+      sim::UseCounter<sim::Rt> use_rt;
+      rt = run_rt_sim(model, rtpop, use_variant, scale, rt_indoor_seq);
+    }
 
     if (!rt) {
       fmt::println("Could not seed spreaders for rt_simulation. Simulation continuing.");
     }
     else {
-      fmt::println("rt at simulaton day {} = {}", saved_day, *rt);
+      fmt::println("rt at simulation day {} = {}", start_day, *rt);
     }
   }
 
 namespace{
-
-struct SimDayGuard {
-  int current_day = sim::current_day;
-  sim::daystats ds = sim::ds;
-
-  ~SimDayGuard() {
-    sim::current_day = current_day;
-    sim::ds = ds;
-  }
-};
 
 void seed_gen1(vector<size_t>& gen1_spreaders, PopData& rtpop,
                Histories& histories, vector<double>& age_dist,
@@ -151,7 +144,7 @@ size_t spread_and_count(PopData& pop, Histories& histories, AgentView person,
   const Variant spr_variant = person.variant();
   const Agegrp spr_agegrp = person.agegrp();
   const Condition spr_cond = person.cond();
-  const float indoor_factor = indoor_seq[static_cast<size_t>(thisday - 1)];
+  const float indoor_factor = indoor_seq[zidx(sim::alt_day())];
 
   // rows are nil..severe (0..3); Condition nil..severe is 2..5, so subtract 2
   const float contact_factor = contactfactors[spr_cond - 2][zidx(spr_agegrp)];
@@ -185,10 +178,8 @@ size_t spread_and_count(PopData& pop, Histories& histories, AgentView person,
 
 double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
 
-  // Snapshot the global day counter so a midstream simulation (future use)
-  // isn't disturbed. We drive the R0 day loop starting from day 1.
-  const int saved_day = sim::current_day;
-  sim::reset_day();
+  sim::Counter<sim::R0>::state.reset();
+  sim::UseCounter<sim::R0> use_r0;
 
 
   // deref or create arguments needed for spread
@@ -210,8 +201,6 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   seed_gen1(gen1_spreaders, r0pop, r0_histories, age_dist, variant, scale);
   const size_t gen1_spreader_cnt = gen1_spreaders.size();
   if (gen1_spreader_cnt == 0) {
-    sim::current_day = saved_day;
-    sim::ds.day = saved_day;
     throw std::runtime_error("No spreaders assigned.");
   }
 
@@ -224,7 +213,6 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
   for (size_t d=1; d <= DURATIONLIM; ++d) {   // day loop
     // start a new day
     sim::incr_day();
-    sim::ds.day = sim::get_day();
 
     // loop over gen 1 spreaders
     for (size_t p : gen1_spreaders) {
@@ -233,26 +221,26 @@ double run_r0_sim(Model & model, PopData & r0pop, Variant variant, int scale) {
       const Duration spr_duration = person.duration();
       const Variant spr_variant = person.variant();
       const float sendrisk = infectparams[idx(spr_variant)].sendrisk[spr_duration];
-      if (sendrisk <= 0.0f) continue;
+      if (sendrisk > 0.0f) {
+          const size_t infected = spread_and_count(r0pop, r0_histories, person, 
+            socialparams, infectparams, vaxset, dovax, contacts, density_factor,
+            indoor_seq);
+          r0_infected += infected;
+      }
 
-      const size_t infected = spread_and_count(r0pop, r0_histories, person, socialparams,
-                              infectparams, vaxset, dovax, contacts, density_factor, indoor_seq);
-      r0_infected += infected;
+      progression(person, r0_histories, progressionset, infectparams, dovax, vaxset);
+
     }
 
     // daily progression for spreaders: to get better or die
-    for (size_t p : gen1_spreaders) {
-      auto person = r0pop.agent(p);
-      progression(person, r0_histories, progressionset, infectparams, dovax, vaxset);
-    }
+    // for (size_t p : gen1_spreaders) {
+    //   auto person = r0pop.agent(p);
+    //   progression(person, r0_histories, progressionset, infectparams, dovax, vaxset);
+    // }
   }
   fmt::println("infected spreaders seeded: {}", gen1_spreader_cnt);
   fmt::println("r0 infected: {}", r0_infected);
   double r0 = static_cast<double>(r0_infected) / static_cast<double>(gen1_spreader_cnt);
-
-  // Restore the global day counter.
-  sim::current_day = saved_day;
-  sim::ds.day = saved_day;
 
   return r0;
 }
@@ -310,14 +298,14 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
   for (size_t d=1; d <= DURATIONLIM; ++d) {   // day loop
     // start a new day for the side loop of DURATIONLIM DAYS.
     sim::incr_day();
-    sim::ds.day = sim::get_day();
+    const int today = sim::get_day();
 
     // loop over gen 1 spreaders
     for (size_t p : gen1_spreaders) {
       auto person = rtpop.agent(p);
       // if (sendrisk <= 0.0f) continue;
       if (person.status() != INFECTIOUS) continue;
-      if (person.sickday() >= sim::ds.day) continue;  // newly infected today (shouldn't happen for gen1 after day 1) — be safe
+      if (person.sickday() >= today) continue;  // newly infected today (shouldn't happen for gen1 after day 1) — be safe
 
       const Duration spr_duration = person.duration();
       const Variant spr_variant = person.variant();
@@ -342,7 +330,7 @@ std::optional<double> run_rt_sim(Model & model, PopData & rtpop, Variant variant
 
       // get an agent at index p
       auto person = rtpop.agent(p);
-      if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day || (std::ranges::contains(gen1_spreaders, p))) continue;
+      if (person.status() != INFECTIOUS || person.sickday() >= today || (std::ranges::contains(gen1_spreaders, p))) continue;
 
       // spread kernel
       auto spr_duration = person.duration();      

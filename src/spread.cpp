@@ -25,7 +25,7 @@ void spread(PopData& pop, Histories& histories, AgentView person, SocialParams& 
     auto spr_variant = person.variant();
     auto spr_agegrp = person.agegrp();
     auto spr_cond = person.cond();
-    auto indoor_factor = indoor_seq[zidx(thisday)];
+    auto indoor_factor = indoor_seq[zidx(sim::alt_day())];
 
     // which contacts does the infected person have? use pre-allocated buffer contacts
     // rows are nil..severe (0..3); Condition nil..severe is 2..5, so subtract 2

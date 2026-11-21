@@ -255,12 +255,6 @@ void test_load_vax_sched_rejects_mix_not_summing_to_one() {
   fs::remove_all(path.parent_path());
 }
 
-//
-// load_ring_traits: these guards already exist in parameters.cpp -- these
-// tests pin down their current, correct behavior (no source changes here).
-//
-
-
 void test_vax_schedule_age_aliases_and_fallback() {
   const auto path = write_temp_json("sched_age_aliases", R"({
     "vaxesincluded": {},
@@ -295,16 +289,6 @@ void test_vax_schedule_age_aliases_and_fallback() {
   input_verify_detail::check_vax_sched(js, "aliases", ok);
   CHECK_MSG(!ok.any(), "input_verify rejects accepted aliases: {}", ok.msgs);
 }
-
-
-
-//
-// load_vax_sched_set: directory-existence guards already exist -- pin down
-// current behavior (no source changes here).
-//
-
-
-
 
 void test_model_params_loading(const test_support::TestRunOptions& options) {
   fmt::print("\n=== Testing ModelParams Loading ===\n\n");
@@ -426,6 +410,17 @@ void test_input_verify_accepts_template_inputs() {
   CHECK(dovax == false);
 }
 
+struct CwdGuard {
+  fs::path original = fs::current_path();
+  explicit CwdGuard(const fs::path& next) { fs::current_path(next); }
+  ~CwdGuard() {
+    std::error_code ec;
+    fs::current_path(original, ec);
+  }
+  CwdGuard(const CwdGuard&) = delete;
+  CwdGuard& operator=(const CwdGuard&) = delete;
+};
+
 void test_input_verify_reports_vaccine_variant_alignment_error() {
   const fs::path case_dir = fs::temp_directory_path() /
                             test_support::unique_name("epi_sim_bad_vax_variant_case_");
@@ -448,10 +443,10 @@ void test_input_verify_reports_vaccine_variant_alignment_error() {
     out << vaccines.dump(2) << '\n';
   }
 
-  const fs::path original_cwd = fs::current_path();
-  fs::current_path(case_dir);
-  expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
-  fs::current_path(original_cwd);
+  {
+    CwdGuard cwd_guard(case_dir);
+    expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
+  }
 
   std::ifstream error_log(case_dir / "input-error-log.txt");
   std::ostringstream report;
@@ -791,10 +786,10 @@ void test_input_verify_reports_exact_duplicate_variant_key() {
     out << text;
   }
 
-  const fs::path original_cwd = fs::current_path();
-  fs::current_path(case_dir);
-  expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
-  fs::current_path(original_cwd);
+  {
+    CwdGuard cwd_guard(case_dir);
+    expect_throws_containing([&] { input_verify(input_dir); }, "Input validation failed");
+  }
 
   std::ifstream error_log(case_dir / "input-error-log.txt");
   std::ostringstream report;

@@ -9,8 +9,15 @@ namespace {
 
 constexpr std::string_view GROUP = "templates";
 
+using test_support::child_exit_code;
 using test_support::home_dir;
 using test_support::unique_name;
+
+test_support::fs::path templates_tmp_root() {
+  const auto root = test_support::project_dir() / "test_output" / "tmp" / "templates";
+  test_support::fs::create_directories(root);
+  return root;
+}
 
 test_support::fs::path project_config_path() {
   return home_dir() / ".config" / "epi_sim" / "project-dir.toml";
@@ -32,28 +39,6 @@ struct ProjectConfigGuard {
     }
   }
 };
-
-template <typename Fn>
-int child_exit_code(Fn fn) {
-  std::cout.flush();
-  std::cerr.flush();
-  std::fflush(stdout);
-  std::fflush(stderr);
-
-  const pid_t pid = fork();
-  REQUIRE(pid >= 0);
-  if (pid == 0) {
-    // the child must never return into the test runner (run_test would catch and continue)
-    try { fn(); } catch (...) { _exit(70); }
-    _exit(EXIT_SUCCESS);
-  }
-
-  int status = 0;
-  REQUIRE(waitpid(pid, &status, 0) == pid);
-  if (WIFEXITED(status)) return WEXITSTATUS(status);
-  if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
-  return 255;
-}
 
 void write_project_config_for(const test_support::fs::path& project_dir) {
   const auto config_path = project_config_path();
@@ -146,9 +131,9 @@ void write_templates_artifact(const test_support::TestRunOptions& options,
 void test_project_and_explicit_case_scaffolding(const test_support::TestRunOptions& options) {
   ProjectConfigGuard project_config_guard;
 
-  const auto home = home_dir();
-  const auto project_dir = home / unique_name("epi_sim_test_project_");
-  const auto explicit_case_dir = home / unique_name("epi_sim_test_explicit_case_");
+  const auto root = templates_tmp_root();
+  const auto project_dir = root / unique_name("epi_sim_test_project_");
+  const auto explicit_case_dir = root / unique_name("epi_sim_test_explicit_case_");
   const std::string case_a = unique_name("case_a_");
   const std::string case_b = unique_name("case_b_");
 
@@ -186,7 +171,7 @@ void test_project_and_explicit_case_scaffolding(const test_support::TestRunOptio
 void test_existing_active_project_dir_is_used_without_overwriting() {
   ProjectConfigGuard project_config_guard;
 
-  const auto project_dir = home_dir() / unique_name("epi_sim_existing_project_");
+  const auto project_dir = templates_tmp_root() / unique_name("epi_sim_existing_project_");
   const auto marker_path = project_dir / "keep.txt";
   test_support::fs::create_directories(project_dir);
   {
@@ -209,7 +194,7 @@ void test_existing_active_project_dir_is_used_without_overwriting() {
 void test_missing_active_project_dir_is_created() {
   ProjectConfigGuard project_config_guard;
 
-  const auto project_dir = home_dir() / unique_name("epi_sim_missing_active_project_");
+  const auto project_dir = templates_tmp_root() / unique_name("epi_sim_missing_active_project_");
   write_project_config_for(project_dir);
 
   set_project_dir(project_dir.string());
@@ -224,8 +209,8 @@ void test_missing_active_project_dir_is_created() {
 void test_different_existing_project_dir_is_activated_without_overwriting() {
   ProjectConfigGuard project_config_guard;
 
-  const auto old_project_dir = home_dir() / unique_name("epi_sim_old_project_");
-  const auto new_project_dir = home_dir() / unique_name("epi_sim_new_project_");
+  const auto old_project_dir = templates_tmp_root() / unique_name("epi_sim_old_project_");
+  const auto new_project_dir = templates_tmp_root() / unique_name("epi_sim_new_project_");
   const auto marker_path = new_project_dir / "keep.txt";
   test_support::fs::create_directories(old_project_dir);
   test_support::fs::create_directories(new_project_dir);
@@ -250,8 +235,8 @@ void test_different_existing_project_dir_is_activated_without_overwriting() {
 void test_different_missing_project_dir_is_created_and_activated() {
   ProjectConfigGuard project_config_guard;
 
-  const auto old_project_dir = home_dir() / unique_name("epi_sim_old_project_");
-  const auto new_project_dir = home_dir() / unique_name("epi_sim_new_project_");
+  const auto old_project_dir = templates_tmp_root() / unique_name("epi_sim_old_project_");
+  const auto new_project_dir = templates_tmp_root() / unique_name("epi_sim_new_project_");
   test_support::fs::create_directories(old_project_dir);
   write_project_config_for(old_project_dir);
 
@@ -268,8 +253,8 @@ void test_different_missing_project_dir_is_created_and_activated() {
 void test_invalid_existing_project_path_does_not_repoint_config() {
   ProjectConfigGuard project_config_guard;
 
-  const auto valid_project_dir = home_dir() / unique_name("epi_sim_valid_project_");
-  const auto file_path = home_dir() / unique_name("epi_sim_project_path_file_");
+  const auto valid_project_dir = templates_tmp_root() / unique_name("epi_sim_valid_project_");
+  const auto file_path = templates_tmp_root() / unique_name("epi_sim_project_path_file_");
   test_support::fs::create_directories(valid_project_dir);
   {
     std::ofstream out(file_path);
@@ -291,7 +276,7 @@ void test_invalid_existing_project_path_does_not_repoint_config() {
 void test_read_project_dir_rejects_missing_configured_directory() {
   ProjectConfigGuard project_config_guard;
 
-  const auto missing_project_dir = home_dir() / unique_name("epi_sim_missing_project_");
+  const auto missing_project_dir = templates_tmp_root() / unique_name("epi_sim_missing_project_");
   write_project_config_for(missing_project_dir);
 
   const int exit_code = child_exit_code([]() { read_project_dir(); });
@@ -302,7 +287,7 @@ void test_read_project_dir_rejects_missing_configured_directory() {
 void test_show_project_dir_reports_missing_configured_directory_without_exit() {
   ProjectConfigGuard project_config_guard;
 
-  const auto missing_project_dir = home_dir() / unique_name("epi_sim_missing_project_");
+  const auto missing_project_dir = templates_tmp_root() / unique_name("epi_sim_missing_project_");
   write_project_config_for(missing_project_dir);
 
   show_project_dir();
@@ -312,7 +297,7 @@ void test_show_project_dir_reports_missing_configured_directory_without_exit() {
 }
 
 void test_existing_case_dir_gets_structural_dirs_without_template_overwrite() {
-  const auto case_dir = home_dir() / unique_name("epi_sim_existing_case_");
+  const auto case_dir = templates_tmp_root() / unique_name("epi_sim_existing_case_");
   const auto input_dir = case_dir / "input";
   const auto marker_path = input_dir / "custom.json";
 
@@ -338,7 +323,7 @@ void test_existing_case_dir_gets_structural_dirs_without_template_overwrite() {
 void test_existing_managed_case_dir_gets_structural_dirs_without_template_overwrite() {
   ProjectConfigGuard project_config_guard;
 
-  const auto project_dir = home_dir() / unique_name("epi_sim_existing_case_project_");
+  const auto project_dir = templates_tmp_root() / unique_name("epi_sim_existing_case_project_");
   const std::string case_label = unique_name("case_");
   const auto case_dir = project_dir / case_label;
   const auto input_dir = case_dir / "input";
@@ -370,7 +355,7 @@ void test_existing_managed_case_dir_gets_structural_dirs_without_template_overwr
 void test_managed_case_builds_and_runs() {
   ProjectConfigGuard project_config_guard;
   test_support::RuntimeNamesGuard names_guard;
-  const auto project_dir = home_dir() / unique_name("epi_sim_managed_project_");
+  const auto project_dir = templates_tmp_root() / unique_name("epi_sim_managed_project_");
   const std::string case_label = unique_name("case_");
   set_project_dir(project_dir.string());
   init_case(case_label);

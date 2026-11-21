@@ -36,18 +36,54 @@ struct Config {
 // parameters used throughout the simulation that are better global
 //    than passed into every function
 namespace sim {
-    inline int current_day = 0;
+    struct DayCounter {
+      int base = 0;   // 0 for Mainline/R0; (outer_day - 1) for Rt
+      int day  = 0;   // local day: 0 for seed_gen1, then 1..ndays or 1..DURATIONLIM
+
+      int  get() const { return base + day; }  // real/parallel-universe day
+      int  alt() const { return day; }         // local 1..ndays or 1..DURATIONLIM index
+      void inc(int n = 1) { day += n; }
+      void reset() { base = 0; day = 0; }
+      void start_from(const DayCounter& outer) {
+        base = outer.get() - 1;
+        day  = 0;
+      }
+    };
+
+    template <typename Tag>
+    struct Counter {
+      inline static DayCounter state{};
+    };
+
+    struct Mainline {};
+    struct R0 {};
+    struct Rt {};
+
+    inline DayCounter* active = &Counter<Mainline>::state;
     inline bool debug = false;
     // Instrumentation only; reset at the beginning of each main simulation.
     inline Timing history_timing{};
 
     inline int get_day() {
-        return current_day;
+        return active->get();
     }
 
-    inline void incr_day() { ++current_day; }
+    inline int alt_day() {
+        return active->alt();
+    }
 
-    inline void reset_day() { current_day = 0; }
+    inline void incr_day() { active->inc(); }
+
+    inline void reset_day() { active->reset(); }
+
+    template <typename Tag>
+    struct UseCounter {
+      DayCounter* prev;
+      UseCounter() : prev(active) { active = &Counter<Tag>::state; }
+      ~UseCounter() { active = prev; }
+      UseCounter(const UseCounter&) = delete;
+      UseCounter& operator=(const UseCounter&) = delete;
+    };
 
     struct daystats {  // a useful midstream debug tool: not being used; needs accumulators in the right places
       int day{};

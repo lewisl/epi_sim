@@ -100,7 +100,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
   for (int d_i = 1; d_i <= model.ndays; ++d_i) {
     // start a new day
     sim::incr_day();
-    sim::ds.day = sim::get_day();
+    const int today = sim::get_day();
 
     sim::history_timing.start();
     histories.init_history_newday(d_i); 
@@ -110,12 +110,12 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     run_seed_cases(d_i, true);
 
     // run social distancing cases
-    apply_sd_cases_for_day(sim::ds.day, sd_cases, pop);
+    apply_sd_cases_for_day(today, sd_cases, pop);
 
     // do vaccination if using vaccination
     if (model.dovax) {
       vax_timing.start();
-      vaccinate(sim::get_day(),
+      vaccinate(today,
                mp.vaxschedset,
                mp.vaxset,
                pop,
@@ -126,7 +126,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
     // run rt simulation if interval != 0  
     if (model.rt_sim_interval) {
     if (d_i % model.rt_sim_interval == 0) {
-      rt_sim(pop, model);
+      rt_sim(model);
     }}
 
     //
@@ -136,7 +136,7 @@ Histories runsim(Model& model) {  // vector<SeedCase>& seedcases, vector<SocialD
 
       // get an agent at index p
       auto person = pop.agent(p);
-      if (person.status() != INFECTIOUS || person.sickday() >= sim::ds.day) continue;
+      if (person.status() != INFECTIOUS || person.sickday() >= today) continue;
 
       // spread kernel
       spread_timing.start();
