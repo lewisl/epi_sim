@@ -88,8 +88,8 @@ void verify_scaffolded_case(const test_support::fs::path& case_dir) {
   CHECK(config.value("vax_sched_dir", "") == "vaccine_100k");
   CHECK(config.value("output", "") == "output");
 
-  const json seed = load_template_json(input_dir / "seed.json");
-  const json social_dist = load_template_json(input_dir / "soc_dist.json");
+  const json seed = load_template_json(input_dir / "seed.json")["seed_cases"];
+  const json social_dist = load_template_json(input_dir / "soc_dist.json")["sd_cases"];
   const json socialparams = load_template_json(input_dir / "socialparams.json");
   const json variants = load_template_json(input_dir / "variants.json");
   const json vaccines = load_template_json(input_dir / "vaccines.json");

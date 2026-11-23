@@ -236,8 +236,8 @@ SeedCase load_seed_case(const json& sc, const ModelParams& mp) {
 
 vector<SeedCase> load_seed_cases(const json& jdata,  const ModelParams& mp) {
   vector<SeedCase> seedcases;
-  seedcases.reserve(jdata.size());
-  for (const auto& sc : jdata) {
+  seedcases.reserve(jdata["seed_cases"].size());
+  for (const auto& sc : jdata["seed_cases"]) {
     seedcases.push_back(load_seed_case(sc, mp));
   }
   return seedcases;
@@ -252,9 +252,10 @@ Social Distancing Cases
 ////////////////////////
 
 
-SocialDistancing load_sd_case(const json& sdc) {
+SocialDistancing mod_sd_case(const json& sdc) {
   vector<Agegrp> inc_ages;
   for (const auto& str_age : sdc["include_ages"]) {
+    // replace string input with agegrp numeric values
     inc_ages.push_back(Agegrp(Agegrp::resolve_name(str_age)));
   }
   SocialDistancing sd{sdc["name"], sdc["startday"], sdc["comply"],
@@ -265,11 +266,12 @@ SocialDistancing load_sd_case(const json& sdc) {
 
 vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& social) {
   vector<SocialDistancing> sd_cases;
-  sd_cases.reserve(jdata.size());
-  for (const auto& sdc : jdata) {
-    sd_cases.push_back(load_sd_case(sdc));
+  sd_cases.reserve(jdata["sd_cases"].size());
+  for (const auto& sdc : jdata["sd_cases"]) {
+    sd_cases.push_back(mod_sd_case(sdc));
   }
 
+  // scale array values to meet input parameters
   for (auto& sdc : sd_cases) {
     if (sdc.contact_delta.size() != 2)
       throw std::runtime_error(fmt::format(
@@ -281,7 +283,7 @@ vector<SocialDistancing> load_sd_cases(const json& jdata, const SocialParams& so
           sdc.name, sdc.touch_delta.size()));
     if (sdc.comply < 0.0f || sdc.comply > 1.0f)
       throw std::runtime_error(fmt::format(
-          "SocialDistancing '{}' comply must be in [0, 1], got {}", sdc.name, sdc.comply));
+          "SocialDistancing '{}' comply must be in [0.0, 1.0], got {}", sdc.name, sdc.comply));
     // apply_sd_cases_for_day tags on startday and clears on endday (else-if), so the
     // case needs startday >= 1 and endday after startday
     if (sdc.startday < 1 || sdc.endday <= sdc.startday)

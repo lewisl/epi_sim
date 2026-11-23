@@ -1,5 +1,11 @@
 #include "template.h"
 
+/*
+These are the template json parameter files for configuring the simulation.  These are copied 
+to the input subdir of a case directory.  Users will edit the files to configure their own version
+of a simulation.
+*/
+
 // config.json
 const std::string config_json = R"TAG(
 {
@@ -174,7 +180,8 @@ const std::string socialparams_json = R"TAG(
 // variants.json
 const std::string variants_json = R"TAG(
 {
-"base"         : {
+
+"base"  : {
 
   "_Documentation Tags_": "Will not affect the simulation.  Don't change them.",
 
@@ -406,7 +413,9 @@ const std::string variants_json = R"TAG(
 
               "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9} }
 },
-"alpha"        : {
+
+
+"alpha"  : {
     "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.1},
     "immunity"           : {
         "recovery_immunity": {
@@ -433,7 +442,9 @@ const std::string variants_json = R"TAG(
         "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
     }
 },
-"delta"        : {
+
+
+"delta"  : {
     "spread"             : {"sendrisk": [], "recvrisk": [], "basemultiplier": 1.2},
     "immunity"           : {
         "recovery_immunity": {
@@ -452,6 +463,8 @@ const std::string variants_json = R"TAG(
         "vaxhalflifeadjust": {"JnJ": 0.9, "Pfizer": 0.9, "Moderna": 0.9}
     }
 },
+
+
 "omicron_ba1"  : {
     "spread"             : {
         "sendrisk"      : [
@@ -478,6 +491,8 @@ const std::string variants_json = R"TAG(
         "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
     }
 },
+
+
 "omicron_ba2"  : {
     "spread"             : {
         "sendrisk"      : [
@@ -504,7 +519,9 @@ const std::string variants_json = R"TAG(
         "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
     }
 },
-"omicron_ba4_5": {
+
+
+"omicron_ba4_5" : {
     "spread"             : {
         "sendrisk"      : [
             0.0    ,   0.0,   0.545, 1.175, 1.325, 1.475, 1.475, 1.325, 1.25 , 1.075, 0.9  , 0.75 , 0.5  , 0.1  , 0.05 ,
@@ -530,69 +547,127 @@ const std::string variants_json = R"TAG(
         "vaxhalflifeadjust": {"JnJ": 0.5, "Pfizer": 0.8, "Moderna": 0.9}
     }
 }
+    
 }
 )TAG";
 
 
 // seed.json
 const std::string seed_json = R"TAG(
-[
-    {
-        "triggerday": 1,
-        "startofday": true,
-        "filter": [
-            {"trait": "agegrp", "val": "Age20_39"}
+{
+    "_Documentation_" : [
+        "_this will not affect the simulation: don't edit it_",
+        "_Required_: provide at least one seedcase in the seed_case array"
         ],
-        "change": {
-            "terms": [
-                {"trait": "status",   "val": "infectious"},
-                {"trait": "cond",     "val": "nil"},
-                {"trait": "variant",  "val": "base"},
-                {"trait": "duration", "val": 1}
+    "seed_cases": [
+        {
+            "_trigger_day_": "day that the seed occurs",
+
+                "triggerday": 1,
+
+            "_startofday_": "startofday == true is required",
+
+                "startofday": true,
+
+            "_filter_": "at least one filter trait and val must be provided", 
+
+                "filter": [
+                    {"trait": "agegrp", "val": "Age20_39"}
+                ],
+
+
+            "change": {
+
+                "_change_": "Required: traits for each person in this seed case",
+                "_values_": "Prefer the template values shown",
+                
+                  "terms": [
+                      {"trait": "status",   "val": "infectious"},
+                      {"trait": "cond",     "val": "nil"},
+                      {"trait": "variant",  "val": "base"},
+                      {"trait": "duration", "val": 1}
+                  ],
+
+                "_count_": "set number of people to be seeded",
+
+                    "count": 3
+            }
+        },
+        {
+            "triggerday": 1,
+            "startofday": true,
+            "filter": [
+                {"trait": "agegrp", "val": "Age40_59"}
             ],
-            "count": 3
+            "change": {
+                "terms": [
+                    {"trait": "status",   "val": "infectious"},
+                    {"trait": "cond",     "val": "nil"},
+                    {"trait": "variant",  "val": "base"},
+                    {"trait": "duration", "val": 1}
+                ],
+                "count": 3
+            }
         }
-    },
-    {
-        "triggerday": 1,
-        "startofday": true,
-        "filter": [
-            {"trait": "agegrp", "val": "Age40_59"}
-        ],
-        "change": {
-            "terms": [
-                {"trait": "status",   "val": "infectious"},
-                {"trait": "cond",     "val": "nil"},
-                {"trait": "variant",  "val": "base"},
-                {"trait": "duration", "val": 1}
-            ],
-            "count": 3
-        }
-    }
-]
+      ]
+}
 )TAG";
 
+// soc_dist.json
 const std::string social_dist_json = R"TAG(
-[  
-    {
-        "name": "young",
-        "startday": 50,
-        "endday": 100,
-        "comply": 0.9,
-        "contact_delta": [0.2, 1.0],
-        "touch_delta": [0.18, 0.6],
-        "include_ages": []
-    },
-    {
-        "name": "old",
-        "startday": 100,
-        "endday":300,
-        "comply": 0.9,
-        "contact_delta": [0.2, 1.0],
-        "touch_delta": [0.18, 0.6],
-        "include_ages": ["Age60_79", "Age80_up"]
-    }
-]
+{
+  "_Documentation_": [
+      "_this will not affect the simulation: don't edit it_",
+      "_Required_:  the sd_cases array must be present with []",
+      "_Optional_: the array may be empty."
+  ],
+
+  "sd_cases": [  
+      {
+        "_Required": "All entries are required",
+
+        "_name_": "some name",
+
+            "name": "young",
+        "_Start and End day_": "Required: day social distancing begins and ends",
+
+            "startday": 50,
+            "endday": 100,
+
+        "_Comply_": "Not everyone compies: percentage of people who comply",
+
+            "comply": 0.9,
+
+        "_Contact and Touch delta_": "",    
+            "_contact_delta_": "reduces contact factor, which reduces number of contacts",
+            "_by_": "squashing existing contact factors between 2 values",
+            "_contact_values_": "suggest between 0.2 and 1.4",
+
+                "contact_delta": [0.2, 1.0],
+
+            "_touch_delta_": "reduces probability of significant contact touch",
+            "_touch_values_": "squashes probabilities into range--both values",
+                "_continued_": "must be in 0.0, 1.0 and first < second",
+
+              "touch_delta": [0.18, 0.6],
+
+        "_include_ages_": "Required",
+            "_values_": "an empty array includes all age groups in the case.",
+            "_specific age groups_": "use Age0_19, Age20_39, Age40_59, Age60_79, Age80_up in double quotes to include specific age groups only",
+
+            "include_ages": []
+      },
+      {
+          "name": "old",
+          "startday": 100,
+          "endday":300,
+          "comply": 0.9,
+          "contact_delta": [0.2, 1.0],
+          "touch_delta": [0.18, 0.6],
+          "include_ages": ["Age60_79", "Age80_up"]
+      }
+  ]
+}
 )TAG";
 
 // vaccines.json

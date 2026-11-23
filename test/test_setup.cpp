@@ -59,7 +59,7 @@ void test_use_dir_builds_valid_model() {
   int not_ring1 = 0;
   for (size_t p = 1; p <= m.pop.popn; ++p) not_ring1 += m.pop.ring[p].v != 1;
   CHECK_EQ(not_ring1, 0);
-  CHECK_EQ(m.seedcases.size(), test_support::read_case_json(dir, "seed.json").size());
+  CHECK_EQ(m.seedcases.size(), test_support::read_case_json(dir, "seed.json")["seed_cases"].size());
   CHECK(m.sd_cases.empty());
   CHECK(!m.dovax);
   CHECK_EQ(m.mp.vaxset.size(), size_t{0});
@@ -85,7 +85,7 @@ void test_use_dir_with_rings_vax_and_distancing() {
   CHECK(m.dovax && m.do_rings && m.do_social_distancing);
   CHECK_EQ(m.mp.vaxset.size(), test_support::read_case_json(dir, "vaccines.json").size());
   CHECK_EQ(m.mp.vaxschedset.size(), size_t{2});
-  CHECK_EQ(m.sd_cases.size(), test_support::read_case_json(dir, "soc_dist.json").size());
+  CHECK_EQ(m.sd_cases.size(), test_support::read_case_json(dir, "soc_dist.json")["sd_cases"].size());
   CHECK_EQ(SDCase::names.size(), m.sd_cases.size() + 1);
   REQUIRE(m.mp.ringtraits.ring_count() == rings.size());
   CHECK_EQ(size_t{Ring::count}, rings.size());
@@ -248,11 +248,12 @@ void test_short_runs_hold_invariants() {
            c["do_social_distancing"] = true;
          });
          test_support::move_vax_schedules(d, 10, 60);
-         json sd = test_support::read_case_json(d, "soc_dist.json");
+         json doc = test_support::read_case_json(d, "soc_dist.json");
+         json& sd = doc["sd_cases"];
          sd[0]["startday"] = 20;
          sd[0]["endday"] = 70;
          sd[1]["startday"] = 40;
-         test_support::write_case_json(d, "soc_dist.json", sd);
+         test_support::write_case_json(d, "soc_dist.json", doc);
        }},
   };
   for (const auto& sc : scenarios) {
@@ -354,7 +355,8 @@ void test_multi_variant_mini_simulation() {
       c["do_rings"] = true;
     });
     test_support::move_vax_schedules(d, 10, 60);
-    json seeds = test_support::read_case_json(d, "seed.json");
+    json doc = test_support::read_case_json(d, "seed.json");
+    json& seeds = doc["seed_cases"];
     for (const char* age : {"Age20_39", "Age40_59"}) {
       seeds.push_back(json{
           {"triggerday", 35},
@@ -371,7 +373,7 @@ void test_multi_variant_mini_simulation() {
           }},
       });
     }
-    test_support::write_case_json(d, "seed.json", seeds);
+    test_support::write_case_json(d, "seed.json", doc);
   });
   Histories h = test_support::run_quiet(m);
   CHECK_MSG(invariants::check_run(m.pop, h, "multi_variant") == 0, "multi_variant broke run invariants");
@@ -467,9 +469,10 @@ void test_full_run_zero_out_ring_prob_isolates_ring2() {
       for (auto& [k, v] : r["out_ring_prob_by_agegrp"].items()) v = 0.0;
     test_support::write_case_json(d, "rings.json", rings);
 
-    json seeds = test_support::read_case_json(d, "seed.json");
+    json doc = test_support::read_case_json(d, "seed.json");
+    json& seeds = doc["seed_cases"];
     for (auto& s : seeds) s["filter"].push_back(json{{"trait", "ring"}, {"val", "ring_1"}});
-    test_support::write_case_json(d, "seed.json", seeds);
+    test_support::write_case_json(d, "seed.json", doc);
   });
   Histories h = test_support::run_quiet(m);
   CHECK_EQ(invariants::check_run(m.pop, h, "zero_out_ring"), 0);

@@ -542,12 +542,16 @@ void check_socialparams(const json& j, Errors& e) {
 //
 void check_seed(const json& j, Errors& e) {
   constexpr std::string_view ctx = "seed.json";
-  if (!j.is_array()) {
+  if (!j.contains("seed_cases")) {
+    e.add(fmt::format("{}: expected key \"seed_cases\".", ctx));
+    return;
+  }
+  if (!j["seed_cases"].is_array()) {
     e.add(fmt::format("{}: expected a JSON array of seed cases.", ctx));
     return;
   }
-  for (size_t i = 0; i < j.size(); ++i) {
-    const auto& el = j[i];
+  for (size_t i = 0; i < j["seed_cases"].size(); ++i) {
+    const auto& el = j["seed_cases"][i];
     const std::string ectx = fmt::format("seed.json entry [{}]", i);
     if (!el.is_object()) {
       e.add(fmt::format("{}: must be an object.", ectx));
@@ -566,12 +570,16 @@ void check_seed(const json& j, Errors& e) {
 //
 void check_soc_dist(const json& j, Errors& e) {
   constexpr std::string_view ctx = "soc_dist.json";
-  if (!j.is_array()) {
+  if (!j.contains("sd_cases")) {
+    e.add(fmt::format("{}: expected key \"sd_cases\".", ctx));
+    return;
+  }
+  if (!j["sd_cases"].is_array()) {
     e.add(fmt::format("{}: expected a JSON array of social-distancing cases.", ctx));
     return;
   }
-  for (size_t i = 0; i < j.size(); ++i) {
-    const auto& el = j[i];
+  for (size_t i = 0; i < j["sd_cases"].size(); ++i) {
+    const auto& el = j["sd_cases"][i];
     const std::string ectx = fmt::format("soc_dist.json entry [{}]", i);
     if (!el.is_object()) {
       e.add(fmt::format("{}: must be an object.", ectx));

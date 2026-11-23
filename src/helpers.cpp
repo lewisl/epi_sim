@@ -14,7 +14,9 @@
 
 using std::vector;
 
-
+/*
+Scales values in an array to fit in range of new minimum to new maximum.
+*/
 void shifter(vector<float> &arr, const float newmin, const float newmax) {
 
   auto minposition = std::min_element(arr.begin(), arr.end());
@@ -32,6 +34,9 @@ void shifter(vector<float> &arr, const float newmin, const float newmax) {
   }
 }
 
+/*
+shifter override to scale inner array of 5 elements to fit in range of new minimum to new maximum. Outer array is 4 inners.
+*/
 void shifter(std::array<std::array<float, 5>, 4>& arr, const float newmin, const float newmax) {
   float oldmin = arr[0][0];
   float oldmax = arr[0][0];
@@ -53,6 +58,9 @@ void shifter(std::array<std::array<float, 5>, 4>& arr, const float newmin, const
   }
 }
 
+/*
+shifter override to scale inner array of 6 elements to fit in range of new minimum to new maximum. Outer array is 5 inners.
+*/
 void shifter(std::array<std::array<float, 5>, 6>& arr, const float newmin, const float newmax) {
   float oldmin = arr[0][0];
   float oldmax = arr[0][0];

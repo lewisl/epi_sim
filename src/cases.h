@@ -72,7 +72,7 @@ SeedCase load_seed_case(const json& sc, const ModelParams& mp);
 // Load seed cases from a parsed JSON array; requires ModelParams for variant lookup.
 std::vector<SeedCase> load_seed_cases(const json& jdata, const ModelParams& mp);
 // Load a single social-distancing case from a parsed JSON object.
-SocialDistancing load_sd_case(const json& sdc);
+SocialDistancing mod_sd_case(const json& sdc);
 // Load social-distancing cases from a parsed JSON array. Each case's
 // contactfactors/touchfactors are seeded from `social` and rescaled into
 // [contact_delta[0], contact_delta[1]] and [touch_delta[0], touch_delta[1]].

@@ -221,7 +221,7 @@ void test_load_progression_set_rejects_wrong_riskadjust_length() {
 void test_load_seed_case_rejects_duration_above_limit() {
   test_support::VariantNamesGuard variant_guard;
   Variant::names = {"none", "base"};
-  json seed = json::parse(seed_json)[0];
+  json seed = json::parse(seed_json)["seed_cases"][0];
   for (auto& term : seed["change"]["terms"]) {
     if (term["trait"] == "duration") term["val"] = DURATIONLIM + 1;
   }
@@ -688,7 +688,7 @@ void test_check_socialparams_rejects_missing_key() {
 void test_check_seed_rejects_entry_missing_key() {
   Errors e;
   json seed = json::parse(seed_json);
-  seed[0].erase("triggerday");
+  seed["seed_cases"][0].erase("triggerday");
   input_verify_detail::check_seed(seed, e);
   CHECK(has_error_containing(e, "missing required key 'triggerday'"));
 }
@@ -696,7 +696,7 @@ void test_check_seed_rejects_entry_missing_key() {
 void test_check_soc_dist_rejects_bad_contact_delta_length() {
   Errors e;
   json sd = json::parse(social_dist_json);
-  sd[0]["contact_delta"] = {0.2};
+  sd["sd_cases"][0]["contact_delta"] = {0.2};
   input_verify_detail::check_soc_dist(sd, e);
   CHECK(has_error_containing(e, "'contact_delta' must have exactly 2 entries"));
 }
@@ -1008,16 +1008,17 @@ void test_social_distancing_cases_load() {
   test_support::RuntimeNamesGuard guard;
   const SocialParams sp = load_social_params(test_support::sample_paths().social);
   const json jd = json::parse(social_dist_json);
+  const json& jcases = jd["sd_cases"];
   const auto cases = load_sd_cases(jd, sp);
-  REQUIRE(cases.size() == jd.size());
-  CHECK_EQ(SDCase::names.size(), jd.size() + 1);
+  REQUIRE(cases.size() == jcases.size());
+  CHECK_EQ(SDCase::names.size(), jcases.size() + 1);
   for (size_t k = 0; k < cases.size(); ++k) {
     const auto& c = cases[k];
-    CHECK_EQ(c.name, jd[k]["name"].get<string>());
+    CHECK_EQ(c.name, jcases[k]["name"].get<string>());
     CHECK_EQ(SDCase::names[k + 1], c.name);
-    CHECK_EQ(c.startday, jd[k]["startday"].get<int>());
-    CHECK_EQ(c.endday, jd[k]["endday"].get<int>());
-    CHECK_EQ(c.include_ages.size(), jd[k]["include_ages"].size());
+    CHECK_EQ(c.startday, jcases[k]["startday"].get<int>());
+    CHECK_EQ(c.endday, jcases[k]["endday"].get<int>());
+    CHECK_EQ(c.include_ages.size(), jcases[k]["include_ages"].size());
     float cmin = 99, cmax = -99, tmin = 99, tmax = -99;
     int order_bad = 0;
     for (size_t r = 0; r < 4; ++r)
@@ -1039,21 +1040,21 @@ void test_social_distancing_cases_load() {
   CHECK_EQ(cases[1].include_ages[1], AGE80_UP);
 
   json one = jd;
-  one[0].erase("endday");
+  one["sd_cases"][0].erase("endday");
   const auto no_end = load_sd_cases(one, sp);
   CHECK_EQ(no_end[0].endday, INT_MAX);
   one = jd;
-  one[0]["include_ages"] = {"age99"};
+  one["sd_cases"][0]["include_ages"] = {"age99"};
   CHECK_THROWS(std::invalid_argument, (void)load_sd_cases(one, sp), "Unknown Agegrp");
   one = jd;
-  one[0]["contact_delta"] = {0.1, 0.2, 0.3};
+  one["sd_cases"][0]["contact_delta"] = {0.1, 0.2, 0.3};
   CHECK_THROWS(std::runtime_error, (void)load_sd_cases(one, sp), "must have 2 elements");
   // comply outside [0,1] (was G3) and day order (was G4; endday == startday also never
   // clears because tagging and clearing are if / else-if): input_verify and the loader
   auto both_reject = [&](std::string_view what, const std::function<void(json&)>& edit,
                          std::string_view loader_msg, std::string_view verify_msg) {
     json bad = jd;
-    edit(bad[0]);
+    edit(bad["sd_cases"][0]);
     std::string got;
     try { (void)load_sd_cases(bad, sp); } catch (const std::exception& e) { got = e.what(); }
     CHECK_MSG(got.contains(loader_msg), "{}: loader error '{}' lacks '{}'", what, got, loader_msg);
@@ -1061,8 +1062,8 @@ void test_social_distancing_cases_load() {
     input_verify_detail::check_soc_dist(bad, e);
     CHECK_MSG(has_error_containing(e, verify_msg), "{}: input_verify errors {} lack '{}'", what, e.msgs, verify_msg);
   };
-  both_reject("comply 1.5", [](json& c) { c["comply"] = 1.5; }, "comply must be in [0, 1]", "'comply'");
-  both_reject("comply -0.1", [](json& c) { c["comply"] = -0.1; }, "comply must be in [0, 1]", "'comply'");
+  both_reject("comply 1.5", [](json& c) { c["comply"] = 1.5; }, "comply must be in [0.0, 1.0]", "'comply'");
+  both_reject("comply -0.1", [](json& c) { c["comply"] = -0.1; }, "comply must be in [0.0, 1.0]", "'comply'");
   both_reject("startday > endday", [](json& c) { c["startday"] = 120; c["endday"] = 60; }, "startday < endday",
               "'startday' < 'endday'");
   both_reject("startday == endday", [](json& c) { c["startday"] = 60; c["endday"] = 60; }, "startday < endday",
@@ -1092,7 +1093,7 @@ void test_seed_cases_load_and_reject_malformed() {
 
   auto expect_reject = [&](std::string_view what, const std::function<void(json&)>& edit,
                            std::string_view msg) {
-    json s = js[0];
+    json s = js["seed_cases"][0];
     edit(s);
     std::string got;
     try { (void)load_seed_case(s, mp); } catch (const std::exception& e) { got = e.what(); }
@@ -1126,7 +1127,7 @@ void test_seed_cases_load_and_reject_malformed() {
                "variant must be a loaded variant");
 
   // end-of-day seeds load (runsim runs them after spread and progression; was G5)
-  json late = js[0];
+  json late = js["seed_cases"][0];
   late["startofday"] = false;
   CHECK(!load_seed_case(late, mp).startofday);
 }

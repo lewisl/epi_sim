@@ -7,6 +7,13 @@
 - **2. `recovery_immunity` completeness enforcement (see 2026-11-14 entry below):** enforce in both `input_verify` and `load_infect_params` (`src/parameters.cpp`) that every variant's `immunity.recovery_immunity` has exact 1-to-1 keys with top-level `variants.json` variants (no silent `0.0` defaults or ignored unknown keys), plus tests in `test/test_parameters.cpp`.
 - **3. Low-priority cleanup — tautological unsigned check in `recoveffect` (`src/disease_modeling.cpp:171-173`):** `size_t days_post_recov = thisday - recovday; if (days_post_recov >= 0)` is always true (no live bug now that `rt_sim` uses `Counter<Rt>` so `thisday >= recovday` always holds); optionally simplify or guard with `if (thisday >= recovday)`.
 
+## 2026-11-23: `seed.json` / `soc_dist.json` wrapped in objects; tests updated
+
+- User's uncommitted change wraps templates as `{"seed_cases": [...]}` / `{"sd_cases": [...]}`; loaders (`load_seed_cases`, `load_sd_cases`) and `check_seed` / `check_soc_dist` now index those keys, with `contains` guards (user fixed `check_soc_dist` loop bound to `j["sd_cases"].size()`).
+- Verified empty `include_ages` => SD applies to all ages (`src/cases.cpp` `apply_sd_cases_for_day`; still gated by startday, status/cond eligibility, `comply`).
+- Updated tests to new shape: `test/test_parameters.cpp`, `test/test_social_distancing.cpp`, `test/test_setup.cpp`, `test/test_templates.cpp`; comply message expectation now `[0.0, 1.0]`.
+- Verified: default sweep 1906/1906, `templates` 188/188. `runsim` not run.
+
 ## 2026-11-20: `r0_simulation` + `sim::Counter<Tag>` day-counter isolation implemented
 
 - Resumed from [design/test_suite_review_gemini_neon.md](design/test_suite_review_gemini_neon.md).

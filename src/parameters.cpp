@@ -612,7 +612,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
   Ring::count = 0;
   Ring::names = {"error"};
 
-  // Ring 1 is the population lane when separate rings are disabled.
+  // Ring 1 is the population is the only ring when separate rings are disabled.
   if (!do_rings) {
     register_trait_name(Ring::names, "population");
     ++Ring::count;
@@ -638,12 +638,12 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
   rt.out_ring_prob.assign(nrings + 1, vector<float>(Agegrp::names.size(), 0.0f));
 
   double pct_sum = 0.0;
-  for (size_t n = 1; n <= nrings; ++n) {
-    const auto& entry = ring_arr[n - 1];
+  for (size_t i = 1; i <= nrings; ++i) {
+    const auto& entry = ring_arr[i - 1];
 
     string name = entry.contains("name") && !entry["name"].is_null()
                       ? entry["name"].get<string>()
-                      : fmt::format("ring_{}", n);
+                      : fmt::format("ring_{}", i);
     register_trait_name(Ring::names, name);
     ++Ring::count;
 
@@ -655,7 +655,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
       throw std::runtime_error(fmt::format(
           "rings: '{}' pct_of_population={} out of [0,1].", name, pct));
     }
-    rt.pct_of_population[n] = pct;
+    rt.pct_of_population[i] = pct;
     pct_sum += pct;
 
     if (!entry.contains("out_ring_prob_by_agegrp")) {
@@ -676,7 +676,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
             "rings: '{}' agegrp '{}' out_ring_prob={} out of [0,1].",
             name, agename, p));
       }
-      rt.out_ring_prob[n][static_cast<size_t>(ag.v)] = p;
+      rt.out_ring_prob[i][static_cast<size_t>(ag.v)] = p;
     }
     // require all five real agegrps (1..5) supplied
     for (uint8_t g = 1; g < Agegrp::names.size(); ++g) {

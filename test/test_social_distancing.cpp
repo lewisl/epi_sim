@@ -84,7 +84,7 @@ void test_sd_effect_on_simulation(const test_support::TestRunOptions&) {
       json cases = json::array({{{"name", "all"}, {"startday", 30}, {"endday", 1000}, {"comply", 1.0},
                                  {"contact_delta", {0.0, 0.05}}, {"touch_delta", {0.0, 0.05}},
                                  {"include_ages", json::array()}}});
-      test_support::write_case_json(dir, "soc_dist.json", cases);
+      test_support::write_case_json(dir, "soc_dist.json", json{{"sd_cases", cases}});
     });
   };
   Model control = make(false);
@@ -156,7 +156,8 @@ void test_seed_case_counts_only_people_it_infects() {
 void test_end_of_day_seeds_run() {
   RuntimeNamesGuard guard;
   Model m = test_support::build_small_case("eod_seeds", 5000, 6, [](const test_support::fs::path& dir) {
-    json seeds = test_support::read_case_json(dir, "seed.json");
+    json doc = test_support::read_case_json(dir, "seed.json");
+    json& seeds = doc["seed_cases"];
     json start = seeds[0], end = seeds[0];
     for (json* s : {&start, &end}) {
       (*s)["triggerday"] = 5;
@@ -166,7 +167,7 @@ void test_end_of_day_seeds_run() {
     end["startofday"] = false;
     seeds.push_back(start);
     seeds.push_back(end);
-    test_support::write_case_json(dir, "seed.json", seeds);
+    test_support::write_case_json(dir, "seed.json", doc);
   });
   test_support::StdoutCapture cap;
   Histories h = runsim(m);
