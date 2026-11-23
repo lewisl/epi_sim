@@ -1,20 +1,54 @@
-[  
-    {
-        "name": "young",
-        "startday": 50,
-        "endday": 100,
-        "comply": 0.9,
-        "contact_delta": [0.2, 1.0],
-        "touch_delta": [0.18, 0.6],
-        "include_ages": []
-    },
-    {
-        "name": "old",
-        "startday": 100,
-        "endday":300,
-        "comply": 0.9,
-        "contact_delta": [0.2, 1.0],
-        "touch_delta": [0.18, 0.6],
-        "include_ages": ["Age60_79", "Age80_up"]
-    }
-]
+
+{
+  "_Documentation_": [
+      "_this will not affect the simulation: don't edit it_",
+      "_Required_:  the sd_cases array must be present with []",
+      "_Optional_: the array may be empty."
+  ],
+
+  "sd_cases": [  
+      {
+        "_Required": "All entries are required",
+
+        "_name_": "some name",
+
+            "name": "young",
+        "_Start and End day_": "Required: day social distancing begins and ends",
+
+            "startday": 50,
+            "endday": 100,
+
+        "_Comply_": "Not everyone compies: percentage of people who comply",
+
+            "comply": 0.9,
+
+        "_Contact and Touch delta_": "",    
+            "_contact_delta_": "reduces contact factor, which reduces number of contacts",
+            "_by_": "squashing existing contact factors between 2 values",
+            "_contact_values_": "suggest between 0.2 and 1.4",
+
+                "contact_delta": [0.2, 1.0],
+
+            "_touch_delta_": "reduces probability of significant contact touch",
+            "_touch_values_": "squashes probabilities into range--both values",
+                "_continued_": "must be in 0.0, 1.0 and first < second",
+
+              "touch_delta": [0.18, 0.6],
+
+        "_include_ages_": "Required",
+            "_values_": "an empty array includes all age groups in the case.",
+            "_specific age groups_": "use Age0_19, Age20_39, Age40_59, Age60_79, Age80_up in double quotes to include specific age groups only",
+
+            "include_ages": []
+      },
+      {
+          "name": "old",
+          "startday": 100,
+          "endday":300,
+          "comply": 0.9,
+          "contact_delta": [0.2, 1.0],
+          "touch_delta": [0.18, 0.6],
+          "include_ages": ["Age60_79", "Age80_up"]
+      }
+  ]
+}

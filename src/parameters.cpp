@@ -612,7 +612,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
   Ring::count = 0;
   Ring::names = {"error"};
 
-  // Ring 1 is the population is the only ring when separate rings are disabled.
+  // Ring 1 is the population if the only ring when separate rings are disabled.
   if (!do_rings) {
     register_trait_name(Ring::names, "population");
     ++Ring::count;
@@ -632,18 +632,18 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
     throw std::runtime_error("rings: expected at least one ring.");
   }
 
-  const size_t nrings = ring_arr.size();
-  // index 0 in both vectors is the unused 1-based sentinel
-  rt.pct_of_population.assign(nrings + 1, 0.0f);
-  rt.out_ring_prob.assign(nrings + 1, vector<float>(Agegrp::names.size(), 0.0f));
+  // Ring ids are 1-based: index 0 of both vectors is an unused sentinel.
+  // Each JSON entry appends ring id Ring::names.size() (the next registry slot).
+  rt.pct_of_population.reserve(ring_arr.size() + 1);
+  rt.out_ring_prob.reserve(ring_arr.size() + 1);
+  rt.pct_of_population.push_back(0.0f);
+  rt.out_ring_prob.emplace_back(Agegrp::names.size(), 0.0f);
 
   double pct_sum = 0.0;
-  for (size_t i = 1; i <= nrings; ++i) {
-    const auto& entry = ring_arr[i - 1];
-
+  for (const auto& entry : ring_arr) {
     string name = entry.contains("name") && !entry["name"].is_null()
                       ? entry["name"].get<string>()
-                      : fmt::format("ring_{}", i);
+                      : fmt::format("ring_{}", Ring::names.size());
     register_trait_name(Ring::names, name);
     ++Ring::count;
 
@@ -655,7 +655,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
       throw std::runtime_error(fmt::format(
           "rings: '{}' pct_of_population={} out of [0,1].", name, pct));
     }
-    rt.pct_of_population[i] = pct;
+    rt.pct_of_population.push_back(pct);
     pct_sum += pct;
 
     if (!entry.contains("out_ring_prob_by_agegrp")) {
@@ -663,6 +663,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
           "rings: '{}' missing out_ring_prob_by_agegrp.", name));
     }
     const auto& probs = entry["out_ring_prob_by_agegrp"];
+    vector<float> prob_by_age(Agegrp::names.size(), 0.0f);  // [0] = UNKNOWN stays 0
     for (const auto& [agename, val] : probs.items()) {
       Agegrp ag = agegrp_from_string(agename);
       if (ag == UNKNOWN) {
@@ -676,7 +677,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
             "rings: '{}' agegrp '{}' out_ring_prob={} out of [0,1].",
             name, agename, p));
       }
-      rt.out_ring_prob[i][static_cast<size_t>(ag.v)] = p;
+      prob_by_age[static_cast<size_t>(ag.v)] = p;
     }
     // require all five real agegrps (1..5) supplied
     for (uint8_t g = 1; g < Agegrp::names.size(); ++g) {
@@ -686,6 +687,7 @@ RingTraits load_ring_traits(string fpath, bool do_rings) {
             name, Agegrp::names[g]));
       }
     }
+    rt.out_ring_prob.push_back(std::move(prob_by_age));
   }
 
   if (!approx_equal(pct_sum, 1.0, 1e-6)) {

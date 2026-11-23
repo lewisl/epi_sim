@@ -1,34 +1,58 @@
-[
-    {
-        "triggerday": 1,
-        "startofday": true,
-        "filter": [
-            {"trait": "agegrp", "val": "Age20_39"}
+
+{
+    "_Documentation_" : [
+        "_this will not affect the simulation: don't edit it_",
+        "_Required_: provide at least one seedcase in the seed_case array"
         ],
-        "change": {
-            "terms": [
-                {"trait": "status",   "val": "infectious"},
-                {"trait": "cond",     "val": "nil"},
-                {"trait": "variant",  "val": "base"},
-                {"trait": "duration", "val": 1}
+    "seed_cases": [
+        {
+            "_trigger_day_": "day that the seed occurs",
+
+                "triggerday": 1,
+
+            "_startofday_": "startofday == true is required",
+
+                "startofday": true,
+
+            "_filter_": "at least one filter trait and val must be provided", 
+
+                "filter": [
+                    {"trait": "agegrp", "val": "Age20_39"}
+                ],
+
+
+            "change": {
+
+                "_change_": "Required: traits for each person in this seed case",
+                "_values_": "Prefer the template values shown",
+                
+                  "terms": [
+                      {"trait": "status",   "val": "infectious"},
+                      {"trait": "cond",     "val": "nil"},
+                      {"trait": "variant",  "val": "base"},
+                      {"trait": "duration", "val": 1}
+                  ],
+
+                "_count_": "set number of people to be seeded",
+
+                    "count": 3
+            }
+        },
+        {
+            "triggerday": 1,
+            "startofday": true,
+            "filter": [
+                {"trait": "agegrp", "val": "Age40_59"}
             ],
-            "count": 3
+            "change": {
+                "terms": [
+                    {"trait": "status",   "val": "infectious"},
+                    {"trait": "cond",     "val": "nil"},
+                    {"trait": "variant",  "val": "base"},
+                    {"trait": "duration", "val": 1}
+                ],
+                "count": 3
+            }
         }
-    },
-    {
-        "triggerday": 1,
-        "startofday": true,
-        "filter": [
-            {"trait": "agegrp", "val": "Age40_59"}
-        ],
-        "change": {
-            "terms": [
-                {"trait": "status",   "val": "infectious"},
-                {"trait": "cond",     "val": "nil"},
-                {"trait": "variant",  "val": "base"},
-                {"trait": "duration", "val": 1}
-            ],
-            "count": 3
-        }
-    }
-]
+      ]
+}
